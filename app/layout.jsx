@@ -2,7 +2,16 @@ import './globals.css'
 
 export const metadata = {
   title: 'Dashboard Penjualan Toko Online',
-  description: 'Dashboard penjualan toko online — diperbarui oleh admin, bisa dilihat siapa saja.',
+  description: 'Dashboard penjualan toko online — khusus tim, perlu password untuk melihat.',
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+    },
+  },
 }
 
 export default function RootLayout({ children }) {

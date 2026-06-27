@@ -20,6 +20,9 @@ Di dashboard Vercel project ini: Storage -> Create Database -> pilih Blob. Setel
 
 Settings -> Environment Variables -> tambahkan:
 - `ADMIN_PASSWORD` = password rahasia pilihan kamu
+- `VIEWER_PASSWORD` = password yang dibagikan ke anggota tim untuk membuka halaman utama (`/`)
+
+Halaman utama sekarang juga dikunci password (beda dari password admin), karena data penjualan ini bersifat sensitif. Tanpa `VIEWER_PASSWORD` diset, siapa pun yang membuka `/` akan selalu ditolak masuk -- jadi pastikan dua-duanya diisi sebelum dibagikan ke tim.
 
 Tanpa variabel ini, halaman `/admin` akan menolak semua percobaan login (disengaja, sebagai pengaman default).
 
@@ -31,7 +34,7 @@ Push ke GitHub, import repo di vercel.com/new. Next.js terdeteksi otomatis, tida
 
 ```bash
 cp .env.local.example .env.local
-# isi ADMIN_PASSWORD dan BLOB_READ_WRITE_TOKEN di .env.local
+# isi ADMIN_PASSWORD, VIEWER_PASSWORD, dan BLOB_READ_WRITE_TOKEN di .env.local
 npm install
 npm run dev
 ```
@@ -62,4 +65,4 @@ Sama seperti versi sebelumnya — file `.xlsx` dengan kolom `Tanggal`, `Pelangga
 
 - Ini autentikasi password tunggal yang sederhana (cocok untuk "cuma saya yang upload"), bukan sistem akun multi-user. Siapa pun yang tahu password bisa login sebagai admin.
 - Hanya menyimpan satu versi terbaru — upload baru menimpa yang lama secara permanen (sesuai keputusan awal). Tidak ada riwayat/versi sebelumnya yang bisa dikembalikan.
-- Halaman publik bisa diakses siapa saja yang punya link — tidak ada pembatasan akses di sisi pembaca.
+- Halaman utama sekarang dikunci password tim (`VIEWER_PASSWORD`) dan diberi tag `noindex` supaya tidak muncul di hasil pencarian Google. Sesi login tersimpan di cookie selama 30 hari, jadi anggota tim tidak perlu login berulang kali.

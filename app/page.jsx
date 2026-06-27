@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import SummaryCards from '@/components/SummaryCards'
 import DailyTrendChart from '@/components/DailyTrendChart'
@@ -12,11 +12,18 @@ import CategoryDateDetail from '@/components/CategoryDateDetail'
 import { exportToExcel } from '@/lib/exportExcel'
 
 export default function HomePage() {
+  const [loggedIn, setLoggedIn] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
+  const [password, setPassword] = useState('')
+  const [loginError, setLoginError] = useState(null)
+  const [loginLoading, setLoginLoading] = useState(false)
+
   const [payload, setPayload] = useState(null)
   const [error, setError] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
+    setLoading(true)
     fetch('/api/data', { cache: 'no-store' })
       .then(async (res) => {
         const body = await res.json()
@@ -28,9 +35,87 @@ export default function HomePage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Coba langsung fetch data sekali di awal -- kalau cookie sesi viewer/admin
+  // masih berlaku, request ini akan berhasil dan kita skip form login.
+  useEffect(() => {
+    fetch('/api/data', { cache: 'no-store' })
+      .then(async (res) => {
+        if (res.status === 401) {
+          setCheckingSession(false)
+          return
+        }
+        const body = await res.json()
+        if (!res.ok && res.status !== 404) throw new Error(body.error || 'Gagal memuat data.')
+        setPayload(body)
+        setLoggedIn(true)
+        setCheckingSession(false)
+      })
+      .catch((err) => {
+        setError(err.message)
+        setCheckingSession(false)
+      })
+  }, [])
+
+  const handleLogin = useCallback(
+    async (e) => {
+      e.preventDefault()
+      setLoginError(null)
+      setLoginLoading(true)
+      try {
+        const res = await fetch('/api/viewer-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error || 'Password salah.')
+        }
+        setLoggedIn(true)
+        loadData()
+      } catch (err) {
+        setLoginError(err.message)
+      } finally {
+        setLoginLoading(false)
+      }
+    },
+    [password, loadData]
+  )
+
   const analysis = payload?.analysis
   const categories = payload?.categories || {}
   const hasAnyCategory = Object.keys(categories).length > 0
+
+  if (checkingSession) {
+    return (
+      <div className="app-shell admin-login-shell">
+        <p className="loading-text">Memeriksa sesi…</p>
+      </div>
+    )
+  }
+
+  if (!loggedIn) {
+    return (
+      <div className="app-shell admin-login-shell">
+        <form className="login-card" onSubmit={handleLogin}>
+          <p className="eyebrow">Dashboard penjualan</p>
+          <h1>Masukkan password tim untuk melihat</h1>
+          <input
+            type="password"
+            placeholder="Password tim"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="login-input"
+            autoFocus
+          />
+          {loginError && <p className="upload-error">{loginError}</p>}
+          <button type="submit" className="btn-export" disabled={loginLoading}>
+            {loginLoading ? 'Memeriksa…' : 'Masuk'}
+          </button>
+        </form>
+      </div>
+    )
+  }
 
   return (
     <div className="app-shell">
