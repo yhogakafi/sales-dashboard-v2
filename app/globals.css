@@ -353,6 +353,19 @@ section { margin-bottom: 2.5rem; }
   color: var(--ink-faint);
 }
 
+.admin-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-faint);
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+}
+.admin-link:hover {
+  color: var(--primary);
+  text-decoration-color: var(--primary);
+}
+
 /* --- Category assignment --- */
 .assign-progress {
   font-size: 13px;

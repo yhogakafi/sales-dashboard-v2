@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import SummaryCards from '@/components/SummaryCards'
 import DailyTrendChart from '@/components/DailyTrendChart'
 import BreakdownCharts from '@/components/BreakdownCharts'
@@ -99,6 +100,9 @@ export default function HomePage() {
 
       <footer className="app-footer">
         <p>Data diperbarui oleh admin toko. Dashboard ini hanya untuk dilihat.</p>
+        <Link href="/admin" className="admin-link">
+          Masuk sebagai admin
+        </Link>
       </footer>
     </div>
   )
