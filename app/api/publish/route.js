@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { checkAdminCookie, ADMIN_COOKIE_NAME } from '@/lib/auth'
-import { saveAnalysis } from '@/lib/blob'
+import { savePeriod } from '@/lib/blob'
 
 export const runtime = 'nodejs'
 
-// Tahap 2: admin sudah mengecek hasil preview & mengatur kategori di halaman
-// admin. Endpoint ini menyimpan gabungan { analysis, categories, fileName }
-// sebagai satu paket akhir yang akan dibaca oleh dashboard publik.
+// Tahap 2: admin sudah mengecek preview & mengatur kategori.
+// Endpoint ini menyimpan data ke periode tertentu (bisa baru atau timpa yang lama).
 export async function POST(request) {
   const cookieStore = cookies()
   const session = cookieStore.get(ADMIN_COOKIE_NAME)?.value
@@ -17,21 +16,24 @@ export async function POST(request) {
   }
 
   const body = await request.json()
-  const { analysis, categories, fileName } = body
+  const { analysis, categories, fileName, periodId, periodLabel } = body
 
   if (!analysis) {
     return NextResponse.json({ error: 'Data analisis tidak ditemukan.' }, { status: 400 })
   }
-
-  const payload = {
-    analysis,
-    categories: categories || {},
-    fileName: fileName || null,
+  if (!periodId || !periodLabel) {
+    return NextResponse.json({ error: 'periodId dan periodLabel wajib diisi.' }, { status: 400 })
   }
 
   try {
-    const meta = await saveAnalysis(payload, null, fileName)
-    return NextResponse.json({ ok: true, meta })
+    const entry = await savePeriod({
+      id: periodId,
+      label: periodLabel,
+      analysis,
+      categories: categories || {},
+      fileName: fileName || null,
+    })
+    return NextResponse.json({ ok: true, entry })
   } catch (err) {
     console.error(err)
     return NextResponse.json(

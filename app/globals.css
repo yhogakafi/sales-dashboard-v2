@@ -183,8 +183,8 @@ section { margin-bottom: 2.5rem; }
   margin: 0 0 6px;
 }
 .metric-value {
-  font-size: 16px;
-  font-weight: 300;
+  font-size: 21px;
+  font-weight: 700;
   margin: 0;
   font-family: var(--font-mono);
   letter-spacing: -0.01em;
@@ -544,3 +544,119 @@ section { margin-bottom: 2.5rem; }
   .app-shell { padding: 1.5rem 1rem 3rem; }
   h1 { font-size: 22px; }
 }
+
+/* --- Period picker --- */
+.period-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 1.5rem;
+}
+.period-picker-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.period-picker-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+}
+
+/* --- Period save options (admin) --- */
+.period-list-block { margin-bottom: 1.5rem; }
+.period-save-block { margin-bottom: 0; }
+.period-save-options {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.period-save-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  transition: border-color 0.12s, color 0.12s;
+}
+.period-save-option.is-selected {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+.period-save-option input[type="radio"] { display: none; }
+.period-input-row { margin-top: 4px; }
+.period-label-input { width: 100%; max-width: 380px; }
+
+/* --- Delete button --- */
+.btn-delete {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border: 1px solid #F0BEB0;
+  border-radius: 6px;
+  background: #FDF2F0;
+  color: #993C1D;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.btn-delete:hover { background: #FAE0DA; }
+.btn-delete:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* --- Compare view --- */
+.compare-period-labels {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+.compare-period-label {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+.compare-period-label--a { background: var(--primary); color: #fff; }
+.compare-period-label--b { background: var(--accent); color: #fff; }
+.compare-period-sep { font-size: 12px; color: var(--ink-faint); }
+
+.compare-card { display: flex; flex-direction: column; gap: 4px; }
+.compare-values {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.compare-val {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.compare-val--a { color: var(--primary); }
+.compare-val--b { color: var(--accent); }
+.compare-sep { font-size: 11px; color: var(--ink-faint); }
+
+.diff-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+.diff-up { background: #E6F4EE; color: #1D7A4F; }
+.diff-down { background: #FDF2F0; color: #993C1D; }
