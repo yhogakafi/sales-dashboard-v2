@@ -10,6 +10,7 @@ import PivotTable from '@/components/PivotTable'
 import CategorySummary from '@/components/CategorySummary'
 import CategoryDateDetail from '@/components/CategoryDateDetail'
 import CompareView from '@/components/CompareView'
+import AccountChart from '@/components/AccountChart'
 import { exportToExcel } from '@/lib/exportExcel'
 
 async function fetchData(id) {
@@ -211,6 +212,10 @@ export default function HomePage() {
           <section>
             <h2 className="section-title">Tren harian</h2>
             <DailyTrendChart daily={analysis.daily} />
+          </section>
+
+          <section>
+            <AccountChart mode="single" data={analysis} />
           </section>
 
           <section>

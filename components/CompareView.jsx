@@ -3,6 +3,8 @@
 import { useMemo } from 'react'
 import { formatRupiah, formatNumber } from '@/lib/parseData'
 import { CATEGORY_OPTIONS, UNCATEGORIZED } from './CategoryAssign'
+import { alignForComparison } from '@/lib/trimAnalysis'
+import AccountChart from './AccountChart'
 
 const ORDERED_CATEGORIES = [...CATEGORY_OPTIONS, UNCATEGORIZED]
 
@@ -37,13 +39,23 @@ function MetricCompareCard({ label, valA, valB, format }) {
 }
 
 export default function CompareView({ payloadA, payloadB, labelA, labelB }) {
-  const a = payloadA?.analysis
-  const b = payloadB?.analysis
+  const rawA = payloadA?.analysis
+  const rawB = payloadB?.analysis
   const catA = payloadA?.categories || {}
   const catB = payloadB?.categories || {}
 
+  // Selaraskan dua periode berdasarkan jumlah hari sejak awal masing-masing,
+  // bukan tanggal kalender absolut -- supaya periode yang belum penuh sebulan
+  // (misal baru 1-10 Jul) dibandingkan dengan hari yang setara di periode lain
+  // (1-10 Jun), bukan dengan sebulan penuh.
+  const aligned = useMemo(() => {
+    if (!rawA || !rawB) return null
+    return alignForComparison(rawA, rawB)
+  }, [rawA, rawB])
+
   const customersByCategory = useMemo(() => {
-    const all = Array.from(new Set([...(a?.rankedCustomers || []), ...(b?.rankedCustomers || [])]))
+    if (!rawA || !rawB) return {}
+    const all = Array.from(new Set([...(rawA.rankedCustomers || []), ...(rawB.rankedCustomers || [])]))
     const groups = {}
     for (const key of ORDERED_CATEGORIES) groups[key] = []
     for (const c of all) {
@@ -51,9 +63,12 @@ export default function CompareView({ payloadA, payloadB, labelA, labelB }) {
       if (!groups[key].includes(c)) groups[key].push(c)
     }
     return groups
-  }, [a, b, catA, catB])
+  }, [rawA, rawB, catA, catB])
 
-  if (!a || !b) return null
+  if (!rawA || !rawB || !aligned) return null
+
+  const { a, b, spanDays } = aligned
+  const wasTrimmed = a.trimmed || b.trimmed
 
   const aovA = a.totalOrder > 0 ? a.totalOmset / a.totalOrder : 0
   const aovB = b.totalOrder > 0 ? b.totalOmset / b.totalOrder : 0
@@ -67,13 +82,24 @@ export default function CompareView({ payloadA, payloadB, labelA, labelB }) {
         <span className="compare-period-label compare-period-label--b">{labelB}</span>
       </div>
 
+      {wasTrimmed && (
+        <p className="compare-align-note">
+          Dibandingkan hanya {spanDays} hari pertama tiap periode (mengikuti periode yang paling pendek), supaya adil.
+        </p>
+      )}
+
       {/* Kartu metrik utama */}
       <div className="card-grid">
         <MetricCompareCard label="Total omset" valA={a.totalOmset} valB={b.totalOmset} format={formatRupiah} />
         <MetricCompareCard label="Total order" valA={a.totalOrder} valB={b.totalOrder} format={formatNumber} />
         <MetricCompareCard label="Rata-rata nilai order" valA={aovA} valB={aovB} format={formatRupiah} />
-        <MetricCompareCard label="Hari aktif" valA={a.dateKeys.length} valB={b.dateKeys.length} format={formatNumber} />
+        <MetricCompareCard label="Hari yang dibandingkan" valA={spanDays} valB={spanDays} format={formatNumber} />
       </div>
+
+      {/* Grafik per akun */}
+      <section>
+        <AccountChart mode="compare" dataA={a} dataB={b} labelA={labelA} labelB={labelB} spanDays={spanDays} />
+      </section>
 
       {/* Perbandingan per platform */}
       <section>
@@ -130,7 +156,7 @@ export default function CompareView({ payloadA, payloadB, labelA, labelB }) {
                 <tbody>
                   {ORDERED_CATEGORIES.map((key) => {
                     const members = customersByCategory[key]
-                    if (members.length === 0) return null
+                    if (!members || members.length === 0) return null
                     const vA = members.reduce((s, c) => s + (a.customerTotals?.[c] || 0), 0)
                     const vB = members.reduce((s, c) => s + (b.customerTotals?.[c] || 0), 0)
                     const pct = diff(vA, vB)

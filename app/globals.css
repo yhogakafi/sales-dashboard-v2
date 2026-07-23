@@ -660,3 +660,22 @@ section { margin-bottom: 2.5rem; }
 }
 .diff-up { background: #E6F4EE; color: #1D7A4F; }
 .diff-down { background: #FDF2F0; color: #993C1D; }
+
+/* --- Account chart --- */
+.account-chart-block .table-block-header {
+  margin-bottom: 12px;
+}
+.account-chart-block .category-select {
+  max-width: 320px;
+}
+
+/* --- Compare alignment note --- */
+.compare-align-note {
+  font-size: 12px;
+  color: var(--ink-muted);
+  background: var(--primary-light);
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin: -0.5rem 0 1.5rem;
+  display: inline-block;
+}
