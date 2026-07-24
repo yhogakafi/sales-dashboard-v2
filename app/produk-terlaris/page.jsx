@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { formatRupiah } from '@/lib/parseBarangTerlaris'
+import { exportBarangTerlaris } from '@/lib/exportExcel'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ async function fetchBTData(id) {
 
 // ─── Filter & aggregate helpers ───────────────────────────────────────────────
 
-function aggregateRows(rawRows, { account, category, dateFrom, dateTo }) {
+function aggregateRows(rawRows, { account, category, dateFrom, dateTo }, sortBy = 'kuantitas') {
   const byBarang = {}
 
   for (const r of rawRows) {
@@ -64,9 +65,18 @@ function aggregateRows(rawRows, { account, category, dateFrom, dateTo }) {
     byBarang[r.namaBarang].hargaProduk += r.hargaProduk
   }
 
+  const sortFn = sortBy === 'hargaProduk'
+    ? (a, b) => b[1].hargaProduk - a[1].hargaProduk
+    : (a, b) => b[1].kuantitas - a[1].kuantitas
+
   return Object.entries(byBarang)
-    .sort((a, b) => b[1].kuantitas - a[1].kuantitas)
-    .map(([namaBarang, v], i) => ({ rank: i + 1, namaBarang, ...v }))
+    .sort(sortFn)
+    .map(([namaBarang, v], i) => ({
+      rank: i + 1,
+      namaBarang,
+      kuantitas: v.kuantitas,
+      hargaProduk: v.hargaProduk,
+    }))
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -153,7 +163,13 @@ function FilterBar({ accounts, filters, onChange }) {
   )
 }
 
-function BestSellerTable({ rows, loading }) {
+function SortIcon({ active }) {
+  return (
+    <span style={{ marginLeft: 4, opacity: active ? 1 : 0.25, fontSize: 11 }}>↓</span>
+  )
+}
+
+function BestSellerTable({ rows, loading, sortBy, onSortChange }) {
   if (loading) return <p className="loading-text">Memuat data…</p>
 
   if (!rows.length) {
@@ -165,45 +181,93 @@ function BestSellerTable({ rows, loading }) {
     )
   }
 
+  const totalKuantitas  = rows.reduce((s, r) => s + r.kuantitas, 0)
+  const totalHargaProduk = rows.reduce((s, r) => s + r.hargaProduk, 0)
+
+  const thSort = {
+    cursor: 'pointer',
+    userSelect: 'none',
+    textAlign: 'right',
+    whiteSpace: 'nowrap',
+  }
+
   return (
-    <div className="table-scroll">
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th style={{ width: 44 }}>#</th>
-            <th>Nama Barang</th>
-            <th style={{ textAlign: 'right' }}>Kuantitas</th>
-            <th style={{ textAlign: 'right' }}>Harga Produk</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.namaBarang}>
-              <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
-              <td style={{ fontWeight: 500 }}>{row.namaBarang}</td>
-              <td className="mono" style={{ textAlign: 'right' }}>
-                {row.kuantitas.toLocaleString('id-ID')}
-              </td>
-              <td className="mono" style={{ textAlign: 'right' }}>
-                {formatRupiah(row.hargaProduk)}
-              </td>
+    <>
+      {/* ── Grand total summary ── */}
+      <div style={{
+        display: 'flex',
+        gap: '1rem',
+        marginBottom: '0.75rem',
+        flexWrap: 'wrap',
+      }}>
+        <div style={{
+          flex: 1,
+          minWidth: 140,
+          background: 'var(--surface-2, #f5f5f5)',
+          borderRadius: 8,
+          padding: '0.6rem 1rem',
+        }}>
+          <p className="muted" style={{ fontSize: 12, margin: 0 }}>Total Kuantitas</p>
+          <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
+            {totalKuantitas.toLocaleString('id-ID')}
+          </p>
+        </div>
+        <div style={{
+          flex: 1,
+          minWidth: 140,
+          background: 'var(--surface-2, #f5f5f5)',
+          borderRadius: 8,
+          padding: '0.6rem 1rem',
+        }}>
+          <p className="muted" style={{ fontSize: 12, margin: 0 }}>Total Harga Produk</p>
+          <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
+            {formatRupiah(totalHargaProduk)}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Table ── */}
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th style={{ width: 44 }}>#</th>
+              <th>Nama Barang</th>
+              <th
+                style={thSort}
+                onClick={() => onSortChange('kuantitas')}
+                title="Urutkan berdasarkan Kuantitas"
+              >
+                Kuantitas
+                <SortIcon active={sortBy === 'kuantitas'} />
+              </th>
+              <th
+                style={thSort}
+                onClick={() => onSortChange('hargaProduk')}
+                title="Urutkan berdasarkan Harga Produk"
+              >
+                Harga Produk
+                <SortIcon active={sortBy === 'hargaProduk'} />
+              </th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr style={{ borderTop: '2px solid var(--border)' }}>
-            <td></td>
-            <td style={{ fontWeight: 600, fontSize: 13 }}>Total</td>
-            <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
-              {rows.reduce((s, r) => s + r.kuantitas, 0).toLocaleString('id-ID')}
-            </td>
-            <td className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>
-              {formatRupiah(rows.reduce((s, r) => s + r.hargaProduk, 0))}
-            </td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.namaBarang}>
+                <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
+                <td style={{ fontWeight: 500 }}>{row.namaBarang}</td>
+                <td className="mono" style={{ textAlign: 'right' }}>
+                  {row.kuantitas.toLocaleString('id-ID')}
+                </td>
+                <td className="mono" style={{ textAlign: 'right' }}>
+                  {formatRupiah(row.hargaProduk)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }
 
@@ -232,6 +296,9 @@ export default function ProdukTerlarisPage() {
     dateFrom: '',
     dateTo:   '',
   })
+
+  // Sort
+  const [sortBy, setSortBy] = useState('kuantitas') // 'kuantitas' | 'hargaProduk'
 
   // ── Session check ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -310,8 +377,8 @@ export default function ProdukTerlarisPage() {
   }, [analysis?.firstDateKey, analysis?.lastDateKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredRows = useMemo(
-    () => aggregateRows(rawRows, filters),
-    [rawRows, filters]
+    () => aggregateRows(rawRows, filters, sortBy),
+    [rawRows, filters, sortBy]
   )
 
   // ── Active filter description ──────────────────────────────────────────────────
@@ -400,14 +467,28 @@ export default function ProdukTerlarisPage() {
           {/* Header row */}
           <div className="table-block-header">
             <h3 className="block-title">Produk paling banyak terjual</h3>
-            {analysis && (
-              <span className="muted" style={{ fontSize: 13 }}>
-                {analysis.periodLabel}
-                {payload?.savedAt && (
-                  <> &middot; Diperbarui {new Date(payload.savedAt).toLocaleString('id-ID')}</>
-                )}
-              </span>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {analysis && (
+                <span className="muted" style={{ fontSize: 13 }}>
+                  {analysis.periodLabel}
+                  {payload?.savedAt && (
+                    <> &middot; Diperbarui {new Date(payload.savedAt).toLocaleString('id-ID')}</>
+                  )}
+                </span>
+              )}
+              {filteredRows.length > 0 && (
+                <button
+                  className="btn-export"
+                  style={{ padding: '7px 14px', fontSize: 13 }}
+                  onClick={() => exportBarangTerlaris(filteredRows, {
+                    periodLabel: analysis?.periodLabel,
+                    filterDesc: activeFilterDesc,
+                  })}
+                >
+                  ↓ Ekspor Excel
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Filter bar */}
@@ -428,7 +509,12 @@ export default function ProdukTerlarisPage() {
           )}
 
           {/* Table */}
-          <BestSellerTable rows={filteredRows} loading={dataLoading} />
+          <BestSellerTable
+            rows={filteredRows}
+            loading={dataLoading}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+          />
         </div>
       )}
     </div>
