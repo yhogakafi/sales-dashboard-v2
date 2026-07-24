@@ -67,6 +67,8 @@ function aggregateRows(rawRows, { account, category, dateFrom, dateTo }, sortBy 
 
   const sortFn = sortBy === 'hargaProduk'
     ? (a, b) => b[1].hargaProduk - a[1].hargaProduk
+    : sortBy === 'namaBarang'
+    ? (a, b) => a[0].localeCompare(b[0], 'id')
     : (a, b) => b[1].kuantitas - a[1].kuantitas
 
   return Object.entries(byBarang)
@@ -163,9 +165,11 @@ function FilterBar({ accounts, filters, onChange }) {
   )
 }
 
-function SortIcon({ active }) {
+function SortIcon({ active, asc = false }) {
   return (
-    <span style={{ marginLeft: 4, opacity: active ? 1 : 0.25, fontSize: 11 }}>↓</span>
+    <span style={{ marginLeft: 4, opacity: active ? 1 : 0.25, fontSize: 11 }}>
+      {active && asc ? '↑' : '↓'}
+    </span>
   )
 }
 
@@ -187,7 +191,6 @@ function BestSellerTable({ rows, loading, sortBy, onSortChange }) {
   const thSort = {
     cursor: 'pointer',
     userSelect: 'none',
-    textAlign: 'right',
     whiteSpace: 'nowrap',
   }
 
@@ -232,9 +235,16 @@ function BestSellerTable({ rows, loading, sortBy, onSortChange }) {
           <thead>
             <tr>
               <th style={{ width: 44 }}>#</th>
-              <th>Nama Barang</th>
               <th
                 style={thSort}
+                onClick={() => onSortChange('namaBarang')}
+                title="Urutkan berdasarkan Nama Barang"
+              >
+                Nama Barang
+                <SortIcon active={sortBy === 'namaBarang'} asc={true} />
+              </th>
+              <th
+                style={{ ...thSort, textAlign: 'right' }}
                 onClick={() => onSortChange('kuantitas')}
                 title="Urutkan berdasarkan Kuantitas"
               >
@@ -242,7 +252,7 @@ function BestSellerTable({ rows, loading, sortBy, onSortChange }) {
                 <SortIcon active={sortBy === 'kuantitas'} />
               </th>
               <th
-                style={thSort}
+                style={{ ...thSort, textAlign: 'right' }}
                 onClick={() => onSortChange('hargaProduk')}
                 title="Urutkan berdasarkan Harga Produk"
               >
@@ -298,7 +308,7 @@ export default function ProdukTerlarisPage() {
   })
 
   // Sort
-  const [sortBy, setSortBy] = useState('kuantitas') // 'kuantitas' | 'hargaProduk'
+  const [sortBy, setSortBy] = useState('kuantitas') // 'kuantitas' | 'hargaProduk' | 'namaBarang'
 
   // ── Session check ────────────────────────────────────────────────────────────
   useEffect(() => {
