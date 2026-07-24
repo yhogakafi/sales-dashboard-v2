@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { checkAdminCookie, ADMIN_COOKIE_NAME } from '@/lib/auth'
 import { parseBarangTerlaris } from '@/lib/parseBarangTerlaris'
+import { saveBTDraft } from '@/lib/blobBarangTerlaris'
 
 export const runtime = 'nodejs'
 
 // POST /api/barang-terlaris-upload
-// Step 1: parse file, return preview — not yet saved permanently.
+// Parse file, save as draft to blob, return draftId + preview (no rawRows).
 export async function POST(request) {
   const cookieStore = cookies()
   const session = cookieStore.get(ADMIN_COOKIE_NAME)?.value
@@ -31,5 +32,11 @@ export async function POST(request) {
     return NextResponse.json({ error: err.message || 'Gagal membaca file.' }, { status: 400 })
   }
 
-  return NextResponse.json({ ok: true, analysis, fileName: file.name })
+  // Save full analysis (including rawRows) directly to blob as a draft.
+  const draftId = await saveBTDraft({ analysis, fileName: file.name })
+
+  // Return only the preview (no rawRows) to the browser — keeps response small.
+  const { rawRows: _omit, ...analysisSummary } = analysis
+
+  return NextResponse.json({ ok: true, draftId, analysis: analysisSummary, fileName: file.name })
 }

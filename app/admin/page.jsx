@@ -235,7 +235,8 @@ function SalesTab({ periods, periodsLoading, fetchPeriods }) {
 // ─── Barang Terlaris upload tab ────────────────────────────────────────────────
 
 function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
-  const [analysis, setAnalysis]         = useState(null)
+  const [analysis, setAnalysis]         = useState(null)  // preview only (no rawRows)
+  const [draftId, setDraftId]           = useState(null)  // blob key of the full draft
   const [fileName, setFileName]         = useState(null)
   const [uploadError, setUploadError]   = useState(null)
   const [uploadLoading, setUploadLoading] = useState(false)
@@ -253,6 +254,7 @@ function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
     setUploadError(null)
     setUploadLoading(true)
     setPublishState('idle')
+    setDraftId(null)
     setFileName(file.name)
     try {
       const formData = new FormData()
@@ -260,7 +262,9 @@ function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
       const res = await fetch('/api/barang-terlaris-upload', { method: 'POST', body: formData })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error || 'Gagal memproses file.')
+      // Server already saved to blob — we only keep the preview + draftId
       setAnalysis(body.analysis)
+      setDraftId(body.draftId)
     } catch (err) {
       setUploadError(err.message)
       setAnalysis(null)
@@ -284,10 +288,11 @@ function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
     setPublishState('saving')
     setPublishError(null)
     try {
+      // Only send draftId — analysis stays in blob, never re-sent through the browser
       const res = await fetch('/api/barang-terlaris-periods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ analysis, fileName, periodId: id, periodLabel: label }),
+        body: JSON.stringify({ draftId, fileName, periodId: id, periodLabel: label }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error || 'Gagal mempublikasikan data.')
@@ -298,7 +303,7 @@ function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
       setPublishError(err.message)
       setPublishState('error')
     }
-  }, [analysis, fileName, saveMode, selectedPeriodId, newPeriodLabel, btPeriods, fetchBTPeriods])
+  }, [draftId, fileName, saveMode, selectedPeriodId, newPeriodLabel, btPeriods, fetchBTPeriods])
 
   const handleDelete = useCallback(async (id, label) => {
     if (!confirm(`Hapus periode barang terlaris "${label}"? Tidak bisa dikembalikan.`)) return

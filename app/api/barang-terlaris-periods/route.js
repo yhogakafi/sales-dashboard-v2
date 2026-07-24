@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { checkAdminCookie, checkViewerCookie, ADMIN_COOKIE_NAME, VIEWER_COOKIE_NAME } from '@/lib/auth'
-import { getBTPeriodIndex, deleteBTPeriod, saveBTPeriod } from '@/lib/blobBarangTerlaris'
+import { getBTPeriodIndex, deleteBTPeriod, promoteBTDraft } from '@/lib/blobBarangTerlaris'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,7 +27,7 @@ export async function GET() {
   return NextResponse.json(index)
 }
 
-// POST /api/barang-terlaris-periods — publish new / overwrite period (admin only)
+// POST /api/barang-terlaris-periods — promote draft to a named period (admin only)
 export async function POST(request) {
   const cookieStore = cookies()
   if (!isAdmin(cookieStore)) {
@@ -35,13 +35,13 @@ export async function POST(request) {
   }
 
   const body = await request.json()
-  const { analysis, fileName, periodId, periodLabel } = body
+  const { draftId, fileName, periodId, periodLabel } = body
 
-  if (!analysis) return NextResponse.json({ error: 'Data analisis tidak ditemukan.' }, { status: 400 })
+  if (!draftId)      return NextResponse.json({ error: 'draftId tidak ditemukan.' }, { status: 400 })
   if (!periodId || !periodLabel) return NextResponse.json({ error: 'periodId dan periodLabel wajib diisi.' }, { status: 400 })
 
   try {
-    const entry = await saveBTPeriod({ id: periodId, label: periodLabel, analysis, fileName: fileName || null })
+    const entry = await promoteBTDraft({ draftId, periodId, periodLabel, fileName: fileName || null })
     return NextResponse.json({ ok: true, entry })
   } catch (err) {
     console.error(err)
