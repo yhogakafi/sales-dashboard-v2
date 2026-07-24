@@ -413,25 +413,6 @@ section { margin-bottom: 2.5rem; }
 }
 .pill-btn.pill-underwear.is-active { background: var(--accent); }
 .pill-btn.pill-sport.is-active { background: var(--primary); }
-.pill-btn.pill-all.is-active { background: var(--ink); }
-
-/* --- Produk terlaris filters --- */
-.produk-filter-block {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-  margin-bottom: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.produk-filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-}
 
 /* --- Category summary --- */
 .category-summary { margin-bottom: 0; }
@@ -562,34 +543,6 @@ section { margin-bottom: 2.5rem; }
 @media (max-width: 600px) {
   .app-shell { padding: 1.5rem 1rem 3rem; }
   h1 { font-size: 22px; }
-}
-
-/* --- Admin tabs --- */
-.admin-tabs {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
-}
-.admin-tab-btn {
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 600;
-  padding: 10px 16px;
-  border: none;
-  background: none;
-  color: var(--ink-muted);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: color 0.12s ease, border-color 0.12s ease;
-}
-.admin-tab-btn:hover { color: var(--ink); }
-.admin-tab-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.admin-tab-btn.is-active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
 }
 
 /* --- Period picker --- */
@@ -797,4 +750,56 @@ section { margin-bottom: 2.5rem; }
   max-width: 380px;
   margin: 0 auto;
   line-height: 1.6;
+}
+
+/* ── Admin tab bar ── */
+.admin-tab-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px;
+}
+
+.admin-tab-btn {
+  flex: 1;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+.admin-tab-btn:hover { color: var(--ink); background: var(--bg); }
+.admin-tab-btn.is-active {
+  background: var(--ink);
+  color: #fff;
+}
+
+/* ── Barang terlaris filter bar ── */
+.bt-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 1rem;
+}
+
+/* ── Compact date input ── */
+.bt-date-input {
+  font-size: 13px !important;
+  padding: 7px 10px !important;
+  width: auto;
+  min-width: 140px;
 }
