@@ -47,19 +47,34 @@ Catatan: `BLOB_READ_WRITE_TOKEN` untuk lokal perlu diambil manual dari Storage -
 
 Sama seperti versi sebelumnya — file `.xlsx` dengan kolom `Tanggal`, `Pelanggan Penagihan` (format `PLATFORM / NAMA TOKO`), dan `Total Faktur`. Baris total di akhir file otomatis diabaikan.
 
+## Fitur Produk Terlaris
+
+Halaman `/produk-terlaris` menampilkan ranking produk terlaris (nama & qty terjual), dengan filter kategori (Semua / Online Underwear / Online Sport — kategori otomatis dari nama brand, sama seperti di dashboard penjualan) dan filter per toko. Menarik 2 sumber data yang dikelola terpisah di admin:
+
+1. **Master barang** (tab "Master Barang" di `/admin`) — katalog kode → nama produk. **Bukan data per periode**: satu file yang selalu menimpa versi sebelumnya, dipakai sebagai kamus untuk semua periode produk terlaris. Format: file Excel 2 kolom tanpa header (kolom A kode barang, kolom B nama produk).
+2. **Produk terlaris** (tab "Produk Terlaris" di `/admin`) — data qty terjual per kode barang per toko, punya sistem periode sendiri yang **terpisah dari periode data penjualan** (rentang tanggalnya bisa berbeda). Formatnya mengikuti ekspor "Histori Pengiriman Pesanan": beberapa baris info di atas (termasuk rentang tanggal, dideteksi otomatis), lalu baris header `No. Barang` + kolom per toko + `Grand Total`, lalu baris data, ditutup baris `Grand Total`.
+
+Kode barang di file produk terlaris punya akhiran varian setelah titik pertama (mis. `1002189.1.02`) yang tidak ada di master barang (mis. `1002189`) — akhiran ini otomatis dibuang saat memetakan ke master barang, dan qty dari varian-varian yang sama digabung. Kode yang tidak ditemukan di master barang tetap tampil (pakai kode saja) disertai peringatan di halaman & di preview upload admin.
+
+Urutan upload yang disarankan: upload master barang dulu (sekali di awal, atau setiap kali katalog produk berubah), baru upload produk terlaris — supaya nama produk langsung ter-resolve saat preview.
+
 ## Struktur proyek
 
 - `app/page.jsx` — dashboard publik (fetch data dari `/api/data`)
-- `app/admin/page.jsx` — halaman admin: login, upload, kategorisasi, publikasi
-- `app/api/login` — cek password, set cookie session
-- `app/api/upload` — terima file, parse, kembalikan preview (belum disimpan)
-- `app/api/publish` — simpan hasil final (analysis + kategori) ke Vercel Blob
-- `app/api/data` — endpoint publik untuk ambil data tersimpan terbaru
-- `lib/parseData.js` — logika parsing & agregasi Excel (sama seperti versi sebelumnya)
-- `lib/blob.js` — helper baca/tulis Vercel Blob
-- `lib/auth.js` — pengecekan password admin
-- `lib/defaultCategories.js` — mapping kategori default berdasarkan nama brand
-- `components/` — semua komponen tampilan (chart, tabel, kategorisasi)
+- `app/produk-terlaris/page.jsx` — halaman publik ranking produk terlaris (fetch dari `/api/produk-terlaris/data`)
+- `app/admin/page.jsx` — halaman admin: login + tab (Data Penjualan / Master Barang / Produk Terlaris)
+- `app/api/login`, `app/api/viewer-login`, `app/api/session` — autentikasi admin & viewer
+- `app/api/upload`, `app/api/publish`, `app/api/data`, `app/api/periods` — alur data penjualan (periode)
+- `app/api/master-barang` (GET status), `app/api/master-barang/upload`, `app/api/master-barang/publish` — alur master barang (satu file, selalu ditimpa)
+- `app/api/produk-terlaris/upload`, `app/api/produk-terlaris/publish`, `app/api/produk-terlaris/periods`, `app/api/produk-terlaris/data` — alur produk terlaris (periode terpisah dari data penjualan)
+- `lib/parseData.js` — parsing & agregasi Excel data penjualan
+- `lib/parseMasterBarang.js` — parsing file master barang (kode → nama)
+- `lib/parseProdukTerlaris.js` — parsing file produk terlaris (pivot kode × toko → qty), termasuk pemetaan ke master barang
+- `lib/blob.js` — helper baca/tulis Vercel Blob (periode penjualan, master barang, periode produk terlaris)
+- `lib/auth.js` — pengecekan password admin & viewer
+- `lib/defaultCategories.js` — mapping kategori default berdasarkan nama brand (dipakai juga oleh produk terlaris)
+- `components/` — komponen tampilan dashboard penjualan & produk terlaris
+- `components/admin/` — panel-panel tab halaman admin
 
 ## Keamanan & keterbatasan yang perlu diketahui
 
