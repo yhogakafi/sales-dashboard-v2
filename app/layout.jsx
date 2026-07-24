@@ -1,4 +1,5 @@
 import './globals.css'
+import BottomNav from '@/components/BottomNav'
 
 export const metadata = {
   title: 'Dashboard Penjualan Toko Online',
@@ -25,7 +26,10 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <BottomNav />
+      </body>
     </html>
   )
 }
