@@ -12,7 +12,12 @@ function labelToId(label) {
   return label.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
 }
 
-// ─── Sales data tab (unchanged logic) ────────────────────────────────────────
+function fmtDate(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('id-ID')
+}
+
+// ─── Sales data tab ────────────────────────────────────────────────────────────
 
 function SalesTab({ periods, periodsLoading, fetchPeriods }) {
   const [analysis, setAnalysis]         = useState(null)
@@ -107,7 +112,6 @@ function SalesTab({ periods, periodsLoading, fetchPeriods }) {
 
   return (
     <>
-      {/* ── Saved periods ── */}
       <div className="table-block period-list-block">
         <div className="table-block-header">
           <h3 className="block-title">Periode tersimpan</h3>
@@ -150,7 +154,6 @@ function SalesTab({ periods, periodsLoading, fetchPeriods }) {
         )}
       </div>
 
-      {/* ── Upload ── */}
       <UploadZone onFile={handleFile} error={uploadError} fileName={fileName} />
       {uploadLoading && <p className="loading-text">Memproses file…</p>}
 
@@ -166,7 +169,6 @@ function SalesTab({ periods, periodsLoading, fetchPeriods }) {
             <CategoryAssign data={analysis} categories={categories} onChange={handleCategoryChange} />
           </section>
 
-          {/* Period save options */}
           <div className="table-block period-save-block">
             <h3 className="block-title">Simpan sebagai periode</h3>
             <div className="period-save-options">
@@ -235,8 +237,8 @@ function SalesTab({ periods, periodsLoading, fetchPeriods }) {
 // ─── Barang Terlaris upload tab ────────────────────────────────────────────────
 
 function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
-  const [analysis, setAnalysis]         = useState(null)  // preview only (no rawRows)
-  const [draftId, setDraftId]           = useState(null)  // blob key of the full draft
+  const [analysis, setAnalysis]         = useState(null)
+  const [draftId, setDraftId]           = useState(null)
   const [fileName, setFileName]         = useState(null)
   const [uploadError, setUploadError]   = useState(null)
   const [uploadLoading, setUploadLoading] = useState(false)
@@ -262,7 +264,6 @@ function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
       const res = await fetch('/api/barang-terlaris-upload', { method: 'POST', body: formData })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error || 'Gagal memproses file.')
-      // Server already saved to blob — we only keep the preview + draftId
       setAnalysis(body.analysis)
       setDraftId(body.draftId)
     } catch (err) {
@@ -288,7 +289,6 @@ function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
     setPublishState('saving')
     setPublishError(null)
     try {
-      // Only send draftId — analysis stays in blob, never re-sent through the browser
       const res = await fetch('/api/barang-terlaris-periods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -321,7 +321,6 @@ function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
 
   return (
     <>
-      {/* ── Saved periods ── */}
       <div className="table-block period-list-block">
         <div className="table-block-header">
           <h3 className="block-title">Periode barang terlaris tersimpan</h3>
@@ -364,7 +363,6 @@ function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
         )}
       </div>
 
-      {/* Upload hint */}
       <div className="assign-hint" style={{ marginBottom: 8 }}>
         Upload file ekspor data barang terlaris (format: Tgl DO, Nama Pelanggan, Nama Barang, Kuantitas, Harga Satuan, Diskon).
         File <strong>.xls</strong> dan <strong>.xlsx</strong> didukung.
@@ -380,7 +378,6 @@ function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
             {analysis.rankedBarang?.length || 0} produk unik
           </p>
 
-          {/* Preview top 10 */}
           <div className="table-block" style={{ marginBottom: '1.5rem' }}>
             <div className="table-block-header">
               <h3 className="block-title">Preview — 10 produk teratas (berdasarkan kuantitas)</h3>
@@ -413,7 +410,6 @@ function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
             </div>
           </div>
 
-          {/* Period save options */}
           <div className="table-block period-save-block">
             <h3 className="block-title">Simpan sebagai periode barang terlaris</h3>
             <div className="period-save-options">
@@ -479,6 +475,120 @@ function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
   )
 }
 
+// ─── Stock tab ────────────────────────────────────────────────────────────────
+
+function StockUploadCard({ type, label, meta, onSuccess }) {
+  const [file, setFile]         = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError]       = useState(null)
+  const [result, setResult]     = useState(null)
+
+  const handleFile = useCallback(async (selectedFile) => {
+    setFile(selectedFile)
+    setError(null)
+    setResult(null)
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+      formData.append('type', type)
+      const res = await fetch('/api/stock', { method: 'POST', body: formData })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error || 'Gagal mengupload.')
+      setResult(body)
+      onSuccess?.()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setUploading(false)
+    }
+  }, [type, onSuccess])
+
+  return (
+    <div className="table-block" style={{ marginBottom: '1.25rem' }}>
+      <div className="table-block-header">
+        <h3 className="block-title">Stock {label}</h3>
+        {meta && (
+          <span className="muted" style={{ fontSize: 13 }}>
+            Terakhir upload: {fmtDate(meta.uploadedAt)}
+            {meta.fileName && <> · <em>{meta.fileName}</em></>}
+          </span>
+        )}
+      </div>
+
+      <div className="assign-hint" style={{ marginBottom: 8 }}>
+        File harus memiliki kolom: <strong>Kode Barang</strong>, <strong>Brand</strong>, <strong>Stock</strong>.
+        Format <strong>.xls</strong> dan <strong>.xlsx</strong> didukung. Data lama akan <strong>diganti</strong>.
+      </div>
+
+      <UploadZone
+        onFile={handleFile}
+        error={error}
+        fileName={file?.name || null}
+      />
+
+      {uploading && <p className="loading-text">Mengupload data stock {label}…</p>}
+
+      {result && (
+        <p className="publish-success" style={{ marginTop: 8 }}>
+          ✓ Stock {label} berhasil diperbarui — {result.totalRows.toLocaleString('id-ID')} SKU tersimpan
+          {result.missingStock > 0 && ` (${result.missingStock} baris tanpa nilai stock, dihitung 0)`}.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function StockTab() {
+  const [meta, setMeta]         = useState(null)
+  const [metaLoading, setMetaLoading] = useState(true)
+
+  const fetchMeta = useCallback(async () => {
+    setMetaLoading(true)
+    try {
+      const res = await fetch('/api/stock?meta=1')
+      if (res.ok) {
+        const body = await res.json()
+        setMeta(body.meta || {})
+      }
+    } finally {
+      setMetaLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchMeta() }, [fetchMeta])
+
+  return (
+    <>
+      <div className="assign-hint" style={{ marginBottom: '1.25rem' }}>
+        Data stock digunakan untuk menampilkan kolom <strong>Brand</strong> dan <strong>Stock</strong> di halaman
+        Produk Terlaris. Upload file stock underwear dan sport secara terpisah — setiap upload akan menimpa data sebelumnya.
+        Tidak ada sistem periode untuk data stock.
+      </div>
+
+      {metaLoading
+        ? <p className="loading-text">Memuat status stock…</p>
+        : (
+          <>
+            <StockUploadCard
+              type="underwear"
+              label="Underwear"
+              meta={meta?.underwear}
+              onSuccess={fetchMeta}
+            />
+            <StockUploadCard
+              type="sport"
+              label="Sport"
+              meta={meta?.sport}
+              onSuccess={fetchMeta}
+            />
+          </>
+        )
+      }
+    </>
+  )
+}
+
 // ─── Admin page root ──────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -487,13 +597,11 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState(null)
   const [loginLoading, setLoginLoading] = useState(false)
 
-  const [activeTab, setActiveTab] = useState('sales') // 'sales' | 'barang-terlaris'
+  const [activeTab, setActiveTab] = useState('sales') // 'sales' | 'barang-terlaris' | 'stock'
 
-  // Sales periods
   const [periods, setPeriods]             = useState([])
   const [periodsLoading, setPeriodsLoading] = useState(false)
 
-  // Barang terlaris periods
   const [btPeriods, setBTPeriods]               = useState([])
   const [btPeriodsLoading, setBTPeriodsLoading] = useState(false)
 
@@ -589,6 +697,12 @@ export default function AdminPage() {
         >
           Data barang terlaris
         </button>
+        <button
+          className={`admin-tab-btn ${activeTab === 'stock' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('stock')}
+        >
+          Data stock
+        </button>
       </div>
 
       {activeTab === 'sales' && (
@@ -606,6 +720,8 @@ export default function AdminPage() {
           fetchBTPeriods={fetchBTPeriods}
         />
       )}
+
+      {activeTab === 'stock' && <StockTab />}
     </div>
   )
 }
