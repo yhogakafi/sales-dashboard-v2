@@ -41,13 +41,6 @@ async function fetchBTData(id) {
   return body
 }
 
-async function fetchStockData() {
-  const res = await fetch('/api/stock', { cache: 'no-store' })
-  if (!res.ok) return {}
-  const body = await res.json()
-  return body.stockMap || {}
-}
-
 // ─── Filter & aggregate helpers ───────────────────────────────────────────────
 
 function aggregateRows(rawRows, { account, category, dateFrom, dateTo }, sortBy = 'kuantitas') {
@@ -70,8 +63,6 @@ function aggregateRows(rawRows, { account, category, dateFrom, dateTo }, sortBy 
     ? (a, b) => b[1].hargaProduk - a[1].hargaProduk
     : sortBy === 'namaBarang'
     ? (a, b) => a[0].localeCompare(b[0], 'id')
-    : sortBy === 'brand'
-    ? (a, b) => (a[2] || '').localeCompare(b[2] || '', 'id')
     : (a, b) => b[1].kuantitas - a[1].kuantitas
 
   return Object.entries(byBarang)
@@ -117,8 +108,8 @@ function applyColFilter(rows, colFilters) {
       if (!noVal && f.value === '' && f.op !== 'between') continue
       if (f.op === 'between' && f.value === '' && f.value2 === '') continue
 
-      if (col === 'namaBarang' || col === 'brand') {
-        const cell = (col === 'brand' ? (row.brand || '') : row.namaBarang).toLowerCase()
+      if (col === 'namaBarang') {
+        const cell = row.namaBarang.toLowerCase()
         const val  = f.value.toLowerCase()
         if (f.op === 'contains'     && !cell.includes(val))    return false
         if (f.op === 'not_contains' && cell.includes(val))     return false
@@ -129,9 +120,7 @@ function applyColFilter(rows, colFilters) {
         if (f.op === 'is_empty'     && cell.trim() !== '')     return false
         if (f.op === 'is_not_empty' && cell.trim() === '')     return false
       } else {
-        const cell = col === 'kuantitas' ? row.kuantitas
-                   : col === 'stock'    ? (row.stock ?? 0)
-                   : row.hargaProduk
+        const cell = col === 'kuantitas' ? row.kuantitas : row.hargaProduk
         const val  = parseFloat(f.value)
         const val2 = parseFloat(f.value2)
         if (f.op === 'eq'      && cell !== val)              return false
@@ -254,10 +243,11 @@ function HighlightText({ text, query }) {
 // ── Column filter popover ─────────────────────────────────────────────────────
 
 function ColFilterPopover({ col, filter, onChange, onClose, anchorRef }) {
-  const isText  = col === 'namaBarang' || col === 'brand'
+  const isText  = col === 'namaBarang'
   const ops     = isText ? TEXT_OPS : NUM_OPS
   const ref     = useRef(null)
 
+  // Close on outside click
   useEffect(() => {
     function handle(e) {
       if (ref.current && !ref.current.contains(e.target) &&
@@ -295,6 +285,7 @@ function ColFilterPopover({ col, filter, onChange, onClose, anchorRef }) {
       minWidth: 240,
       marginTop: 4,
     }}>
+      {/* Op selector */}
       <select
         value={filter.op}
         onChange={e => onChange({ ...filter, op: e.target.value, value: '', value2: '' })}
@@ -304,6 +295,7 @@ function ColFilterPopover({ col, filter, onChange, onClose, anchorRef }) {
         {ops.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
 
+      {/* Value input(s) */}
       {filter.op && !hideInput && (
         <>
           <input
@@ -326,6 +318,7 @@ function ColFilterPopover({ col, filter, onChange, onClose, anchorRef }) {
         </>
       )}
 
+      {/* Footer buttons */}
       <div style={{ display: 'flex', gap: 6, marginTop: 10, justifyContent: 'flex-end' }}>
         <button
           onClick={() => { onChange(EMPTY_COL_FILTER); onClose() }}
@@ -371,6 +364,7 @@ function ColHeader({ col, label, align = 'left', sortBy, onSortChange, colFilter
         userSelect: 'none',
       }}
     >
+      {/* Sort trigger (whole cell minus filter btn) */}
       <span
         onClick={() => onSortChange(col)}
         style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}
@@ -381,6 +375,7 @@ function ColHeader({ col, label, align = 'left', sortBy, onSortChange, colFilter
         {align === 'left'  && <SortIcon active={sortBy === col} asc={true} />}
       </span>
 
+      {/* Filter button */}
       <button
         ref={btnRef}
         onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
@@ -401,6 +396,7 @@ function ColHeader({ col, label, align = 'left', sortBy, onSortChange, colFilter
         {isActive ? '▼●' : '▼'}
       </button>
 
+      {/* Popover */}
       {open && (
         <ColFilterPopover
           col={col}
@@ -414,39 +410,12 @@ function ColHeader({ col, label, align = 'left', sortBy, onSortChange, colFilter
   )
 }
 
-// ── Stock badge ───────────────────────────────────────────────────────────────
-
-function StockBadge({ stock, stockLoaded }) {
-  if (!stockLoaded) {
-    return <span className="muted" style={{ fontSize: 12 }}>—</span>
-  }
-  if (stock == null) {
-    return <span className="muted" style={{ fontSize: 12 }}>0</span>
-  }
-  const isLow  = stock > 0 && stock <= 10
-  const isZero = stock === 0
-  return (
-    <span
-      className="mono"
-      style={{
-        fontWeight: 600,
-        color: isZero ? 'var(--danger, #ef4444)'
-             : isLow  ? 'var(--warning, #f59e0b)'
-             : 'inherit',
-      }}
-    >
-      {stock.toLocaleString('id-ID')}
-    </span>
-  )
-}
-
 // ── Main table component ──────────────────────────────────────────────────────
 
 function BestSellerTable({
   rows, loading, sortBy, onSortChange,
   searchQuery, onSearchChange,
   colFilters, onColFilterChange,
-  stockLoaded,
 }) {
   const totalKuantitas   = rows.reduce((s, r) => s + r.kuantitas, 0)
   const totalHargaProduk = rows.reduce((s, r) => s + r.hargaProduk, 0)
@@ -535,8 +504,6 @@ function BestSellerTable({
                 <tr>
                   <th style={{ width: 44 }}>#</th>
                   <ColHeader col="namaBarang"   label="Nama Barang"   align="left"  {...colHeaderProps} />
-                  <ColHeader col="brand"        label="Brand"         align="left"  {...colHeaderProps} />
-                  <ColHeader col="stock"        label="Stock"         align="right" {...colHeaderProps} />
                   <ColHeader col="kuantitas"    label="Kuantitas"     align="right" {...colHeaderProps} />
                   <ColHeader col="hargaProduk"  label="Harga Produk"  align="right" {...colHeaderProps} />
                 </tr>
@@ -547,15 +514,6 @@ function BestSellerTable({
                     <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
                     <td style={{ fontWeight: 500 }}>
                       <HighlightText text={row.namaBarang} query={searchQuery} />
-                    </td>
-                    <td style={{ fontSize: 13 }}>
-                      {stockLoaded
-                        ? (row.brand || <span className="muted">—</span>)
-                        : <span className="muted">—</span>
-                      }
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <StockBadge stock={row.stock} stockLoaded={stockLoaded} />
                     </td>
                     <td className="mono" style={{ textAlign: 'right' }}>
                       {row.kuantitas.toLocaleString('id-ID')}
@@ -587,14 +545,10 @@ export default function ProdukTerlarisPage() {
   const [periods, setPeriods]       = useState([])
   const [selectedId, setSelectedId] = useState('')
 
-  // BT Data
+  // Data
   const [payload, setPayload]         = useState(null)
   const [dataLoading, setDataLoading] = useState(false)
   const [dataError, setDataError]     = useState(null)
-
-  // Stock data
-  const [stockMap, setStockMap]       = useState({})
-  const [stockLoaded, setStockLoaded] = useState(false)
 
   // Date / account / category filters
   const [filters, setFilters] = useState({
@@ -610,7 +564,7 @@ export default function ProdukTerlarisPage() {
   // Search
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Column filters
+  // Column filters — { namaBarang: {op,value,value2}, kuantitas: {...}, hargaProduk: {...} }
   const [colFilters, setColFilters] = useState({})
 
   const handleColFilterChange = useCallback((col, f) => {
@@ -626,21 +580,9 @@ export default function ProdukTerlarisPage() {
         setLoggedIn(true)
         loadPeriods()
         loadData('')
-        loadStock()
       })
       .catch(() => setCheckingSession(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Load stock ───────────────────────────────────────────────────────────────
-  const loadStock = useCallback(async () => {
-    try {
-      const map = await fetchStockData()
-      setStockMap(map)
-      setStockLoaded(true)
-    } catch {
-      setStockLoaded(true) // treat as loaded even if failed — shows 0
-    }
-  }, [])
 
   // ── Load periods ─────────────────────────────────────────────────────────────
   const loadPeriods = useCallback(async () => {
@@ -683,13 +625,12 @@ export default function ProdukTerlarisPage() {
       setLoggedIn(true)
       await loadPeriods()
       await loadData('')
-      loadStock()
     } catch (err) {
       setLoginError(err.message)
     } finally {
       setLoginLoading(false)
     }
-  }, [password, loadPeriods, loadData, loadStock])
+  }, [password, loadPeriods, loadData])
 
   // ── Derived data ──────────────────────────────────────────────────────────────
   const analysis = payload?.analysis
@@ -709,28 +650,18 @@ export default function ProdukTerlarisPage() {
     // 1. aggregate + date/account/category filter + sort
     let rows = aggregateRows(rawRows, filters, sortBy)
 
-    // 2. inject brand & stock from stockMap
-    rows = rows.map(r => {
-      const entry = stockMap[r.namaBarang]
-      return {
-        ...r,
-        brand: entry?.brand ?? null,
-        stock: entry?.stock ?? null,
-      }
-    })
-
-    // 3. global search (substring, case-insensitive)
+    // 2. global search (substring, case-insensitive)
     if (searchQuery.trim()) {
       const kw = searchQuery.trim().toLowerCase()
       rows = rows.filter(r => r.namaBarang.toLowerCase().includes(kw))
     }
 
-    // 4. column filters
+    // 3. column filters
     rows = applyColFilter(rows, colFilters)
 
-    // 5. re-rank after all filters
+    // 4. re-rank after all filters
     return rows.map((r, i) => ({ ...r, rank: i + 1 }))
-  }, [rawRows, filters, sortBy, searchQuery, colFilters, stockMap])
+  }, [rawRows, filters, sortBy, searchQuery, colFilters])
 
   // ── Active filter description ──────────────────────────────────────────────────
   const activeFilterDesc = useMemo(() => {
@@ -742,10 +673,8 @@ export default function ProdukTerlarisPage() {
       const to   = filters.dateTo   || analysis?.lastDateKey  || '…'
       parts.push(`Tanggal: ${from} s.d. ${to}`)
     }
-    const colLabels = {
-      namaBarang: 'Nama Barang', brand: 'Brand',
-      stock: 'Stock', kuantitas: 'Kuantitas', hargaProduk: 'Harga Produk',
-    }
+    // add active column filters
+    const colLabels = { namaBarang: 'Nama Barang', kuantitas: 'Kuantitas', hargaProduk: 'Harga Produk' }
     for (const [col, f] of Object.entries(colFilters)) {
       if (!f.op) continue
       const noVal = ['is_empty', 'is_not_empty'].includes(f.op)
@@ -757,6 +686,7 @@ export default function ProdukTerlarisPage() {
     return parts.length ? parts.join(' · ') : null
   }, [filters, analysis, colFilters])
 
+  // Count active column filters for badge
   const activeColFilterCount = useMemo(() => {
     return Object.values(colFilters).filter(f => {
       if (!f.op) return false
@@ -849,9 +779,6 @@ export default function ProdukTerlarisPage() {
                   )}
                 </span>
               )}
-              {!stockLoaded && (
-                <span className="muted" style={{ fontSize: 12 }}>Memuat stock…</span>
-              )}
               {activeColFilterCount > 0 && (
                 <button
                   className="pill-btn"
@@ -908,7 +835,6 @@ export default function ProdukTerlarisPage() {
             onSearchChange={setSearchQuery}
             colFilters={colFilters}
             onColFilterChange={handleColFilterChange}
-            stockLoaded={stockLoaded}
           />
         </div>
       )}
