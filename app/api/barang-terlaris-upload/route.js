@@ -35,10 +35,8 @@ export async function POST(request) {
   // Save full analysis (including rawRows) directly to blob as a draft.
   const draftId = await saveBTDraft({ analysis, fileName: file.name })
 
-  // Return only the preview (no rawRows, tapi tetap sertakan jumlahnya) ke browser
-  // — supaya response tetap kecil tapi admin masih bisa lihat berapa baris terbaca.
-  const { rawRows, ...analysisSummary } = analysis
-  analysisSummary.rowCount = rawRows.length
+  // Return only the preview (no rawRows) to the browser — keeps response small.
+  const { rawRows: _omit, ...analysisSummary } = analysis
 
   return NextResponse.json({ ok: true, draftId, analysis: analysisSummary, fileName: file.name })
 }

@@ -43,74 +43,42 @@ async function fetchBTData(id) {
 
 // ─── Filter & aggregate helpers ───────────────────────────────────────────────
 
-function aggregateRows(rawRows, { account, category, dateFrom, dateTo }, sortBy = 'kuantitas', groupMode = 'varian') {
-  const filtered = []
+function aggregateRows(rawRows, { account, category, dateFrom, dateTo }, sortBy = 'kuantitas') {
+  const byBarang = {}
+
   for (const r of rawRows) {
     // Date filter
     if (dateFrom && r.dateKey < dateFrom) continue
     if (dateTo   && r.dateKey > dateTo)   continue
+
     // Account filter
     if (account && r.pelanggan !== account) continue
+
     // Category filter
     if (category) {
       const cat = getCategoryForAccount(r.pelanggan)
       if (cat !== category) continue
     }
-    filtered.push(r)
+
+    if (!byBarang[r.namaBarang]) byBarang[r.namaBarang] = { kuantitas: 0, hargaProduk: 0 }
+    byBarang[r.namaBarang].kuantitas   += r.kuantitas
+    byBarang[r.namaBarang].hargaProduk += r.hargaProduk
   }
 
-  let rows
+  const sortFn = sortBy === 'hargaProduk'
+    ? (a, b) => b[1].hargaProduk - a[1].hargaProduk
+    : sortBy === 'namaBarang'
+    ? (a, b) => a[0].localeCompare(b[0], 'id')
+    : (a, b) => b[1].kuantitas - a[1].kuantitas
 
-  if (groupMode === 'produk-dasar') {
-    // Gabung semua varian warna/ukuran yang berbagi kode dasar yang sama
-    // (kode sebelum titik pertama di "No. Barang"). Kalau baris tidak punya
-    // kode barang sama sekali, fallback ke Nama Barang supaya tetap terhitung.
-    const groups = {}
-    for (const r of filtered) {
-      const key = r.kodeBase || r.namaBarang
-      if (!groups[key]) groups[key] = { kuantitas: 0, hargaProduk: 0, variants: {} }
-      groups[key].kuantitas += r.kuantitas
-      groups[key].hargaProduk += r.hargaProduk
-      groups[key].variants[r.namaBarang] = (groups[key].variants[r.namaBarang] || 0) + r.kuantitas
-    }
-    rows = Object.entries(groups).map(([groupKey, v]) => {
-      // Nama yang ditampilkan = nama varian dengan penjualan tertinggi di grup ini
-      const bestVariant = Object.entries(v.variants).sort((a, b) => b[1] - a[1])[0]
-      return {
-        groupKey,
-        namaBarang: bestVariant ? bestVariant[0] : groupKey,
-        varianCount: Object.keys(v.variants).length,
-        kuantitas: v.kuantitas,
-        hargaProduk: v.hargaProduk,
-      }
-    })
-  } else {
-    // Per varian (default): setiap Nama Barang persis dihitung terpisah
-    const byBarang = {}
-    for (const r of filtered) {
-      if (!byBarang[r.namaBarang]) byBarang[r.namaBarang] = { kuantitas: 0, hargaProduk: 0 }
-      byBarang[r.namaBarang].kuantitas   += r.kuantitas
-      byBarang[r.namaBarang].hargaProduk += r.hargaProduk
-    }
-    rows = Object.entries(byBarang).map(([namaBarang, v]) => ({
-      groupKey: namaBarang,
+  return Object.entries(byBarang)
+    .sort(sortFn)
+    .map(([namaBarang, v], i) => ({
+      rank: i + 1,
       namaBarang,
-      varianCount: 1,
       kuantitas: v.kuantitas,
       hargaProduk: v.hargaProduk,
     }))
-  }
-
-  // Sorting dilakukan di akhir, di atas bentuk baris yang sudah final --
-  // supaya sort "Nama Barang" selalu urut berdasarkan nama yang tampil,
-  // bukan kode dasar (yang tidak relevan buat dilihat orang).
-  const sortFn = sortBy === 'hargaProduk'
-    ? (a, b) => b.hargaProduk - a.hargaProduk
-    : sortBy === 'namaBarang'
-    ? (a, b) => a.namaBarang.localeCompare(b.namaBarang, 'id')
-    : (a, b) => b.kuantitas - a.kuantitas
-
-  return rows.sort(sortFn).map((r, i) => ({ rank: i + 1, ...r }))
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -205,7 +173,7 @@ function SortIcon({ active, asc = false }) {
   )
 }
 
-function BestSellerTable({ rows, loading, sortBy, onSortChange, groupMode }) {
+function BestSellerTable({ rows, loading, sortBy, onSortChange }) {
   if (loading) return <p className="loading-text">Memuat data…</p>
 
   if (!rows.length) {
@@ -275,11 +243,6 @@ function BestSellerTable({ rows, loading, sortBy, onSortChange, groupMode }) {
                 Nama Barang
                 <SortIcon active={sortBy === 'namaBarang'} asc={true} />
               </th>
-              {groupMode === 'produk-dasar' && (
-                <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }} title="Jumlah varian warna/ukuran yang digabung">
-                  Varian
-                </th>
-              )}
               <th
                 style={{ ...thSort, textAlign: 'right' }}
                 onClick={() => onSortChange('kuantitas')}
@@ -300,14 +263,9 @@ function BestSellerTable({ rows, loading, sortBy, onSortChange, groupMode }) {
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.groupKey}>
+              <tr key={row.namaBarang}>
                 <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
                 <td style={{ fontWeight: 500 }}>{row.namaBarang}</td>
-                {groupMode === 'produk-dasar' && (
-                  <td className="mono muted" style={{ textAlign: 'right' }}>
-                    {row.varianCount > 1 ? `${row.varianCount} varian` : '—'}
-                  </td>
-                )}
                 <td className="mono" style={{ textAlign: 'right' }}>
                   {row.kuantitas.toLocaleString('id-ID')}
                 </td>
@@ -351,9 +309,6 @@ export default function ProdukTerlarisPage() {
 
   // Sort
   const [sortBy, setSortBy] = useState('kuantitas') // 'kuantitas' | 'hargaProduk' | 'namaBarang'
-
-  // Mode pengelompokan: per varian warna/ukuran, atau digabung per produk dasar
-  const [groupMode, setGroupMode] = useState('varian') // 'varian' | 'produk-dasar'
 
   // ── Session check ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -432,8 +387,8 @@ export default function ProdukTerlarisPage() {
   }, [analysis?.firstDateKey, analysis?.lastDateKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredRows = useMemo(
-    () => aggregateRows(rawRows, filters, sortBy, groupMode),
-    [rawRows, filters, sortBy, groupMode]
+    () => aggregateRows(rawRows, filters, sortBy),
+    [rawRows, filters, sortBy]
   )
 
   // ── Active filter description ──────────────────────────────────────────────────
@@ -546,26 +501,6 @@ export default function ProdukTerlarisPage() {
             </div>
           </div>
 
-          {/* Toggle mode pengelompokan */}
-          <div className="pill-group" style={{ marginBottom: '0.9rem' }}>
-            <button
-              className={`pill-btn ${groupMode === 'varian' ? 'is-active' : ''}`}
-              style={groupMode === 'varian' ? { background: 'var(--ink)', color: '#fff' } : {}}
-              onClick={() => setGroupMode('varian')}
-              title="Setiap warna/ukuran dihitung sebagai baris terpisah"
-            >
-              Per Varian
-            </button>
-            <button
-              className={`pill-btn ${groupMode === 'produk-dasar' ? 'is-active' : ''}`}
-              style={groupMode === 'produk-dasar' ? { background: 'var(--ink)', color: '#fff' } : {}}
-              onClick={() => setGroupMode('produk-dasar')}
-              title="Semua warna/ukuran dari kode dasar yang sama digabung jadi satu baris"
-            >
-              Per Produk Dasar
-            </button>
-          </div>
-
           {/* Filter bar */}
           {analysis && (
             <FilterBar
@@ -589,7 +524,6 @@ export default function ProdukTerlarisPage() {
             loading={dataLoading}
             sortBy={sortBy}
             onSortChange={setSortBy}
-            groupMode={groupMode}
           />
         </div>
       )}

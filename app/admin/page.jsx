@@ -376,7 +376,7 @@ function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
       {analysis && (
         <main className="dashboard">
           <p className="period-note">
-            Periode data: {analysis.periodLabel} · {analysis.rowCount?.toLocaleString('id-ID') || 0} baris ·{' '}
+            Periode data: {analysis.periodLabel} · {analysis.rawRows?.length?.toLocaleString('id-ID') || 0} baris ·{' '}
             {analysis.rankedBarang?.length || 0} produk unik
           </p>
 
