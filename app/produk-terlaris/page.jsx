@@ -173,19 +173,29 @@ function SortIcon({ active, asc = false }) {
   )
 }
 
-function BestSellerTable({ rows, loading, sortBy, onSortChange }) {
-  if (loading) return <p className="loading-text">Memuat data…</p>
+function HighlightText({ text, query }) {
+  if (!query.trim()) return <>{text}</>
+  const keyword = query.trim().toLowerCase()
+  const idx = text.toLowerCase().indexOf(keyword)
+  if (idx === -1) return <>{text}</>
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark style={{
+        background: '#fde68a',
+        color: 'inherit',
+        borderRadius: 2,
+        padding: '0 2px',
+      }}>
+        {text.slice(idx, idx + keyword.length)}
+      </mark>
+      {text.slice(idx + keyword.length)}
+    </>
+  )
+}
 
-  if (!rows.length) {
-    return (
-      <div className="upload-zone has-error" style={{ textAlign: 'center', padding: '2.5rem' }}>
-        <p className="upload-title">Tidak ada produk ditemukan</p>
-        <p className="upload-sub">Coba ubah filter tanggal, akun, atau kategori.</p>
-      </div>
-    )
-  }
-
-  const totalKuantitas  = rows.reduce((s, r) => s + r.kuantitas, 0)
+function BestSellerTable({ rows, loading, sortBy, onSortChange, searchQuery, onSearchChange }) {
+  const totalKuantitas   = rows.reduce((s, r) => s + r.kuantitas, 0)
   const totalHargaProduk = rows.reduce((s, r) => s + r.hargaProduk, 0)
 
   const thSort = {
@@ -196,87 +206,157 @@ function BestSellerTable({ rows, loading, sortBy, onSortChange }) {
 
   return (
     <>
-      {/* ── Grand total summary ── */}
-      <div style={{
-        display: 'flex',
-        gap: '1rem',
-        marginBottom: '0.75rem',
-        flexWrap: 'wrap',
-      }}>
-        <div style={{
-          flex: 1,
-          minWidth: 140,
-          background: 'var(--surface-2, #f5f5f5)',
-          borderRadius: 8,
-          padding: '0.6rem 1rem',
+      {/* ── Search bar ── */}
+      <div style={{ marginBottom: '0.75rem', position: 'relative' }}>
+        <span style={{
+          position: 'absolute',
+          left: '0.75rem',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          fontSize: 15,
+          color: 'var(--muted, #888)',
+          pointerEvents: 'none',
         }}>
-          <p className="muted" style={{ fontSize: 12, margin: 0 }}>Total Kuantitas</p>
-          <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
-            {totalKuantitas.toLocaleString('id-ID')}
-          </p>
-        </div>
-        <div style={{
-          flex: 1,
-          minWidth: 140,
-          background: 'var(--surface-2, #f5f5f5)',
-          borderRadius: 8,
-          padding: '0.6rem 1rem',
-        }}>
-          <p className="muted" style={{ fontSize: 12, margin: 0 }}>Total Harga Produk</p>
-          <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
-            {formatRupiah(totalHargaProduk)}
-          </p>
-        </div>
+          🔍
+        </span>
+        <input
+          type="text"
+          className="login-input"
+          placeholder="Cari nama barang…"
+          value={searchQuery}
+          onChange={e => onSearchChange(e.target.value)}
+          style={{ paddingLeft: '2.25rem', paddingRight: searchQuery ? '2.25rem' : undefined }}
+        />
+        {searchQuery && (
+          <button
+            onClick={() => onSearchChange('')}
+            style={{
+              position: 'absolute',
+              right: '0.6rem',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 16,
+              color: 'var(--muted, #888)',
+              lineHeight: 1,
+              padding: '0 4px',
+            }}
+            title="Hapus pencarian"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
-      {/* ── Table ── */}
-      <div className="table-scroll">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th style={{ width: 44 }}>#</th>
-              <th
-                style={thSort}
-                onClick={() => onSortChange('namaBarang')}
-                title="Urutkan berdasarkan Nama Barang"
-              >
-                Nama Barang
-                <SortIcon active={sortBy === 'namaBarang'} asc={true} />
-              </th>
-              <th
-                style={{ ...thSort, textAlign: 'right' }}
-                onClick={() => onSortChange('kuantitas')}
-                title="Urutkan berdasarkan Kuantitas"
-              >
-                Kuantitas
-                <SortIcon active={sortBy === 'kuantitas'} />
-              </th>
-              <th
-                style={{ ...thSort, textAlign: 'right' }}
-                onClick={() => onSortChange('hargaProduk')}
-                title="Urutkan berdasarkan Harga Produk"
-              >
-                Harga Produk
-                <SortIcon active={sortBy === 'hargaProduk'} />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.namaBarang}>
-                <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
-                <td style={{ fontWeight: 500 }}>{row.namaBarang}</td>
-                <td className="mono" style={{ textAlign: 'right' }}>
-                  {row.kuantitas.toLocaleString('id-ID')}
-                </td>
-                <td className="mono" style={{ textAlign: 'right' }}>
-                  {formatRupiah(row.hargaProduk)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {loading && <p className="loading-text">Memuat data…</p>}
+
+      {!loading && !rows.length && (
+        <div className="upload-zone has-error" style={{ textAlign: 'center', padding: '2.5rem' }}>
+          <p className="upload-title">Tidak ada produk ditemukan</p>
+          <p className="upload-sub">
+            {searchQuery
+              ? `Tidak ada produk yang cocok dengan "${searchQuery}". Coba kata kunci lain.`
+              : 'Coba ubah filter tanggal, akun, atau kategori.'}
+          </p>
+        </div>
+      )}
+
+      {!loading && rows.length > 0 && (
+        <>
+          {/* ── Grand total summary ── */}
+          <div style={{
+            display: 'flex',
+            gap: '1rem',
+            marginBottom: '0.75rem',
+            flexWrap: 'wrap',
+          }}>
+            <div style={{
+              flex: 1,
+              minWidth: 140,
+              background: 'var(--surface-2, #f5f5f5)',
+              borderRadius: 8,
+              padding: '0.6rem 1rem',
+            }}>
+              <p className="muted" style={{ fontSize: 12, margin: 0 }}>Total Kuantitas</p>
+              <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
+                {totalKuantitas.toLocaleString('id-ID')}
+              </p>
+            </div>
+            <div style={{
+              flex: 1,
+              minWidth: 140,
+              background: 'var(--surface-2, #f5f5f5)',
+              borderRadius: 8,
+              padding: '0.6rem 1rem',
+            }}>
+              <p className="muted" style={{ fontSize: 12, margin: 0 }}>Total Harga Produk</p>
+              <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
+                {formatRupiah(totalHargaProduk)}
+              </p>
+            </div>
+          </div>
+
+          {/* ── Search result count ── */}
+          {searchQuery.trim() && (
+            <p className="period-note" style={{ marginBottom: '0.5rem', marginTop: 0 }}>
+              Menampilkan {rows.length} produk untuk pencarian &ldquo;{searchQuery}&rdquo;
+            </p>
+          )}
+
+          {/* ── Table ── */}
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 44 }}>#</th>
+                  <th
+                    style={thSort}
+                    onClick={() => onSortChange('namaBarang')}
+                    title="Urutkan berdasarkan Nama Barang"
+                  >
+                    Nama Barang
+                    <SortIcon active={sortBy === 'namaBarang'} asc={true} />
+                  </th>
+                  <th
+                    style={{ ...thSort, textAlign: 'right' }}
+                    onClick={() => onSortChange('kuantitas')}
+                    title="Urutkan berdasarkan Kuantitas"
+                  >
+                    Kuantitas
+                    <SortIcon active={sortBy === 'kuantitas'} />
+                  </th>
+                  <th
+                    style={{ ...thSort, textAlign: 'right' }}
+                    onClick={() => onSortChange('hargaProduk')}
+                    title="Urutkan berdasarkan Harga Produk"
+                  >
+                    Harga Produk
+                    <SortIcon active={sortBy === 'hargaProduk'} />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.namaBarang}>
+                    <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
+                    <td style={{ fontWeight: 500 }}>
+                      <HighlightText text={row.namaBarang} query={searchQuery} />
+                    </td>
+                    <td className="mono" style={{ textAlign: 'right' }}>
+                      {row.kuantitas.toLocaleString('id-ID')}
+                    </td>
+                    <td className="mono" style={{ textAlign: 'right' }}>
+                      {formatRupiah(row.hargaProduk)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </>
   )
 }
@@ -309,6 +389,9 @@ export default function ProdukTerlarisPage() {
 
   // Sort
   const [sortBy, setSortBy] = useState('kuantitas') // 'kuantitas' | 'hargaProduk' | 'namaBarang'
+
+  // Search
+  const [searchQuery, setSearchQuery] = useState('')
 
   // ── Session check ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -386,10 +469,14 @@ export default function ProdukTerlarisPage() {
     }))
   }, [analysis?.firstDateKey, analysis?.lastDateKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filteredRows = useMemo(
-    () => aggregateRows(rawRows, filters, sortBy),
-    [rawRows, filters, sortBy]
-  )
+  const filteredRows = useMemo(() => {
+    const aggregated = aggregateRows(rawRows, filters, sortBy)
+    if (!searchQuery.trim()) return aggregated
+    const keyword = searchQuery.trim().toLowerCase()
+    return aggregated
+      .filter(row => row.namaBarang.toLowerCase().includes(keyword))
+      .map((row, i) => ({ ...row, rank: i + 1 }))
+  }, [rawRows, filters, sortBy, searchQuery])
 
   // ── Active filter description ──────────────────────────────────────────────────
   const activeFilterDesc = useMemo(() => {
@@ -524,6 +611,8 @@ export default function ProdukTerlarisPage() {
             loading={dataLoading}
             sortBy={sortBy}
             onSortChange={setSortBy}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
           />
         </div>
       )}
