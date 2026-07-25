@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatRupiah } from '@/lib/parseBarangTerlaris'
 import { exportBarangTerlaris } from '@/lib/exportExcel'
 
@@ -47,19 +47,13 @@ function aggregateRows(rawRows, { account, category, dateFrom, dateTo }, sortBy 
   const byBarang = {}
 
   for (const r of rawRows) {
-    // Date filter
     if (dateFrom && r.dateKey < dateFrom) continue
     if (dateTo   && r.dateKey > dateTo)   continue
-
-    // Account filter
     if (account && r.pelanggan !== account) continue
-
-    // Category filter
     if (category) {
       const cat = getCategoryForAccount(r.pelanggan)
       if (cat !== category) continue
     }
-
     if (!byBarang[r.namaBarang]) byBarang[r.namaBarang] = { kuantitas: 0, hargaProduk: 0 }
     byBarang[r.namaBarang].kuantitas   += r.kuantitas
     byBarang[r.namaBarang].hargaProduk += r.hargaProduk
@@ -81,6 +75,67 @@ function aggregateRows(rawRows, { account, category, dateFrom, dateTo }, sortBy 
     }))
 }
 
+// ─── Column filter definitions ────────────────────────────────────────────────
+
+const TEXT_OPS = [
+  { value: 'contains',        label: 'Mengandung' },
+  { value: 'not_contains',    label: 'Tidak mengandung' },
+  { value: 'equals',          label: 'Sama dengan' },
+  { value: 'not_equals',      label: 'Tidak sama dengan' },
+  { value: 'starts_with',     label: 'Dimulai dengan' },
+  { value: 'ends_with',       label: 'Diakhiri dengan' },
+  { value: 'is_empty',        label: 'Kosong' },
+  { value: 'is_not_empty',    label: 'Tidak kosong' },
+]
+
+const NUM_OPS = [
+  { value: 'eq',      label: '= Sama dengan' },
+  { value: 'neq',     label: '≠ Tidak sama dengan' },
+  { value: 'gt',      label: '> Lebih dari' },
+  { value: 'gte',     label: '≥ Lebih dari atau sama dengan' },
+  { value: 'lt',      label: '< Kurang dari' },
+  { value: 'lte',     label: '≤ Kurang dari atau sama dengan' },
+  { value: 'between', label: '↔ Di antara' },
+]
+
+const EMPTY_COL_FILTER = { op: '', value: '', value2: '' }
+
+function applyColFilter(rows, colFilters) {
+  return rows.filter(row => {
+    for (const [col, f] of Object.entries(colFilters)) {
+      if (!f.op) continue
+      const noVal = ['is_empty', 'is_not_empty'].includes(f.op)
+      if (!noVal && f.value === '' && f.op !== 'between') continue
+      if (f.op === 'between' && f.value === '' && f.value2 === '') continue
+
+      if (col === 'namaBarang') {
+        const cell = row.namaBarang.toLowerCase()
+        const val  = f.value.toLowerCase()
+        if (f.op === 'contains'     && !cell.includes(val))    return false
+        if (f.op === 'not_contains' && cell.includes(val))     return false
+        if (f.op === 'equals'       && cell !== val)           return false
+        if (f.op === 'not_equals'   && cell === val)           return false
+        if (f.op === 'starts_with'  && !cell.startsWith(val))  return false
+        if (f.op === 'ends_with'    && !cell.endsWith(val))    return false
+        if (f.op === 'is_empty'     && cell.trim() !== '')     return false
+        if (f.op === 'is_not_empty' && cell.trim() === '')     return false
+      } else {
+        const cell = col === 'kuantitas' ? row.kuantitas : row.hargaProduk
+        const val  = parseFloat(f.value)
+        const val2 = parseFloat(f.value2)
+        if (f.op === 'eq'      && cell !== val)              return false
+        if (f.op === 'neq'     && cell === val)              return false
+        if (f.op === 'gt'      && !(cell > val))             return false
+        if (f.op === 'gte'     && !(cell >= val))            return false
+        if (f.op === 'lt'      && !(cell < val))             return false
+        if (f.op === 'lte'     && !(cell <= val))            return false
+        if (f.op === 'between' && !(cell >= val && cell <= val2)) return false
+      }
+    }
+    return true
+  })
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function FilterBar({ accounts, filters, onChange }) {
@@ -88,7 +143,6 @@ function FilterBar({ accounts, filters, onChange }) {
 
   return (
     <div className="bt-filter-bar">
-      {/* Account filter */}
       <div className="period-picker-group">
         <label className="period-picker-label">Akun</label>
         <select
@@ -103,7 +157,6 @@ function FilterBar({ accounts, filters, onChange }) {
         </select>
       </div>
 
-      {/* Category filter (only show if no specific account is selected) */}
       {!filters.account && (
         <div className="period-picker-group">
           <label className="period-picker-label">Kategori</label>
@@ -130,7 +183,6 @@ function FilterBar({ accounts, filters, onChange }) {
         </div>
       )}
 
-      {/* Date range filter */}
       <div className="period-picker-group">
         <label className="period-picker-label">Tanggal mulai</label>
         <input
@@ -150,7 +202,6 @@ function FilterBar({ accounts, filters, onChange }) {
         />
       </div>
 
-      {/* Reset button */}
       {(filters.account || filters.category || filters.dateFrom || filters.dateTo) && (
         <div className="period-picker-group" style={{ justifyContent: 'flex-end' }}>
           <button
@@ -181,12 +232,7 @@ function HighlightText({ text, query }) {
   return (
     <>
       {text.slice(0, idx)}
-      <mark style={{
-        background: '#fde68a',
-        color: 'inherit',
-        borderRadius: 2,
-        padding: '0 2px',
-      }}>
+      <mark style={{ background: '#fde68a', color: 'inherit', borderRadius: 2, padding: '0 2px' }}>
         {text.slice(idx, idx + keyword.length)}
       </mark>
       {text.slice(idx + keyword.length)}
@@ -194,31 +240,197 @@ function HighlightText({ text, query }) {
   )
 }
 
-function BestSellerTable({ rows, loading, sortBy, onSortChange, searchQuery, onSearchChange }) {
+// ── Column filter popover ─────────────────────────────────────────────────────
+
+function ColFilterPopover({ col, filter, onChange, onClose, anchorRef }) {
+  const isText  = col === 'namaBarang'
+  const ops     = isText ? TEXT_OPS : NUM_OPS
+  const ref     = useRef(null)
+
+  // Close on outside click
+  useEffect(() => {
+    function handle(e) {
+      if (ref.current && !ref.current.contains(e.target) &&
+          anchorRef.current && !anchorRef.current.contains(e.target)) {
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [onClose, anchorRef])
+
+  const noValueOps  = ['is_empty', 'is_not_empty']
+  const isBetween   = filter.op === 'between'
+  const hideInput   = noValueOps.includes(filter.op)
+
+  const inputStyle = {
+    width: '100%', padding: '6px 10px', borderRadius: 6,
+    border: '1px solid var(--border, #ddd)',
+    background: 'var(--surface, #fff)',
+    color: 'var(--ink, #111)',
+    fontSize: 13, marginTop: 6, boxSizing: 'border-box',
+  }
+
+  return (
+    <div ref={ref} style={{
+      position: 'absolute',
+      top: '100%',
+      left: 0,
+      zIndex: 200,
+      background: 'var(--surface, #fff)',
+      border: '1px solid var(--border, #ddd)',
+      borderRadius: 10,
+      boxShadow: '0 8px 24px rgba(0,0,0,.12)',
+      padding: '0.85rem',
+      minWidth: 240,
+      marginTop: 4,
+    }}>
+      {/* Op selector */}
+      <select
+        value={filter.op}
+        onChange={e => onChange({ ...filter, op: e.target.value, value: '', value2: '' })}
+        style={{ ...inputStyle, marginTop: 0 }}
+      >
+        <option value="">— Pilih kondisi —</option>
+        {ops.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+
+      {/* Value input(s) */}
+      {filter.op && !hideInput && (
+        <>
+          <input
+            type={isText ? 'text' : 'number'}
+            placeholder={isBetween ? 'Nilai minimum' : 'Nilai'}
+            value={filter.value}
+            onChange={e => onChange({ ...filter, value: e.target.value })}
+            style={inputStyle}
+            autoFocus
+          />
+          {isBetween && (
+            <input
+              type="number"
+              placeholder="Nilai maksimum"
+              value={filter.value2}
+              onChange={e => onChange({ ...filter, value2: e.target.value })}
+              style={inputStyle}
+            />
+          )}
+        </>
+      )}
+
+      {/* Footer buttons */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 10, justifyContent: 'flex-end' }}>
+        <button
+          onClick={() => { onChange(EMPTY_COL_FILTER); onClose() }}
+          style={{
+            padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border, #ddd)',
+            background: 'none', cursor: 'pointer', fontSize: 12,
+            color: 'var(--muted, #888)',
+          }}
+        >
+          Hapus
+        </button>
+        <button
+          onClick={onClose}
+          style={{
+            padding: '5px 12px', borderRadius: 6, border: 'none',
+            background: 'var(--ink, #111)', color: '#fff',
+            cursor: 'pointer', fontSize: 12, fontWeight: 600,
+          }}
+        >
+          Terapkan
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Column header with sort + filter ─────────────────────────────────────────
+
+function ColHeader({ col, label, align = 'left', sortBy, onSortChange, colFilters, onColFilterChange }) {
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef(null)
+  const filter  = colFilters[col] || EMPTY_COL_FILTER
+  const isActive = !!(filter.op && (
+    ['is_empty', 'is_not_empty'].includes(filter.op) || filter.value !== ''
+  ))
+
+  return (
+    <th
+      style={{
+        textAlign: align,
+        whiteSpace: 'nowrap',
+        position: 'relative',
+        userSelect: 'none',
+      }}
+    >
+      {/* Sort trigger (whole cell minus filter btn) */}
+      <span
+        onClick={() => onSortChange(col)}
+        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}
+        title={`Urutkan berdasarkan ${label}`}
+      >
+        {align === 'right' && <SortIcon active={sortBy === col} />}
+        {label}
+        {align === 'left'  && <SortIcon active={sortBy === col} asc={true} />}
+      </span>
+
+      {/* Filter button */}
+      <button
+        ref={btnRef}
+        onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
+        title="Filter kolom"
+        style={{
+          marginLeft: 5,
+          padding: '1px 5px',
+          borderRadius: 4,
+          border: `1px solid ${isActive ? 'var(--accent-2, #6366f1)' : 'var(--border, #ddd)'}`,
+          background: isActive ? 'var(--accent-2, #6366f1)' : 'transparent',
+          color: isActive ? '#fff' : 'var(--muted, #888)',
+          cursor: 'pointer',
+          fontSize: 11,
+          lineHeight: 1.4,
+          verticalAlign: 'middle',
+        }}
+      >
+        {isActive ? '▼●' : '▼'}
+      </button>
+
+      {/* Popover */}
+      {open && (
+        <ColFilterPopover
+          col={col}
+          filter={filter}
+          onChange={f => onColFilterChange(col, f)}
+          onClose={() => setOpen(false)}
+          anchorRef={btnRef}
+        />
+      )}
+    </th>
+  )
+}
+
+// ── Main table component ──────────────────────────────────────────────────────
+
+function BestSellerTable({
+  rows, loading, sortBy, onSortChange,
+  searchQuery, onSearchChange,
+  colFilters, onColFilterChange,
+}) {
   const totalKuantitas   = rows.reduce((s, r) => s + r.kuantitas, 0)
   const totalHargaProduk = rows.reduce((s, r) => s + r.hargaProduk, 0)
 
-  const thSort = {
-    cursor: 'pointer',
-    userSelect: 'none',
-    whiteSpace: 'nowrap',
-  }
+  const colHeaderProps = { sortBy, onSortChange, colFilters, onColFilterChange }
 
   return (
     <>
       {/* ── Search bar ── */}
       <div style={{ marginBottom: '0.75rem', position: 'relative' }}>
         <span style={{
-          position: 'absolute',
-          left: '0.75rem',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          fontSize: 15,
-          color: 'var(--muted, #888)',
-          pointerEvents: 'none',
-        }}>
-          🔍
-        </span>
+          position: 'absolute', left: '0.75rem', top: '50%',
+          transform: 'translateY(-50%)', fontSize: 15,
+          color: 'var(--muted, #888)', pointerEvents: 'none',
+        }}>🔍</span>
         <input
           type="text"
           className="login-input"
@@ -231,22 +443,13 @@ function BestSellerTable({ rows, loading, sortBy, onSortChange, searchQuery, onS
           <button
             onClick={() => onSearchChange('')}
             style={{
-              position: 'absolute',
-              right: '0.6rem',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 16,
-              color: 'var(--muted, #888)',
-              lineHeight: 1,
-              padding: '0 4px',
+              position: 'absolute', right: '0.6rem', top: '50%',
+              transform: 'translateY(-50%)', background: 'none', border: 'none',
+              cursor: 'pointer', fontSize: 16, color: 'var(--muted, #888)',
+              lineHeight: 1, padding: '0 4px',
             }}
             title="Hapus pencarian"
-          >
-            ✕
-          </button>
+          >✕</button>
         )}
       </div>
 
@@ -258,7 +461,7 @@ function BestSellerTable({ rows, loading, sortBy, onSortChange, searchQuery, onS
           <p className="upload-sub">
             {searchQuery
               ? `Tidak ada produk yang cocok dengan "${searchQuery}". Coba kata kunci lain.`
-              : 'Coba ubah filter tanggal, akun, atau kategori.'}
+              : 'Coba ubah filter kolom, tanggal, akun, atau kategori.'}
           </p>
         </div>
       )}
@@ -266,18 +469,10 @@ function BestSellerTable({ rows, loading, sortBy, onSortChange, searchQuery, onS
       {!loading && rows.length > 0 && (
         <>
           {/* ── Grand total summary ── */}
-          <div style={{
-            display: 'flex',
-            gap: '1rem',
-            marginBottom: '0.75rem',
-            flexWrap: 'wrap',
-          }}>
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
             <div style={{
-              flex: 1,
-              minWidth: 140,
-              background: 'var(--surface-2, #f5f5f5)',
-              borderRadius: 8,
-              padding: '0.6rem 1rem',
+              flex: 1, minWidth: 140,
+              background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.6rem 1rem',
             }}>
               <p className="muted" style={{ fontSize: 12, margin: 0 }}>Total Kuantitas</p>
               <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
@@ -285,11 +480,8 @@ function BestSellerTable({ rows, loading, sortBy, onSortChange, searchQuery, onS
               </p>
             </div>
             <div style={{
-              flex: 1,
-              minWidth: 140,
-              background: 'var(--surface-2, #f5f5f5)',
-              borderRadius: 8,
-              padding: '0.6rem 1rem',
+              flex: 1, minWidth: 140,
+              background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.6rem 1rem',
             }}>
               <p className="muted" style={{ fontSize: 12, margin: 0 }}>Total Harga Produk</p>
               <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
@@ -306,35 +498,14 @@ function BestSellerTable({ rows, loading, sortBy, onSortChange, searchQuery, onS
           )}
 
           {/* ── Table ── */}
-          <div className="table-scroll">
+          <div className="table-scroll" style={{ overflowX: 'auto' }}>
             <table className="data-table">
               <thead>
                 <tr>
                   <th style={{ width: 44 }}>#</th>
-                  <th
-                    style={thSort}
-                    onClick={() => onSortChange('namaBarang')}
-                    title="Urutkan berdasarkan Nama Barang"
-                  >
-                    Nama Barang
-                    <SortIcon active={sortBy === 'namaBarang'} asc={true} />
-                  </th>
-                  <th
-                    style={{ ...thSort, textAlign: 'right' }}
-                    onClick={() => onSortChange('kuantitas')}
-                    title="Urutkan berdasarkan Kuantitas"
-                  >
-                    Kuantitas
-                    <SortIcon active={sortBy === 'kuantitas'} />
-                  </th>
-                  <th
-                    style={{ ...thSort, textAlign: 'right' }}
-                    onClick={() => onSortChange('hargaProduk')}
-                    title="Urutkan berdasarkan Harga Produk"
-                  >
-                    Harga Produk
-                    <SortIcon active={sortBy === 'hargaProduk'} />
-                  </th>
+                  <ColHeader col="namaBarang"   label="Nama Barang"   align="left"  {...colHeaderProps} />
+                  <ColHeader col="kuantitas"    label="Kuantitas"     align="right" {...colHeaderProps} />
+                  <ColHeader col="hargaProduk"  label="Harga Produk"  align="right" {...colHeaderProps} />
                 </tr>
               </thead>
               <tbody>
@@ -364,22 +535,22 @@ function BestSellerTable({ rows, loading, sortBy, onSortChange, searchQuery, onS
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ProdukTerlarisPage() {
-  const [loggedIn, setLoggedIn]             = useState(false)
+  const [loggedIn, setLoggedIn]               = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
-  const [password, setPassword]             = useState('')
-  const [loginError, setLoginError]         = useState(null)
-  const [loginLoading, setLoginLoading]     = useState(false)
+  const [password, setPassword]               = useState('')
+  const [loginError, setLoginError]           = useState(null)
+  const [loginLoading, setLoginLoading]       = useState(false)
 
   // Periods
-  const [periods, setPeriods]     = useState([])
-  const [selectedId, setSelectedId] = useState('')  // '' = latest
+  const [periods, setPeriods]       = useState([])
+  const [selectedId, setSelectedId] = useState('')
 
   // Data
-  const [payload, setPayload]   = useState(null)
+  const [payload, setPayload]         = useState(null)
   const [dataLoading, setDataLoading] = useState(false)
   const [dataError, setDataError]     = useState(null)
 
-  // Filters
+  // Date / account / category filters
   const [filters, setFilters] = useState({
     account:  '',
     category: '',
@@ -388,10 +559,17 @@ export default function ProdukTerlarisPage() {
   })
 
   // Sort
-  const [sortBy, setSortBy] = useState('kuantitas') // 'kuantitas' | 'hargaProduk' | 'namaBarang'
+  const [sortBy, setSortBy] = useState('kuantitas')
 
   // Search
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Column filters — { namaBarang: {op,value,value2}, kuantitas: {...}, hargaProduk: {...} }
+  const [colFilters, setColFilters] = useState({})
+
+  const handleColFilterChange = useCallback((col, f) => {
+    setColFilters(prev => ({ ...prev, [col]: f }))
+  }, [])
 
   // ── Session check ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -454,12 +632,11 @@ export default function ProdukTerlarisPage() {
     }
   }, [password, loadPeriods, loadData])
 
-  // ── Derived: apply filters to rawRows ─────────────────────────────────────────
-  const analysis   = payload?.analysis
-  const rawRows    = analysis?.rawRows || []
-  const accounts   = analysis?.accounts || []
+  // ── Derived data ──────────────────────────────────────────────────────────────
+  const analysis = payload?.analysis
+  const rawRows  = analysis?.rawRows  || []
+  const accounts = analysis?.accounts || []
 
-  // When period changes, reset date filters to the period's own range
   useEffect(() => {
     if (!analysis) return
     setFilters(f => ({
@@ -470,13 +647,21 @@ export default function ProdukTerlarisPage() {
   }, [analysis?.firstDateKey, analysis?.lastDateKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredRows = useMemo(() => {
-    const aggregated = aggregateRows(rawRows, filters, sortBy)
-    if (!searchQuery.trim()) return aggregated
-    const keyword = searchQuery.trim().toLowerCase()
-    return aggregated
-      .filter(row => row.namaBarang.toLowerCase().includes(keyword))
-      .map((row, i) => ({ ...row, rank: i + 1 }))
-  }, [rawRows, filters, sortBy, searchQuery])
+    // 1. aggregate + date/account/category filter + sort
+    let rows = aggregateRows(rawRows, filters, sortBy)
+
+    // 2. global search (substring, case-insensitive)
+    if (searchQuery.trim()) {
+      const kw = searchQuery.trim().toLowerCase()
+      rows = rows.filter(r => r.namaBarang.toLowerCase().includes(kw))
+    }
+
+    // 3. column filters
+    rows = applyColFilter(rows, colFilters)
+
+    // 4. re-rank after all filters
+    return rows.map((r, i) => ({ ...r, rank: i + 1 }))
+  }, [rawRows, filters, sortBy, searchQuery, colFilters])
 
   // ── Active filter description ──────────────────────────────────────────────────
   const activeFilterDesc = useMemo(() => {
@@ -488,8 +673,29 @@ export default function ProdukTerlarisPage() {
       const to   = filters.dateTo   || analysis?.lastDateKey  || '…'
       parts.push(`Tanggal: ${from} s.d. ${to}`)
     }
+    // add active column filters
+    const colLabels = { namaBarang: 'Nama Barang', kuantitas: 'Kuantitas', hargaProduk: 'Harga Produk' }
+    for (const [col, f] of Object.entries(colFilters)) {
+      if (!f.op) continue
+      const noVal = ['is_empty', 'is_not_empty'].includes(f.op)
+      if (!noVal && f.value === '' && f.op !== 'between') continue
+      const opLabel = [...TEXT_OPS, ...NUM_OPS].find(o => o.value === f.op)?.label || f.op
+      const valPart = noVal ? '' : f.op === 'between' ? ` ${f.value}–${f.value2}` : ` "${f.value}"`
+      parts.push(`${colLabels[col]}: ${opLabel}${valPart}`)
+    }
     return parts.length ? parts.join(' · ') : null
-  }, [filters, analysis])
+  }, [filters, analysis, colFilters])
+
+  // Count active column filters for badge
+  const activeColFilterCount = useMemo(() => {
+    return Object.values(colFilters).filter(f => {
+      if (!f.op) return false
+      if (['is_empty', 'is_not_empty'].includes(f.op)) return true
+      return f.value !== ''
+    }).length
+  }, [colFilters])
+
+  const resetColFilters = () => setColFilters({})
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -573,6 +779,20 @@ export default function ProdukTerlarisPage() {
                   )}
                 </span>
               )}
+              {activeColFilterCount > 0 && (
+                <button
+                  className="pill-btn"
+                  onClick={resetColFilters}
+                  style={{
+                    background: 'var(--accent-2, #6366f1)',
+                    color: '#fff',
+                    border: 'none',
+                    fontSize: 12,
+                  }}
+                >
+                  ✕ Reset filter kolom ({activeColFilterCount})
+                </button>
+              )}
               {filteredRows.length > 0 && (
                 <button
                   className="btn-export"
@@ -613,6 +833,8 @@ export default function ProdukTerlarisPage() {
             onSortChange={setSortBy}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
+            colFilters={colFilters}
+            onColFilterChange={handleColFilterChange}
           />
         </div>
       )}
