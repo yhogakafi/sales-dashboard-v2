@@ -479,6 +479,105 @@ function BarangTerlarisTab({ btPeriods, btPeriodsLoading, fetchBTPeriods }) {
   )
 }
 
+// ─── Stock tab ────────────────────────────────────────────────────────────────
+
+function StockUploadCard({ type, label, status, onUploaded }) {
+  const [uploading, setUploading] = useState(false)
+  const [error, setError]         = useState(null)
+  const [success, setSuccess]     = useState(null)
+  const [fileName, setFileName]   = useState(null)
+
+  const handleFile = useCallback(async (file) => {
+    setError(null)
+    setSuccess(null)
+    setUploading(true)
+    setFileName(file.name)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', type)
+      const res = await fetch('/api/upload-stock', { method: 'POST', body: formData })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error || 'Gagal mengupload.')
+      setSuccess(`Tersimpan — ${body.count.toLocaleString('id-ID')} kode barang.`)
+      onUploaded()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setUploading(false)
+    }
+  }, [type, onUploaded])
+
+  return (
+    <div className="table-block" style={{ marginBottom: '1rem' }}>
+      <div className="table-block-header">
+        <h3 className="block-title">{label}</h3>
+        {status?.exists && (
+          <span className="muted" style={{ fontSize: 12 }}>
+            {status.count?.toLocaleString('id-ID')} kode &middot; Diperbarui {new Date(status.savedAt).toLocaleString('id-ID')}
+          </span>
+        )}
+      </div>
+      {!status?.exists && (
+        <p className="assign-hint">Belum ada data {label.toLowerCase()} yang tersimpan.</p>
+      )}
+      <UploadZone
+        onFile={handleFile}
+        error={error}
+        fileName={fileName}
+        title={`Upload ${label}`}
+        subtitle="atau klik untuk pilih file .xls / .xlsx"
+      />
+      {uploading && <p className="loading-text">Memproses…</p>}
+      {success && <p className="publish-success" style={{ marginTop: 8 }}>{success}</p>}
+    </div>
+  )
+}
+
+function StockTab() {
+  const [status, setStatus]   = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/stock-status')
+      if (res.ok) setStatus(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchStatus() }, [fetchStatus])
+
+  return (
+    <div>
+      <p className="assign-hint" style={{ marginBottom: '1.25rem' }}>
+        Upload dua file stock (underwear dan sport) secara terpisah. Setiap upload akan menggantikan
+        data lama. Data stock dipakai untuk menampilkan kolom <strong>Brand</strong> dan{' '}
+        <strong>Stock</strong> di halaman Produk Terlaris, dicocokkan berdasarkan kode barang penuh
+        (misal 1002189.1.01). Jika kode tidak ditemukan di kedua file, stock ditampilkan sebagai 0.
+      </p>
+      {loading && <p className="loading-text">Memuat status…</p>}
+      {!loading && (
+        <>
+          <StockUploadCard
+            type="underwear"
+            label="Stock Underwear"
+            status={status?.underwear}
+            onUploaded={fetchStatus}
+          />
+          <StockUploadCard
+            type="sport"
+            label="Stock Sport"
+            status={status?.sport}
+            onUploaded={fetchStatus}
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Admin page root ──────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -487,7 +586,7 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState(null)
   const [loginLoading, setLoginLoading] = useState(false)
 
-  const [activeTab, setActiveTab] = useState('sales') // 'sales' | 'barang-terlaris'
+  const [activeTab, setActiveTab] = useState('sales') // 'sales' | 'barang-terlaris' | 'stock'
 
   // Sales periods
   const [periods, setPeriods]             = useState([])
@@ -589,6 +688,12 @@ export default function AdminPage() {
         >
           Data barang terlaris
         </button>
+        <button
+          className={`admin-tab-btn ${activeTab === 'stock' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('stock')}
+        >
+          Data stock
+        </button>
       </div>
 
       {activeTab === 'sales' && (
@@ -606,6 +711,8 @@ export default function AdminPage() {
           fetchBTPeriods={fetchBTPeriods}
         />
       )}
+
+      {activeTab === 'stock' && <StockTab />}
     </div>
   )
 }

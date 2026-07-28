@@ -4,6 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatRupiah } from '@/lib/parseBarangTerlaris'
 import { exportBarangTerlaris } from '@/lib/exportExcel'
 
+// ─── Stock lookup helper ───────────────────────────────────────────────────────
+
+function getStockInfo(kodeBarang, stockLookup) {
+  if (!stockLookup || !kodeBarang) return { brand: '—', stock: 0, hasData: false }
+  const data = stockLookup[kodeBarang]
+  if (!data) return { brand: '—', stock: 0, hasData: false }
+  return { brand: data.brand || '—', stock: data.stock ?? 0, hasData: true }
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DEFAULT_BRAND_CATEGORY = {
@@ -54,9 +63,14 @@ function aggregateRows(rawRows, { account, category, dateFrom, dateTo }, sortBy 
       const cat = getCategoryForAccount(r.pelanggan)
       if (cat !== category) continue
     }
-    if (!byBarang[r.namaBarang]) byBarang[r.namaBarang] = { kuantitas: 0, hargaProduk: 0 }
+    if (!byBarang[r.namaBarang]) {
+      byBarang[r.namaBarang] = { kuantitas: 0, hargaProduk: 0, kodeBarang: r.kodeBarang || null }
+    }
     byBarang[r.namaBarang].kuantitas   += r.kuantitas
     byBarang[r.namaBarang].hargaProduk += r.hargaProduk
+    if (!byBarang[r.namaBarang].kodeBarang && r.kodeBarang) {
+      byBarang[r.namaBarang].kodeBarang = r.kodeBarang
+    }
   }
 
   const sortFn = sortBy === 'hargaProduk'
@@ -70,6 +84,7 @@ function aggregateRows(rawRows, { account, category, dateFrom, dateTo }, sortBy 
     .map(([namaBarang, v], i) => ({
       rank: i + 1,
       namaBarang,
+      kodeBarang: v.kodeBarang,
       kuantitas: v.kuantitas,
       hargaProduk: v.hargaProduk,
     }))
@@ -416,9 +431,11 @@ function BestSellerTable({
   rows, loading, sortBy, onSortChange,
   searchQuery, onSearchChange,
   colFilters, onColFilterChange,
+  stockLookup,
 }) {
   const totalKuantitas   = rows.reduce((s, r) => s + r.kuantitas, 0)
   const totalHargaProduk = rows.reduce((s, r) => s + r.hargaProduk, 0)
+  const hasStock = stockLookup !== null
 
   const colHeaderProps = { sortBy, onSortChange, colFilters, onColFilterChange }
 
@@ -497,6 +514,12 @@ function BestSellerTable({
             </p>
           )}
 
+          {!hasStock && (
+            <p className="period-note" style={{ marginBottom: '0.5rem', color: 'var(--ink-muted)' }}>
+              ℹ️ Data stock belum diupload. Upload file stock di halaman Admin untuk melihat kolom Brand dan Stock.
+            </p>
+          )}
+
           {/* ── Table ── */}
           <div className="table-scroll" style={{ overflowX: 'auto' }}>
             <table className="data-table">
@@ -504,25 +527,46 @@ function BestSellerTable({
                 <tr>
                   <th style={{ width: 44 }}>#</th>
                   <ColHeader col="namaBarang"   label="Nama Barang"   align="left"  {...colHeaderProps} />
+                  {hasStock && <th style={{ whiteSpace: 'nowrap' }}>Brand</th>}
                   <ColHeader col="kuantitas"    label="Kuantitas"     align="right" {...colHeaderProps} />
                   <ColHeader col="hargaProduk"  label="Harga Produk"  align="right" {...colHeaderProps} />
+                  {hasStock && <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Stock</th>}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.namaBarang}>
-                    <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
-                    <td style={{ fontWeight: 500 }}>
-                      <HighlightText text={row.namaBarang} query={searchQuery} />
-                    </td>
-                    <td className="mono" style={{ textAlign: 'right' }}>
-                      {row.kuantitas.toLocaleString('id-ID')}
-                    </td>
-                    <td className="mono" style={{ textAlign: 'right' }}>
-                      {formatRupiah(row.hargaProduk)}
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((row) => {
+                  const si = hasStock ? getStockInfo(row.kodeBarang, stockLookup) : null
+                  return (
+                    <tr key={row.namaBarang}>
+                      <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
+                      <td style={{ fontWeight: 500 }}>
+                        <HighlightText text={row.namaBarang} query={searchQuery} />
+                      </td>
+                      {hasStock && (
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {si.brand !== '—'
+                            ? <span className="badge-brand">{si.brand}</span>
+                            : <span className="muted">—</span>}
+                        </td>
+                      )}
+                      <td className="mono" style={{ textAlign: 'right' }}>
+                        {row.kuantitas.toLocaleString('id-ID')}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right' }}>
+                        {formatRupiah(row.hargaProduk)}
+                      </td>
+                      {hasStock && (
+                        <td className="mono" style={{ textAlign: 'right' }}>
+                          {si.hasData
+                            ? <span style={{ color: si.stock === 0 ? 'var(--accent, #D85A30)' : 'inherit' }}>
+                                {si.stock.toLocaleString('id-ID')}
+                              </span>
+                            : <span className="muted">0</span>}
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -567,8 +611,22 @@ export default function ProdukTerlarisPage() {
   // Column filters — { namaBarang: {op,value,value2}, kuantitas: {...}, hargaProduk: {...} }
   const [colFilters, setColFilters] = useState({})
 
+  // Stock lookup: { kodeBarang: { brand, stock } } — digabung dari underwear + sport
+  const [stockLookup, setStockLookup] = useState(null)
+
   const handleColFilterChange = useCallback((col, f) => {
     setColFilters(prev => ({ ...prev, [col]: f }))
+  }, [])
+
+  const loadStock = useCallback(async () => {
+    try {
+      const res = await fetch('/api/stock-data', { cache: 'no-store' })
+      if (!res.ok) return
+      const body = await res.json()
+      setStockLookup(body.byKodePenuh || {})
+    } catch {
+      // Stock tidak kritis — kalau gagal, kolom tetap tampil dengan nilai 0/—
+    }
   }, [])
 
   // ── Session check ────────────────────────────────────────────────────────────
@@ -580,6 +638,7 @@ export default function ProdukTerlarisPage() {
         setLoggedIn(true)
         loadPeriods()
         loadData('')
+        loadStock()
       })
       .catch(() => setCheckingSession(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -625,12 +684,13 @@ export default function ProdukTerlarisPage() {
       setLoggedIn(true)
       await loadPeriods()
       await loadData('')
+      loadStock()
     } catch (err) {
       setLoginError(err.message)
     } finally {
       setLoginLoading(false)
     }
-  }, [password, loadPeriods, loadData])
+  }, [password, loadPeriods, loadData, loadStock])
 
   // ── Derived data ──────────────────────────────────────────────────────────────
   const analysis = payload?.analysis
@@ -835,6 +895,7 @@ export default function ProdukTerlarisPage() {
             onSearchChange={setSearchQuery}
             colFilters={colFilters}
             onColFilterChange={handleColFilterChange}
+            stockLookup={stockLookup}
           />
         </div>
       )}
