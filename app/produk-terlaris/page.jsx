@@ -990,6 +990,7 @@ export default function ProdukTerlarisPage() {
                   onClick={() => exportBarangTerlaris(filteredRows, {
                     periodLabel: analysis?.periodLabel,
                     filterDesc: activeFilterDesc,
+                    hasStock,
                   })}
                 >
                   ↓ Ekspor Excel
