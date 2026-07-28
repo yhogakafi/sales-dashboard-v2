@@ -7,10 +7,10 @@ import { exportBarangTerlaris } from '@/lib/exportExcel'
 // ─── Stock lookup helper ───────────────────────────────────────────────────────
 
 function getStockInfo(kodeBarang, stockLookup) {
-  if (!stockLookup || !kodeBarang) return { brand: '—', stock: 0, hasData: false }
+  if (!stockLookup || !kodeBarang) return { brand: '—', stock: 0, nama: null, hasData: false }
   const data = stockLookup[kodeBarang]
-  if (!data) return { brand: '—', stock: 0, hasData: false }
-  return { brand: data.brand || '—', stock: data.stock ?? 0, hasData: true }
+  if (!data) return { brand: '—', stock: 0, nama: null, hasData: false }
+  return { brand: data.brand || '—', stock: data.stock ?? 0, nama: data.nama || null, hasData: true }
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -52,17 +52,22 @@ async function fetchBTData(id) {
 
 // ─── Filter & aggregate helpers ───────────────────────────────────────────────
 
-function aggregateRows(rawRows, { account, category, dateFrom, dateTo }) {
+function passesFilters(r, { account, category, dateFrom, dateTo }) {
+  if (dateFrom && r.dateKey < dateFrom) return false
+  if (dateTo   && r.dateKey > dateTo)   return false
+  if (account && r.pelanggan !== account) return false
+  if (category) {
+    const cat = getCategoryForAccount(r.pelanggan)
+    if (cat !== category) return false
+  }
+  return true
+}
+
+function aggregateRows(rawRows, filters) {
   const byBarang = {}
 
   for (const r of rawRows) {
-    if (dateFrom && r.dateKey < dateFrom) continue
-    if (dateTo   && r.dateKey > dateTo)   continue
-    if (account && r.pelanggan !== account) continue
-    if (category) {
-      const cat = getCategoryForAccount(r.pelanggan)
-      if (cat !== category) continue
-    }
+    if (!passesFilters(r, filters)) continue
     if (!byBarang[r.namaBarang]) {
       byBarang[r.namaBarang] = { kuantitas: 0, hargaProduk: 0, kodeBarang: r.kodeBarang || null }
     }
@@ -79,6 +84,79 @@ function aggregateRows(rawRows, { account, category, dateFrom, dateTo }) {
     kuantitas: v.kuantitas,
     hargaProduk: v.hargaProduk,
   }))
+}
+
+// ─── Sales aggregated by kode (needed to match onto the stock master) ─────────
+
+function aggregateSalesByKode(rawRows, filters) {
+  const byKode     = {}  // { kode: { namaBarang, kuantitas, hargaProduk } } — rows that have a kodeBarang
+  const byNamaOnly = {}  // { namaBarang: { kuantitas, hargaProduk } } — rows with no kodeBarang at all
+
+  for (const r of rawRows) {
+    if (!passesFilters(r, filters)) continue
+    if (r.kodeBarang) {
+      if (!byKode[r.kodeBarang]) {
+        byKode[r.kodeBarang] = { namaBarang: r.namaBarang, kuantitas: 0, hargaProduk: 0 }
+      }
+      byKode[r.kodeBarang].kuantitas   += r.kuantitas
+      byKode[r.kodeBarang].hargaProduk += r.hargaProduk
+    } else {
+      if (!byNamaOnly[r.namaBarang]) {
+        byNamaOnly[r.namaBarang] = { kuantitas: 0, hargaProduk: 0 }
+      }
+      byNamaOnly[r.namaBarang].kuantitas   += r.kuantitas
+      byNamaOnly[r.namaBarang].hargaProduk += r.hargaProduk
+    }
+  }
+
+  return { byKode, byNamaOnly }
+}
+
+// ─── Stock-first row builder ───────────────────────────────────────────────
+// Starts from every SKU in the stock master (underwear + sport), then matches
+// in sales data by kodeBarang. Stock SKUs with no matching sales keep
+// kuantitas/hargaProduk at 0 instead of being left out.
+
+function buildStockFirstRows(rawRows, filters, stockLookup) {
+  const { byKode, byNamaOnly } = aggregateSalesByKode(rawRows, filters)
+  const consumedKodes = new Set()
+  const rows = []
+
+  // 1. Every SKU from the stock master, always shown — even with zero sales.
+  for (const [kode, stockEntry] of Object.entries(stockLookup)) {
+    const sales = byKode[kode]
+    consumedKodes.add(kode)
+    rows.push({
+      namaBarang: sales?.namaBarang || stockEntry.nama || kode,
+      kodeBarang: kode,
+      kuantitas: sales?.kuantitas || 0,
+      hargaProduk: sales?.hargaProduk || 0,
+    })
+  }
+
+  // 2. Sold items whose kode isn't in the current stock master (e.g. stock file
+  //    is out of date) — keep them visible too, just without brand/stock info.
+  for (const [kode, sales] of Object.entries(byKode)) {
+    if (consumedKodes.has(kode)) continue
+    rows.push({
+      namaBarang: sales.namaBarang,
+      kodeBarang: kode,
+      kuantitas: sales.kuantitas,
+      hargaProduk: sales.hargaProduk,
+    })
+  }
+
+  // 3. Sold items with no kodeBarang at all — can't be matched to stock.
+  for (const [namaBarang, sales] of Object.entries(byNamaOnly)) {
+    rows.push({
+      namaBarang,
+      kodeBarang: null,
+      kuantitas: sales.kuantitas,
+      hargaProduk: sales.hargaProduk,
+    })
+  }
+
+  return rows
 }
 
 // ─── Stock enrichment (adds brand/stock so they can be filtered & sorted) ─────
@@ -562,7 +640,7 @@ function BestSellerTable({
                 {rows.map((row) => {
                   const si = hasStock ? { brand: row.brand, stock: row.stock, hasData: row.hasStockData } : null
                   return (
-                    <tr key={row.namaBarang}>
+                    <tr key={row.kodeBarang ? `k-${row.kodeBarang}` : `r-${row.rank}`}>
                       <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
                       <td style={{ fontWeight: 500 }}>
                         <HighlightText text={row.namaBarang} query={searchQuery} />
@@ -732,8 +810,13 @@ export default function ProdukTerlarisPage() {
   }, [analysis?.firstDateKey, analysis?.lastDateKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredRows = useMemo(() => {
-    // 1. aggregate + date/account/category filter
-    let rows = aggregateRows(rawRows, filters)
+    const hasStockMaster = !!stockLookup && Object.keys(stockLookup).length > 0
+
+    // 1. base rows — every stock SKU first (matched with sales by kode), or the
+    //    old sales-grouped view if no stock master has been uploaded yet
+    let rows = hasStockMaster
+      ? buildStockFirstRows(rawRows, filters, stockLookup)
+      : aggregateRows(rawRows, filters)
 
     // 2. merge in brand/stock so they can be filtered & sorted like any other column
     rows = enrichWithStock(rows, stockLookup)
