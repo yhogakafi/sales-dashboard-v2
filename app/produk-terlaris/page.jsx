@@ -176,6 +176,13 @@ function sortRows(rows, sortBy) {
     sorted.sort((a, b) => b.hargaProduk - a.hargaProduk)
   } else if (sortBy === 'namaBarang') {
     sorted.sort((a, b) => a.namaBarang.localeCompare(b.namaBarang, 'id'))
+  } else if (sortBy === 'kodeBarang') {
+    sorted.sort((a, b) => {
+      if (!a.kodeBarang && b.kodeBarang) return 1
+      if (!b.kodeBarang && a.kodeBarang) return -1
+      if (!a.kodeBarang && !b.kodeBarang) return 0
+      return a.kodeBarang.localeCompare(b.kodeBarang, 'id')
+    })
   } else if (sortBy === 'brand') {
     sorted.sort((a, b) => {
       if (a.brand === '—' && b.brand !== '—') return 1
@@ -223,9 +230,11 @@ function applyColFilter(rows, colFilters) {
       if (!noVal && f.value === '' && f.op !== 'between') continue
       if (f.op === 'between' && f.value === '' && f.value2 === '') continue
 
-      if (col === 'namaBarang' || col === 'brand') {
-        const rawCell = col === 'namaBarang' ? row.namaBarang : row.brand
-        const cell = (rawCell === '—' ? '' : rawCell).toLowerCase()
+      if (col === 'namaBarang' || col === 'brand' || col === 'kodeBarang') {
+        const rawCell = col === 'namaBarang' ? row.namaBarang
+          : col === 'brand' ? row.brand
+          : row.kodeBarang
+        const cell = (!rawCell || rawCell === '—' ? '' : rawCell).toLowerCase()
         const val  = f.value.toLowerCase()
         if (f.op === 'contains'     && !cell.includes(val))    return false
         if (f.op === 'not_contains' && cell.includes(val))     return false
@@ -361,7 +370,7 @@ function HighlightText({ text, query }) {
 // ── Column filter popover ─────────────────────────────────────────────────────
 
 function ColFilterPopover({ col, filter, onChange, onClose, anchorRef }) {
-  const isText  = col === 'namaBarang' || col === 'brand'
+  const isText  = col === 'namaBarang' || col === 'brand' || col === 'kodeBarang'
   const ops     = isText ? TEXT_OPS : NUM_OPS
   const ref     = useRef(null)
 
@@ -629,6 +638,7 @@ function BestSellerTable({
               <thead>
                 <tr>
                   <th style={{ width: 44 }}>#</th>
+                  <ColHeader col="kodeBarang"   label="Kode Barang"   align="left"  {...colHeaderProps} />
                   <ColHeader col="namaBarang"   label="Nama Barang"   align="left"  {...colHeaderProps} />
                   {hasStock && <ColHeader col="brand" label="Brand" align="left"  {...colHeaderProps} />}
                   <ColHeader col="kuantitas"    label="Kuantitas"     align="right" {...colHeaderProps} />
@@ -642,6 +652,9 @@ function BestSellerTable({
                   return (
                     <tr key={row.kodeBarang ? `k-${row.kodeBarang}` : `r-${row.rank}`}>
                       <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
+                      <td className="muted mono" style={{ whiteSpace: 'nowrap' }}>
+                        {row.kodeBarang || '—'}
+                      </td>
                       <td style={{ fontWeight: 500 }}>
                         <HighlightText text={row.namaBarang} query={searchQuery} />
                       </td>
@@ -849,7 +862,7 @@ export default function ProdukTerlarisPage() {
     }
     // add active column filters
     const colLabels = {
-      namaBarang: 'Nama Barang', kuantitas: 'Kuantitas', hargaProduk: 'Harga Produk',
+      kodeBarang: 'Kode Barang', namaBarang: 'Nama Barang', kuantitas: 'Kuantitas', hargaProduk: 'Harga Produk',
       brand: 'Brand', stock: 'Stock',
     }
     for (const [col, f] of Object.entries(colFilters)) {
