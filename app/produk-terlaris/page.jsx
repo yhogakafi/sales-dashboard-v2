@@ -812,6 +812,7 @@ export default function ProdukTerlarisPage() {
   const analysis = payload?.analysis
   const rawRows  = analysis?.rawRows  || []
   const accounts = analysis?.accounts || []
+  const hasStock = stockLookup !== null
 
   useEffect(() => {
     if (!analysis) return
