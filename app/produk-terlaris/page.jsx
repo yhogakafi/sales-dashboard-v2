@@ -52,7 +52,7 @@ async function fetchBTData(id) {
 
 // ─── Filter & aggregate helpers ───────────────────────────────────────────────
 
-function aggregateRows(rawRows, { account, category, dateFrom, dateTo }, sortBy = 'kuantitas') {
+function aggregateRows(rawRows, { account, category, dateFrom, dateTo }) {
   const byBarang = {}
 
   for (const r of rawRows) {
@@ -73,21 +73,43 @@ function aggregateRows(rawRows, { account, category, dateFrom, dateTo }, sortBy 
     }
   }
 
-  const sortFn = sortBy === 'hargaProduk'
-    ? (a, b) => b[1].hargaProduk - a[1].hargaProduk
-    : sortBy === 'namaBarang'
-    ? (a, b) => a[0].localeCompare(b[0], 'id')
-    : (a, b) => b[1].kuantitas - a[1].kuantitas
+  return Object.entries(byBarang).map(([namaBarang, v]) => ({
+    namaBarang,
+    kodeBarang: v.kodeBarang,
+    kuantitas: v.kuantitas,
+    hargaProduk: v.hargaProduk,
+  }))
+}
 
-  return Object.entries(byBarang)
-    .sort(sortFn)
-    .map(([namaBarang, v], i) => ({
-      rank: i + 1,
-      namaBarang,
-      kodeBarang: v.kodeBarang,
-      kuantitas: v.kuantitas,
-      hargaProduk: v.hargaProduk,
-    }))
+// ─── Stock enrichment (adds brand/stock so they can be filtered & sorted) ─────
+
+function enrichWithStock(rows, stockLookup) {
+  return rows.map(r => {
+    const si = getStockInfo(r.kodeBarang, stockLookup)
+    return { ...r, brand: si.brand, stock: si.stock, hasStockData: si.hasData }
+  })
+}
+
+// ─── Sorting ────────────────────────────────────────────────────────────────
+
+function sortRows(rows, sortBy) {
+  const sorted = [...rows]
+  if (sortBy === 'hargaProduk') {
+    sorted.sort((a, b) => b.hargaProduk - a.hargaProduk)
+  } else if (sortBy === 'namaBarang') {
+    sorted.sort((a, b) => a.namaBarang.localeCompare(b.namaBarang, 'id'))
+  } else if (sortBy === 'brand') {
+    sorted.sort((a, b) => {
+      if (a.brand === '—' && b.brand !== '—') return 1
+      if (b.brand === '—' && a.brand !== '—') return -1
+      return a.brand.localeCompare(b.brand, 'id')
+    })
+  } else if (sortBy === 'stock') {
+    sorted.sort((a, b) => b.stock - a.stock)
+  } else {
+    sorted.sort((a, b) => b.kuantitas - a.kuantitas)
+  }
+  return sorted
 }
 
 // ─── Column filter definitions ────────────────────────────────────────────────
@@ -123,8 +145,9 @@ function applyColFilter(rows, colFilters) {
       if (!noVal && f.value === '' && f.op !== 'between') continue
       if (f.op === 'between' && f.value === '' && f.value2 === '') continue
 
-      if (col === 'namaBarang') {
-        const cell = row.namaBarang.toLowerCase()
+      if (col === 'namaBarang' || col === 'brand') {
+        const rawCell = col === 'namaBarang' ? row.namaBarang : row.brand
+        const cell = (rawCell === '—' ? '' : rawCell).toLowerCase()
         const val  = f.value.toLowerCase()
         if (f.op === 'contains'     && !cell.includes(val))    return false
         if (f.op === 'not_contains' && cell.includes(val))     return false
@@ -135,7 +158,9 @@ function applyColFilter(rows, colFilters) {
         if (f.op === 'is_empty'     && cell.trim() !== '')     return false
         if (f.op === 'is_not_empty' && cell.trim() === '')     return false
       } else {
-        const cell = col === 'kuantitas' ? row.kuantitas : row.hargaProduk
+        const cell = col === 'kuantitas' ? row.kuantitas
+          : col === 'hargaProduk' ? row.hargaProduk
+          : row.stock
         const val  = parseFloat(f.value)
         const val2 = parseFloat(f.value2)
         if (f.op === 'eq'      && cell !== val)              return false
@@ -258,7 +283,7 @@ function HighlightText({ text, query }) {
 // ── Column filter popover ─────────────────────────────────────────────────────
 
 function ColFilterPopover({ col, filter, onChange, onClose, anchorRef }) {
-  const isText  = col === 'namaBarang'
+  const isText  = col === 'namaBarang' || col === 'brand'
   const ops     = isText ? TEXT_OPS : NUM_OPS
   const ref     = useRef(null)
 
@@ -527,15 +552,15 @@ function BestSellerTable({
                 <tr>
                   <th style={{ width: 44 }}>#</th>
                   <ColHeader col="namaBarang"   label="Nama Barang"   align="left"  {...colHeaderProps} />
-                  {hasStock && <th style={{ whiteSpace: 'nowrap' }}>Brand</th>}
+                  {hasStock && <ColHeader col="brand" label="Brand" align="left"  {...colHeaderProps} />}
                   <ColHeader col="kuantitas"    label="Kuantitas"     align="right" {...colHeaderProps} />
                   <ColHeader col="hargaProduk"  label="Harga Produk"  align="right" {...colHeaderProps} />
-                  {hasStock && <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Stock</th>}
+                  {hasStock && <ColHeader col="stock" label="Stock" align="right" {...colHeaderProps} />}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  const si = hasStock ? getStockInfo(row.kodeBarang, stockLookup) : null
+                  const si = hasStock ? { brand: row.brand, stock: row.stock, hasData: row.hasStockData } : null
                   return (
                     <tr key={row.namaBarang}>
                       <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
@@ -707,21 +732,27 @@ export default function ProdukTerlarisPage() {
   }, [analysis?.firstDateKey, analysis?.lastDateKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredRows = useMemo(() => {
-    // 1. aggregate + date/account/category filter + sort
-    let rows = aggregateRows(rawRows, filters, sortBy)
+    // 1. aggregate + date/account/category filter
+    let rows = aggregateRows(rawRows, filters)
 
-    // 2. global search (substring, case-insensitive)
+    // 2. merge in brand/stock so they can be filtered & sorted like any other column
+    rows = enrichWithStock(rows, stockLookup)
+
+    // 3. global search (substring, case-insensitive)
     if (searchQuery.trim()) {
       const kw = searchQuery.trim().toLowerCase()
       rows = rows.filter(r => r.namaBarang.toLowerCase().includes(kw))
     }
 
-    // 3. column filters
+    // 4. column filters (namaBarang, brand, kuantitas, hargaProduk, stock)
     rows = applyColFilter(rows, colFilters)
 
-    // 4. re-rank after all filters
+    // 5. sort
+    rows = sortRows(rows, sortBy)
+
+    // 6. re-rank after all filters
     return rows.map((r, i) => ({ ...r, rank: i + 1 }))
-  }, [rawRows, filters, sortBy, searchQuery, colFilters])
+  }, [rawRows, filters, sortBy, searchQuery, colFilters, stockLookup])
 
   // ── Active filter description ──────────────────────────────────────────────────
   const activeFilterDesc = useMemo(() => {
@@ -734,7 +765,10 @@ export default function ProdukTerlarisPage() {
       parts.push(`Tanggal: ${from} s.d. ${to}`)
     }
     // add active column filters
-    const colLabels = { namaBarang: 'Nama Barang', kuantitas: 'Kuantitas', hargaProduk: 'Harga Produk' }
+    const colLabels = {
+      namaBarang: 'Nama Barang', kuantitas: 'Kuantitas', hargaProduk: 'Harga Produk',
+      brand: 'Brand', stock: 'Stock',
+    }
     for (const [col, f] of Object.entries(colFilters)) {
       if (!f.op) continue
       const noVal = ['is_empty', 'is_not_empty'].includes(f.op)
