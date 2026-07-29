@@ -33,6 +33,18 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: '/app',
+    label: 'App',
+    icon: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" fill={active ? '#3B3A8C' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" fill={active ? '#3B3A8C' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" fill={active ? '#3B3A8C' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" fill={active ? '#3B3A8C' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+      </svg>
+    ),
+  },
+  {
     href: '/admin',
     label: 'Admin',
     icon: (active) => (
