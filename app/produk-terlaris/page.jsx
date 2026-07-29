@@ -539,6 +539,88 @@ function ColHeader({ col, label, align = 'left', sortBy, onSortChange, colFilter
 
 // ── Main table component ──────────────────────────────────────────────────────
 
+const PAGE_SIZE_OPTIONS = [
+  { value: 50,  label: '50' },
+  { value: 100, label: '100' },
+  { value: 200, label: '200' },
+  { value: 'all', label: 'Semua' },
+]
+
+function Pagination({ page, totalPages, pageSize, onPageChange, onPageSizeChange, totalRows }) {
+  const startRow = totalRows === 0 ? 0 : (page - 1) * (pageSize === 'all' ? totalRows : pageSize) + 1
+  const endRow   = pageSize === 'all' ? totalRows : Math.min(page * pageSize, totalRows)
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      flexWrap: 'wrap', gap: '0.6rem', marginTop: '0.75rem',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-muted)' }}>
+        <span>Baris per halaman</span>
+        <select
+          value={pageSize}
+          onChange={e => {
+            const raw = e.target.value
+            onPageSizeChange(raw === 'all' ? 'all' : Number(raw))
+          }}
+          style={{
+            padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border, #ddd)',
+            background: 'var(--surface, #fff)', fontSize: 13, cursor: 'pointer',
+          }}
+        >
+          {PAGE_SIZE_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <span className="mono">
+          {totalRows === 0 ? '0' : `${startRow}–${endRow}`} dari {totalRows}
+        </span>
+      </div>
+
+      {pageSize !== 'all' && totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            onClick={() => onPageChange(1)}
+            disabled={page <= 1}
+            style={pagerBtnStyle(page <= 1)}
+            title="Halaman pertama"
+          >«</button>
+          <button
+            onClick={() => onPageChange(page - 1)}
+            disabled={page <= 1}
+            style={pagerBtnStyle(page <= 1)}
+            title="Sebelumnya"
+          >‹</button>
+          <span className="mono" style={{ fontSize: 13, padding: '0 4px' }}>
+            {page} / {totalPages}
+          </span>
+          <button
+            onClick={() => onPageChange(page + 1)}
+            disabled={page >= totalPages}
+            style={pagerBtnStyle(page >= totalPages)}
+            title="Berikutnya"
+          >›</button>
+          <button
+            onClick={() => onPageChange(totalPages)}
+            disabled={page >= totalPages}
+            style={pagerBtnStyle(page >= totalPages)}
+            title="Halaman terakhir"
+          >»</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function pagerBtnStyle(disabled) {
+  return {
+    padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border, #ddd)',
+    background: disabled ? 'var(--surface-2, #f5f5f5)' : 'var(--surface, #fff)',
+    color: disabled ? 'var(--ink-muted)' : 'var(--ink)',
+    cursor: disabled ? 'default' : 'pointer', fontSize: 14, lineHeight: 1,
+  }
+}
+
 function BestSellerTable({
   rows, loading, sortBy, onSortChange,
   searchQuery, onSearchChange,
@@ -550,6 +632,21 @@ function BestSellerTable({
   const hasStock = stockLookup !== null
 
   const colHeaderProps = { sortBy, onSortChange, colFilters, onColFilterChange }
+
+  // ── Pagination (client-side; slices the already-filtered `rows`) ──
+  const [pageSize, setPageSize] = useState(50)
+  const [page, setPage] = useState(1)
+
+  // Reset to page 1 whenever the underlying row set changes (new filter, search, sort…)
+  useEffect(() => {
+    setPage(1)
+  }, [rows])
+
+  const totalPages = pageSize === 'all' ? 1 : Math.max(1, Math.ceil(rows.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const pageRows = pageSize === 'all'
+    ? rows
+    : rows.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   return (
     <>
@@ -647,7 +744,7 @@ function BestSellerTable({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => {
+                {pageRows.map((row) => {
                   const si = hasStock ? { brand: row.brand, stock: row.stock, hasData: row.hasStockData } : null
                   return (
                     <tr key={row.kodeBarang ? `k-${row.kodeBarang}` : `r-${row.rank}`}>
@@ -686,6 +783,15 @@ function BestSellerTable({
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            page={safePage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            totalRows={rows.length}
+          />
         </>
       )}
     </>
