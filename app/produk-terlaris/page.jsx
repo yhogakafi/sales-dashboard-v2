@@ -411,6 +411,8 @@ function ColFilterPopover({ col, filter, onChange, onClose, anchorRef }) {
       padding: '0.85rem',
       minWidth: 240,
       marginTop: 4,
+      display: 'flex',
+      flexDirection: 'column',
     }}>
       {/* Op selector */}
       <select
