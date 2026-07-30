@@ -70,7 +70,7 @@ function last30DaysRange() {
   return { dateFrom: toDateKey(from), dateTo: toDateKey(to) }
 }
 
-const LAST_30_ID = 'last30'
+const ALL_MERGED_ID = 'all-merged'
 
 // ─── Filter & aggregate helpers ───────────────────────────────────────────────
 
@@ -287,7 +287,7 @@ function applyColFilter(rows, colFilters) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function FilterBar({ accounts, filters, onChange }) {
+function FilterBar({ accounts, filters, onChange, onQuickLast30Days }) {
   const categories = ['Online Underwear', 'Online Sport']
 
   return (
@@ -349,6 +349,17 @@ function FilterBar({ accounts, filters, onChange }) {
           value={filters.dateTo}
           onChange={e => onChange({ ...filters, dateTo: e.target.value })}
         />
+      </div>
+
+      <div className="period-picker-group" style={{ justifyContent: 'flex-end' }}>
+        <button
+          type="button"
+          className="pill-btn"
+          onClick={onQuickLast30Days}
+          title="Gabungkan semua periode & set tanggal ke 30 hari terakhir"
+        >
+          30 hari terakhir
+        </button>
       </div>
 
       {(filters.account || filters.category || filters.dateFrom || filters.dateTo) && (
@@ -910,15 +921,16 @@ export default function ProdukTerlarisPage() {
     }
   }, [])
 
-  // "1 Bulan Terakhir" — gabungkan rawRows dari 2 periode (JSON bulan) terbaru,
-  // lalu filter ke window 30 hari terakhir. Tidak perlu ubah cara periode disimpan.
-  const loadLast30Days = useCallback(async (periodList) => {
+  // "Semua Periode (gabungan)" — gabungkan rawRows dari SEMUA periode (JSON bulan)
+  // yang tersimpan jadi satu pool. Setelah ini, filter Tanggal mulai/akhir yang
+  // sudah ada bisa dipakai bebas untuk rentang berapa pun (30 hari, 60 hari, dst)
+  // tanpa dibatasi cuma 2 periode terbaru. Optional dateRangeOverride dipakai oleh
+  // tombol preset "30 hari terakhir" supaya bisa switch pool + set tanggal sekaligus.
+  const loadAllPeriodsMerged = useCallback(async (periodList, dateRangeOverride) => {
     setDataLoading(true)
     setDataError(null)
     try {
-      const { dateFrom, dateTo } = last30DaysRange()
-      const idsToFetch = periodList.slice(0, 2).map(p => p.id) // 2 periode terbaru
-
+      const idsToFetch = periodList.map(p => p.id) // semua periode tersimpan
       if (idsToFetch.length === 0) {
         throw new Error('Belum ada periode data yang tersimpan.')
       }
@@ -932,20 +944,24 @@ export default function ProdukTerlarisPage() {
         throw new Error('Tidak ada transaksi pada periode yang tersimpan.')
       }
 
+      const sortedKeys   = rawRows.map(r => r.dateKey).sort()
+      const firstDateKey = sortedKeys[0]
+      const lastDateKey  = sortedKeys[sortedKeys.length - 1]
+
       setPayload({
-        periodId: LAST_30_ID,
+        periodId: ALL_MERGED_ID,
         analysis: {
           rawRows,
           accounts,
-          firstDateKey: dateFrom,
-          lastDateKey:  dateTo,
-          periodLabel:  `1 Bulan Terakhir (${formatDateLabel(dateFrom)} – ${formatDateLabel(dateTo)})`,
+          firstDateKey,
+          lastDateKey,
+          periodLabel: `Semua Periode (gabungan) — ${formatDateLabel(firstDateKey)} – ${formatDateLabel(lastDateKey)}`,
         },
       })
 
-      // Selalu pakai window 30 hari ini — timpa dateFrom/dateTo lama, jangan
-      // cuma diisi kalau kosong (beda dari perilaku ganti periode biasa).
-      setFilters(f => ({ ...f, dateFrom, dateTo }))
+      if (dateRangeOverride) {
+        setFilters(f => ({ ...f, dateFrom: dateRangeOverride.dateFrom, dateTo: dateRangeOverride.dateTo }))
+      }
     } catch (err) {
       setDataError(err.message)
       setPayload(null)
@@ -956,12 +972,26 @@ export default function ProdukTerlarisPage() {
 
   const handlePeriodChange = useCallback((newId) => {
     setSelectedId(newId)
-    if (newId === LAST_30_ID) {
-      loadLast30Days(periods)
+    if (newId === ALL_MERGED_ID) {
+      loadAllPeriodsMerged(periods)
     } else {
       loadData(newId)
     }
-  }, [loadData, loadLast30Days, periods])
+  }, [loadData, loadAllPeriodsMerged, periods])
+
+  // Preset "30 hari terakhir" — tombol di sebelah filter tanggal manual (bukan
+  // opsi dropdown), supaya tidak ada 2 kontrol yang rebutan makna atas
+  // filters.dateFrom/dateTo. Ini cuma mengisi tanggal seperti kalau user
+  // ketik manual, sekali pakai — bukan mode yang "menempel" terus di dropdown.
+  const handleQuickLast30Days = useCallback(() => {
+    const range = last30DaysRange()
+    if (selectedId === ALL_MERGED_ID) {
+      setFilters(f => ({ ...f, dateFrom: range.dateFrom, dateTo: range.dateTo }))
+    } else {
+      setSelectedId(ALL_MERGED_ID)
+      loadAllPeriodsMerged(periods, range)
+    }
+  }, [selectedId, periods, loadAllPeriodsMerged])
 
   // ── Login ─────────────────────────────────────────────────────────────────────
   const handleLogin = useCallback(async (e) => {
@@ -1115,7 +1145,7 @@ export default function ProdukTerlarisPage() {
               onChange={e => handlePeriodChange(e.target.value)}
             >
               <option value="">Terbaru ({periods[0]?.label})</option>
-              <option value={LAST_30_ID}>1 Bulan Terakhir (30 hari)</option>
+              <option value={ALL_MERGED_ID}>Semua Periode (gabungan)</option>
               {periods.map(p => (
                 <option key={p.id} value={p.id}>
                   {p.label} — {p.dateRange}
@@ -1185,6 +1215,7 @@ export default function ProdukTerlarisPage() {
               accounts={accounts}
               filters={filters}
               onChange={newFilters => setFilters(newFilters)}
+              onQuickLast30Days={handleQuickLast30Days}
             />
           )}
 
