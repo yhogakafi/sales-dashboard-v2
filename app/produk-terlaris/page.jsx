@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { formatRupiah } from '@/lib/parseBarangTerlaris'
+import { formatRupiah, formatDateLabel } from '@/lib/parseBarangTerlaris'
 import { exportBarangTerlaris } from '@/lib/exportExcel'
 
 // ─── Stock lookup helper ───────────────────────────────────────────────────────
@@ -49,6 +49,28 @@ async function fetchBTData(id) {
   if (!res.ok) throw new Error(body.error || 'Gagal memuat data.')
   return body
 }
+
+// ─── "1 Bulan Terakhir" (rolling 30-day) helpers ──────────────────────────────
+// Periode disimpan per bulan kalender (satu JSON per bulan), jadi window 30 hari
+// bisa memotong 2 bulan sekaligus (mis. hari ini 10 Agustus → butuh Juli + Agustus).
+// Solusinya: gabungkan rawRows dari 2 periode terbaru, lalu filter ulang by dateKey
+// di client — tidak perlu ubah cara data disimpan.
+
+function toDateKey(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function last30DaysRange() {
+  const to = new Date()
+  const from = new Date()
+  from.setDate(from.getDate() - 29) // 30 hari termasuk hari ini
+  return { dateFrom: toDateKey(from), dateTo: toDateKey(to) }
+}
+
+const LAST_30_ID = 'last30'
 
 // ─── Filter & aggregate helpers ───────────────────────────────────────────────
 
@@ -888,10 +910,58 @@ export default function ProdukTerlarisPage() {
     }
   }, [])
 
+  // "1 Bulan Terakhir" — gabungkan rawRows dari 2 periode (JSON bulan) terbaru,
+  // lalu filter ke window 30 hari terakhir. Tidak perlu ubah cara periode disimpan.
+  const loadLast30Days = useCallback(async (periodList) => {
+    setDataLoading(true)
+    setDataError(null)
+    try {
+      const { dateFrom, dateTo } = last30DaysRange()
+      const idsToFetch = periodList.slice(0, 2).map(p => p.id) // 2 periode terbaru
+
+      if (idsToFetch.length === 0) {
+        throw new Error('Belum ada periode data yang tersimpan.')
+      }
+
+      const results = await Promise.all(idsToFetch.map(id => fetchBTData(id)))
+
+      const rawRows  = results.flatMap(r => r?.analysis?.rawRows || [])
+      const accounts = Array.from(new Set(results.flatMap(r => r?.analysis?.accounts || [])))
+
+      if (!rawRows.length) {
+        throw new Error('Tidak ada transaksi pada periode yang tersimpan.')
+      }
+
+      setPayload({
+        periodId: LAST_30_ID,
+        analysis: {
+          rawRows,
+          accounts,
+          firstDateKey: dateFrom,
+          lastDateKey:  dateTo,
+          periodLabel:  `1 Bulan Terakhir (${formatDateLabel(dateFrom)} – ${formatDateLabel(dateTo)})`,
+        },
+      })
+
+      // Selalu pakai window 30 hari ini — timpa dateFrom/dateTo lama, jangan
+      // cuma diisi kalau kosong (beda dari perilaku ganti periode biasa).
+      setFilters(f => ({ ...f, dateFrom, dateTo }))
+    } catch (err) {
+      setDataError(err.message)
+      setPayload(null)
+    } finally {
+      setDataLoading(false)
+    }
+  }, [])
+
   const handlePeriodChange = useCallback((newId) => {
     setSelectedId(newId)
-    loadData(newId)
-  }, [loadData])
+    if (newId === LAST_30_ID) {
+      loadLast30Days(periods)
+    } else {
+      loadData(newId)
+    }
+  }, [loadData, loadLast30Days, periods])
 
   // ── Login ─────────────────────────────────────────────────────────────────────
   const handleLogin = useCallback(async (e) => {
@@ -1045,6 +1115,7 @@ export default function ProdukTerlarisPage() {
               onChange={e => handlePeriodChange(e.target.value)}
             >
               <option value="">Terbaru ({periods[0]?.label})</option>
+              <option value={LAST_30_ID}>1 Bulan Terakhir (30 hari)</option>
               {periods.map(p => (
                 <option key={p.id} value={p.id}>
                   {p.label} — {p.dateRange}
