@@ -197,7 +197,9 @@ function buildStockFirstRows(rawRows, filters, stockLookup) {
 function enrichWithStock(rows, stockLookup) {
   return rows.map(r => {
     const si = getStockInfo(r.kodeBarang, stockLookup)
-    return { ...r, brand: si.brand, stock: si.stock, hasStockData: si.hasData, hpp: si.hpp, totalHpp: si.hpp * si.stock }
+    const totalHpp = si.hpp * si.stock
+    const ssr = r.kuantitas > 0 ? si.stock / r.kuantitas : null // stock / terjual — null = tidak bisa dihitung (belum ada yang terjual)
+    return { ...r, brand: si.brand, stock: si.stock, hasStockData: si.hasData, hpp: si.hpp, totalHpp, ssr }
   })
 }
 
@@ -675,6 +677,9 @@ function BestSellerTable({
   const totalHargaProduk = rows.reduce((s, r) => s + r.hargaProduk, 0)
   const totalHpp         = rows.reduce((s, r) => s + (r.totalHpp || 0), 0)
   const totalStockPcs    = rows.reduce((s, r) => s + (r.stock || 0), 0)
+  const totalHppTerjual  = rows.reduce((s, r) => s + (r.hpp || 0) * (r.kuantitas || 0), 0) // Σ (HPP PCS × Terjual)
+  const ssrGrand         = totalKuantitas  > 0 ? totalStockPcs / totalKuantitas : null      // Stock PCS / Terjual
+  const ssrHppGrand      = totalHppTerjual > 0 ? totalHpp / totalHppTerjual     : null       // Total HPP / Σ(HPP × Terjual)
   const hasStock = stockLookup !== null
 
   const colHeaderProps = { sortBy, onSortChange, colFilters, onColFilterChange }
@@ -746,7 +751,7 @@ function BestSellerTable({
               flex: 1, minWidth: 140,
               background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.6rem 1rem',
             }}>
-              <p className="muted" style={{ fontSize: 12, margin: 0 }}>Total Kuantitas</p>
+              <p className="muted" style={{ fontSize: 12, margin: 0 }}>Total Terjual</p>
               <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
                 {totalKuantitas.toLocaleString('id-ID')}
               </p>
@@ -780,6 +785,24 @@ function BestSellerTable({
                     {totalStockPcs.toLocaleString('id-ID')}
                   </p>
                 </div>
+                <div style={{
+                  flex: 1, minWidth: 140,
+                  background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.6rem 1rem',
+                }}>
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>SSR</p>
+                  <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
+                    {ssrGrand != null ? ssrGrand.toFixed(2) : '—'}
+                  </p>
+                </div>
+                <div style={{
+                  flex: 1, minWidth: 140,
+                  background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.6rem 1rem',
+                }}>
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>SSR (HPP)</p>
+                  <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
+                    {ssrHppGrand != null ? ssrHppGrand.toFixed(2) : '—'}
+                  </p>
+                </div>
               </>
             )}
           </div>
@@ -806,11 +829,12 @@ function BestSellerTable({
                   <ColHeader col="kodeBarang"   label="Kode Barang"   align="left"  {...colHeaderProps} />
                   <ColHeader col="namaBarang"   label="Nama Barang"   align="left"  {...colHeaderProps} />
                   {hasStock && <ColHeader col="brand" label="Brand" align="left"  {...colHeaderProps} />}
-                  <ColHeader col="kuantitas"    label="Kuantitas"     align="right" {...colHeaderProps} />
+                  <ColHeader col="kuantitas"    label="Terjual"       align="right" {...colHeaderProps} />
                   <ColHeader col="hargaProduk"  label="Harga Produk"  align="right" {...colHeaderProps} />
                   {hasStock && <ColHeader col="stock" label="Stock" align="right" {...colHeaderProps} />}
                   {hasStock && <ColHeader col="hpp" label="HPP PCS" align="right" {...colHeaderProps} />}
                   {hasStock && <ColHeader col="totalHpp" label="Total HPP" align="right" {...colHeaderProps} />}
+                  {hasStock && <ColHeader col="ssr" label="SSR" align="right" {...colHeaderProps} />}
                 </tr>
               </thead>
               <tbody>
@@ -855,6 +879,11 @@ function BestSellerTable({
                       {hasStock && (
                         <td className="mono" style={{ textAlign: 'right' }}>
                           {row.totalHpp ? formatRupiah(row.totalHpp) : <span className="muted">—</span>}
+                        </td>
+                      )}
+                      {hasStock && (
+                        <td className="mono" style={{ textAlign: 'right' }}>
+                          {row.ssr != null ? row.ssr.toFixed(2) : <span className="muted">—</span>}
                         </td>
                       )}
                     </tr>
