@@ -205,30 +205,42 @@ function enrichWithStock(rows, stockLookup) {
 
 // ─── Sorting ────────────────────────────────────────────────────────────────
 
-function sortRows(rows, sortBy) {
+const TEXT_SORT_COLS = ['namaBarang', 'kodeBarang', 'brand']
+
+function sortRows(rows, sortBy, sortDir = 'desc') {
+  const col   = sortBy || 'kuantitas'
+  const mult  = sortDir === 'asc' ? 1 : -1
   const sorted = [...rows]
-  if (sortBy === 'hargaProduk') {
-    sorted.sort((a, b) => b.hargaProduk - a.hargaProduk)
-  } else if (sortBy === 'namaBarang') {
-    sorted.sort((a, b) => a.namaBarang.localeCompare(b.namaBarang, 'id'))
-  } else if (sortBy === 'kodeBarang') {
-    sorted.sort((a, b) => {
+
+  sorted.sort((a, b) => {
+    if (col === 'namaBarang') {
+      return mult * a.namaBarang.localeCompare(b.namaBarang, 'id')
+    }
+    if (col === 'kodeBarang') {
       if (!a.kodeBarang && b.kodeBarang) return 1
       if (!b.kodeBarang && a.kodeBarang) return -1
       if (!a.kodeBarang && !b.kodeBarang) return 0
-      return a.kodeBarang.localeCompare(b.kodeBarang, 'id')
-    })
-  } else if (sortBy === 'brand') {
-    sorted.sort((a, b) => {
+      return mult * a.kodeBarang.localeCompare(b.kodeBarang, 'id')
+    }
+    if (col === 'brand') {
       if (a.brand === '—' && b.brand !== '—') return 1
       if (b.brand === '—' && a.brand !== '—') return -1
-      return a.brand.localeCompare(b.brand, 'id')
-    })
-  } else if (sortBy === 'stock') {
-    sorted.sort((a, b) => b.stock - a.stock)
-  } else {
-    sorted.sort((a, b) => b.kuantitas - a.kuantitas)
-  }
+      if (a.brand === '—' && b.brand === '—') return 0
+      return mult * a.brand.localeCompare(b.brand, 'id')
+    }
+    // Numeric columns: kuantitas, hargaProduk, stock, hpp, totalHpp, ssr…
+    // Missing/null values (mis. SSR saat terjual = 0) selalu di akhir,
+    // terlepas dari arah urutan — bukan ikut kebalik pas toggle ke ascending.
+    const av = a[col]
+    const bv = b[col]
+    const aNull = av == null
+    const bNull = bv == null
+    if (aNull && bNull) return 0
+    if (aNull) return 1
+    if (bNull) return -1
+    return mult * (av - bv)
+  })
+
   return sorted
 }
 
@@ -387,10 +399,10 @@ function FilterBar({ accounts, filters, onChange, onQuickLast30Days }) {
   )
 }
 
-function SortIcon({ active, asc = false }) {
+function SortIcon({ active, dir }) {
   return (
     <span style={{ marginLeft: 4, opacity: active ? 1 : 0.25, fontSize: 11 }}>
-      {active && asc ? '↑' : '↓'}
+      {active && dir === 'asc' ? '↑' : '↓'}
     </span>
   )
 }
@@ -520,7 +532,7 @@ function ColFilterPopover({ col, filter, onChange, onClose, anchorRef }) {
 
 // ── Column header with sort + filter ─────────────────────────────────────────
 
-function ColHeader({ col, label, align = 'left', sortBy, onSortChange, colFilters, onColFilterChange }) {
+function ColHeader({ col, label, align = 'left', sortBy, sortDir, onSortChange, colFilters, onColFilterChange }) {
   const [open, setOpen] = useState(false)
   const btnRef = useRef(null)
   const filter  = colFilters[col] || EMPTY_COL_FILTER
@@ -543,9 +555,9 @@ function ColHeader({ col, label, align = 'left', sortBy, onSortChange, colFilter
         style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}
         title={`Urutkan berdasarkan ${label}`}
       >
-        {align === 'right' && <SortIcon active={sortBy === col} />}
+        {align === 'right' && <SortIcon active={sortBy === col} dir={sortDir} />}
         {label}
-        {align === 'left'  && <SortIcon active={sortBy === col} asc={true} />}
+        {align === 'left'  && <SortIcon active={sortBy === col} dir={sortDir} />}
       </span>
 
       {/* Filter button */}
@@ -668,7 +680,7 @@ function pagerBtnStyle(disabled) {
 }
 
 function BestSellerTable({
-  rows, loading, sortBy, onSortChange,
+  rows, loading, sortBy, sortDir, onSortChange,
   searchQuery, onSearchChange,
   colFilters, onColFilterChange,
   stockLookup,
@@ -682,7 +694,7 @@ function BestSellerTable({
   const ssrHppGrand      = totalHppTerjual > 0 ? totalHpp / totalHppTerjual     : null       // Total HPP / Σ(HPP × Terjual)
   const hasStock = stockLookup !== null
 
-  const colHeaderProps = { sortBy, onSortChange, colFilters, onColFilterChange }
+  const colHeaderProps = { sortBy, sortDir, onSortChange, colFilters, onColFilterChange }
 
   // ── Pagination (client-side; slices the already-filtered `rows`) ──
   const [pageSize, setPageSize] = useState(50)
@@ -935,6 +947,19 @@ export default function ProdukTerlarisPage() {
 
   // Sort
   const [sortBy, setSortBy] = useState('kuantitas')
+  const [sortDir, setSortDir] = useState('desc')
+
+  // Kolom teks (Nama Barang, Kode Barang, Brand) default ascending (A→Z) saat
+  // pertama diklik; kolom angka default descending (terbesar dulu) — klik lagi
+  // di kolom yang sama membalik arahnya.
+  const handleSortChange = useCallback((col) => {
+    if (sortBy === col) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(col)
+      setSortDir(TEXT_SORT_COLS.includes(col) ? 'asc' : 'desc')
+    }
+  }, [sortBy])
 
   // Search
   const [searchQuery, setSearchQuery] = useState('')
@@ -1131,11 +1156,11 @@ export default function ProdukTerlarisPage() {
     rows = applyColFilter(rows, colFilters)
 
     // 5. sort
-    rows = sortRows(rows, sortBy)
+    rows = sortRows(rows, sortBy, sortDir)
 
     // 6. re-rank after all filters
     return rows.map((r, i) => ({ ...r, rank: i + 1 }))
-  }, [rawRows, filters, sortBy, searchQuery, colFilters, stockLookup])
+  }, [rawRows, filters, sortBy, sortDir, searchQuery, colFilters, stockLookup])
 
   // ── Active filter description ──────────────────────────────────────────────────
   const activeFilterDesc = useMemo(() => {
@@ -1310,7 +1335,8 @@ export default function ProdukTerlarisPage() {
             rows={filteredRows}
             loading={dataLoading}
             sortBy={sortBy}
-            onSortChange={setSortBy}
+            sortDir={sortDir}
+            onSortChange={handleSortChange}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             colFilters={colFilters}
