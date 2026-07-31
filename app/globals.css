@@ -32,6 +32,13 @@ html, body {
   padding: 2.5rem 1.5rem 4rem;
 }
 
+/* Wider variant — for pages with dense tables (Produk Terlaris) that benefit
+   from using more of the available desktop width before falling back to
+   horizontal scroll. Other pages keep the narrower, easier-to-read default. */
+.app-shell--wide {
+  max-width: 1440px;
+}
+
 .app-header {
   display: flex;
   justify-content: space-between;

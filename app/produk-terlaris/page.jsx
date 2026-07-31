@@ -1160,7 +1160,7 @@ export default function ProdukTerlarisPage() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell app-shell--wide">
       <header className="app-header">
         <div>
           <p className="eyebrow">Dashboard penjualan</p>
