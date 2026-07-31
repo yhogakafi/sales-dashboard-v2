@@ -317,8 +317,31 @@
           <button class="pill-btn" data-view="tunggal">Tunggal saja</button>
         </div>
       </div>
+      <div class="field">
+        <label for="brandFilter">Brand</label>
+        <select id="brandFilter"><option value="">Semua Brand</option></select>
+      </div>
+      <div class="field">
+        <label for="minTerjual">Terjual min.</label>
+        <input type="number" id="minTerjual" placeholder="0" min="0">
+      </div>
+      <div class="field">
+        <label for="minStock">Stock min.</label>
+        <input type="number" id="minStock" placeholder="0" min="0">
+      </div>
+      <div class="field">
+        <label for="minSsr">SSR min.</label>
+        <input type="number" id="minSsr" placeholder="0" min="0" step="0.1">
+      </div>
+      <div class="field">
+        <label for="maxSsr">SSR maks.</label>
+        <input type="number" id="maxSsr" placeholder="tanpa batas" min="0" step="0.1">
+      </div>
+      <button class="pill-btn" id="resetFilterBtn">Reset Filter</button>
       <button class="btn-export" id="exportBtn">&darr; Ekspor Excel</button>
     </div>
+
+    <p class="result-count muted" id="resultCount" style="margin:0 0 10px; font-size:12.5px;"></p>
 
     <div class="table-scroll">
       <table>
@@ -373,6 +396,11 @@
   var sortDir = 'desc';
   var searchQuery = '';
   var viewMode = 'all';  // all | induk | tunggal
+  var brandFilter = '';
+  var minTerjual = null;
+  var minStock = null;
+  var minSsr = null;
+  var maxSsr = null;
   var page = 1;
   var pageSize = 50;
 
@@ -420,6 +448,7 @@
         allRows = buildParentSummary(parsed);
         setStatus('');
         resultArea.style.display = 'block';
+        populateBrandFilter(allRows);
         page = 1;
         applyFilters();
       } catch (err) {
@@ -542,12 +571,27 @@
     });
   }
 
+  // ── Isi dropdown Brand berdasarkan data yang ter-upload ─────────────────────
+  function populateBrandFilter(rows){
+    var brands = Array.from(new Set(rows.map(function(r){ return r.brand; }).filter(Boolean))).sort(function(a,b){
+      return a.localeCompare(b, 'id');
+    });
+    var sel = document.getElementById('brandFilter');
+    sel.innerHTML = '<option value="">Semua Brand</option>' +
+      brands.map(function(b){ return '<option value="' + escapeHtml(b) + '">' + escapeHtml(b) + '</option>'; }).join('');
+  }
+
   // ── Filter, sort, render ─────────────────────────────────────────────────────
   function applyFilters(){
     var q = searchQuery.trim().toLowerCase();
     filtered = allRows.filter(function(r){
       if (viewMode === 'induk' && r.tipe !== 'induk') return false;
       if (viewMode === 'tunggal' && r.tipe !== 'tunggal') return false;
+      if (brandFilter && r.brand !== brandFilter) return false;
+      if (minTerjual != null && r.terjual < minTerjual) return false;
+      if (minStock != null && r.stock < minStock) return false;
+      if (minSsr != null && (r.ssr == null || r.ssr < minSsr)) return false;
+      if (maxSsr != null && (r.ssr == null || r.ssr > maxSsr)) return false;
       if (!q) return true;
       return r.parent.toLowerCase().indexOf(q) !== -1 || (r.nama || '').toLowerCase().indexOf(q) !== -1;
     });
@@ -564,6 +608,9 @@
       if (bNull) return -1;
       return mult * (av - bv);
     });
+
+    document.getElementById('resultCount').textContent = filtered.length.toLocaleString('id-ID') + ' dari ' + allRows.length.toLocaleString('id-ID') + ' baris cocok dengan filter';
+
 
     page = 1;
     renderSummary();
@@ -663,6 +710,39 @@
       btn.classList.add('active');
       applyFilters();
     });
+  });
+  document.getElementById('brandFilter').addEventListener('change', function(e){
+    brandFilter = e.target.value;
+    applyFilters();
+  });
+  document.getElementById('minTerjual').addEventListener('input', function(e){
+    minTerjual = e.target.value === '' ? null : Number(e.target.value);
+    applyFilters();
+  });
+  document.getElementById('minStock').addEventListener('input', function(e){
+    minStock = e.target.value === '' ? null : Number(e.target.value);
+    applyFilters();
+  });
+  document.getElementById('minSsr').addEventListener('input', function(e){
+    minSsr = e.target.value === '' ? null : Number(e.target.value);
+    applyFilters();
+  });
+  document.getElementById('maxSsr').addEventListener('input', function(e){
+    maxSsr = e.target.value === '' ? null : Number(e.target.value);
+    applyFilters();
+  });
+  document.getElementById('resetFilterBtn').addEventListener('click', function(){
+    searchQuery = ''; brandFilter = ''; minTerjual = null; minStock = null; minSsr = null; maxSsr = null;
+    viewMode = 'all';
+    document.getElementById('searchInput').value = '';
+    document.getElementById('brandFilter').value = '';
+    document.getElementById('minTerjual').value = '';
+    document.getElementById('minStock').value = '';
+    document.getElementById('minSsr').value = '';
+    document.getElementById('maxSsr').value = '';
+    document.querySelectorAll('[data-view]').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelector('[data-view="all"]').classList.add('active');
+    applyFilters();
   });
   document.getElementById('pageSize').addEventListener('change', function(e){
     pageSize = e.target.value === 'all' ? 'all' : Number(e.target.value);
