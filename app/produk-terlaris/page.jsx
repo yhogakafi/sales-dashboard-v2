@@ -7,10 +7,10 @@ import { exportBarangTerlaris } from '@/lib/exportExcel'
 // ─── Stock lookup helper ───────────────────────────────────────────────────────
 
 function getStockInfo(kodeBarang, stockLookup) {
-  if (!stockLookup || !kodeBarang) return { brand: '—', stock: 0, nama: null, hasData: false }
+  if (!stockLookup || !kodeBarang) return { brand: '—', stock: 0, nama: null, hpp: 0, hasData: false }
   const data = stockLookup[kodeBarang]
-  if (!data) return { brand: '—', stock: 0, nama: null, hasData: false }
-  return { brand: data.brand || '—', stock: data.stock ?? 0, nama: data.nama || null, hasData: true }
+  if (!data) return { brand: '—', stock: 0, nama: null, hpp: 0, hasData: false }
+  return { brand: data.brand || '—', stock: data.stock ?? 0, nama: data.nama || null, hpp: data.hpp ?? 0, hasData: true }
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -186,7 +186,7 @@ function buildStockFirstRows(rawRows, filters, stockLookup) {
 function enrichWithStock(rows, stockLookup) {
   return rows.map(r => {
     const si = getStockInfo(r.kodeBarang, stockLookup)
-    return { ...r, brand: si.brand, stock: si.stock, hasStockData: si.hasData }
+    return { ...r, brand: si.brand, stock: si.stock, hasStockData: si.hasData, hpp: si.hpp, totalHpp: si.hpp * si.stock }
   })
 }
 
@@ -267,9 +267,7 @@ function applyColFilter(rows, colFilters) {
         if (f.op === 'is_empty'     && cell.trim() !== '')     return false
         if (f.op === 'is_not_empty' && cell.trim() === '')     return false
       } else {
-        const cell = col === 'kuantitas' ? row.kuantitas
-          : col === 'hargaProduk' ? row.hargaProduk
-          : row.stock
+        const cell = row[col]
         const val  = parseFloat(f.value)
         const val2 = parseFloat(f.value2)
         if (f.op === 'eq'      && cell !== val)              return false
@@ -664,6 +662,8 @@ function BestSellerTable({
 }) {
   const totalKuantitas   = rows.reduce((s, r) => s + r.kuantitas, 0)
   const totalHargaProduk = rows.reduce((s, r) => s + r.hargaProduk, 0)
+  const totalHpp         = rows.reduce((s, r) => s + (r.totalHpp || 0), 0)
+  const totalStockPcs    = rows.reduce((s, r) => s + (r.stock || 0), 0)
   const hasStock = stockLookup !== null
 
   const colHeaderProps = { sortBy, onSortChange, colFilters, onColFilterChange }
@@ -749,6 +749,28 @@ function BestSellerTable({
                 {formatRupiah(totalHargaProduk)}
               </p>
             </div>
+            {hasStock && (
+              <>
+                <div style={{
+                  flex: 1, minWidth: 140,
+                  background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.6rem 1rem',
+                }}>
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>Total HPP</p>
+                  <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
+                    {formatRupiah(totalHpp)}
+                  </p>
+                </div>
+                <div style={{
+                  flex: 1, minWidth: 140,
+                  background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.6rem 1rem',
+                }}>
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>Stock PCS</p>
+                  <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
+                    {totalStockPcs.toLocaleString('id-ID')}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* ── Search result count ── */}
@@ -776,6 +798,8 @@ function BestSellerTable({
                   <ColHeader col="kuantitas"    label="Kuantitas"     align="right" {...colHeaderProps} />
                   <ColHeader col="hargaProduk"  label="Harga Produk"  align="right" {...colHeaderProps} />
                   {hasStock && <ColHeader col="stock" label="Stock" align="right" {...colHeaderProps} />}
+                  {hasStock && <ColHeader col="hpp" label="HPP PCS" align="right" {...colHeaderProps} />}
+                  {hasStock && <ColHeader col="totalHpp" label="Total HPP" align="right" {...colHeaderProps} />}
                 </tr>
               </thead>
               <tbody>
@@ -810,6 +834,16 @@ function BestSellerTable({
                                 {si.stock.toLocaleString('id-ID')}
                               </span>
                             : <span className="muted">0</span>}
+                        </td>
+                      )}
+                      {hasStock && (
+                        <td className="mono" style={{ textAlign: 'right' }}>
+                          {row.hpp ? formatRupiah(row.hpp) : <span className="muted">—</span>}
+                        </td>
+                      )}
+                      {hasStock && (
+                        <td className="mono" style={{ textAlign: 'right' }}>
+                          {row.totalHpp ? formatRupiah(row.totalHpp) : <span className="muted">—</span>}
                         </td>
                       )}
                     </tr>
