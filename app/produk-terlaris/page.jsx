@@ -139,13 +139,24 @@ function aggregateSalesByKode(rawRows, filters) {
 // in sales data by kodeBarang. Stock SKUs with no matching sales keep
 // kuantitas/hargaProduk at 0 instead of being left out.
 
+// Kategori pill ('Online Underwear' / 'Online Sport') → source di stock master.
+const CATEGORY_TO_STOCK_SOURCE = {
+  'Online Underwear': 'underwear',
+  'Online Sport':      'sport',
+}
+
 function buildStockFirstRows(rawRows, filters, stockLookup) {
   const { byKode, byNamaOnly } = aggregateSalesByKode(rawRows, filters)
   const consumedKodes = new Set()
   const rows = []
 
+  // Kalau pill kategori aktif, batasi SKU stock yang ditampilkan ke sumber file
+  // yang sesuai (underwear.json / sport.json) — bukan cuma memfilter penjualannya.
+  const wantedSource = filters.category ? CATEGORY_TO_STOCK_SOURCE[filters.category] : null
+
   // 1. Every SKU from the stock master, always shown — even with zero sales.
   for (const [kode, stockEntry] of Object.entries(stockLookup)) {
+    if (wantedSource && stockEntry.source !== wantedSource) continue
     const sales = byKode[kode]
     consumedKodes.add(kode)
     rows.push({
