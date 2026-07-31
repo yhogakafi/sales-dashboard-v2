@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rekap SKU Induk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --ivory:#F7F1EA;
+    --paper:#FFFDFB;
+    --plum:#5E2338;
+    --plum-deep:#3E1726;
+    --gold:#B08D4F;
+    --gold-soft:#E7D4AE;
+    --blush:#F0DAD7;
+    --ink:#2B2320;
+    --ink-soft:#7A6F68;
+    --line:#E3D8CD;
+    --good:#4C7A5A;
+    --warn:#B0562E;
+    --shadow: 0 1px 2px rgba(62,23,38,0.06), 0 8px 24px -12px rgba(62,23,38,0.18);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--ivory);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  ::selection{background:var(--blush);}
+
+  header.top{
+    padding:36px 40px 20px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg, var(--paper) 0%, var(--ivory) 100%);
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--gold);
+    font-weight:600;
+    margin:0 0 6px;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-optical-sizing:auto;
+    font-weight:500;
+    font-size:clamp(26px,4vw,38px);
+    margin:0 0 4px;
+    color:var(--plum-deep);
+    letter-spacing:-0.01em;
+  }
+  .subhead{
+    color:var(--ink-soft);
+    font-size:14px;
+    margin:0;
+    max-width:760px;
+    line-height:1.5;
+  }
+
+  .wrap{
+    max-width:1500px;
+    margin:0 auto;
+    padding:32px 40px 60px;
+  }
+
+  #dropzone{
+    border:1.5px dashed var(--gold);
+    border-radius:14px;
+    background:var(--paper);
+    padding:44px 24px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .2s, background .2s;
+  }
+  #dropzone:hover, #dropzone.drag{
+    background:var(--blush);
+    border-color:var(--plum);
+  }
+  #dropzone .tag-icon{ width:40px; height:40px; margin:0 auto 14px; display:block; }
+  #dropzone p.main{
+    font-family:'Fraunces',serif;
+    font-size:18px;
+    color:var(--plum-deep);
+    margin:0 0 6px;
+  }
+  #dropzone p.sub{ color:var(--ink-soft); font-size:13px; margin:0; }
+  #fileInput{ display:none; }
+
+  .rule-box{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px 20px;
+    margin-top:18px;
+    font-size:13px;
+    color:var(--ink-soft);
+    line-height:1.6;
+  }
+  .rule-box b{ color:var(--plum-deep); }
+
+  #status{
+    margin-top:14px;
+    font-size:13px;
+    color:var(--warn);
+    display:none;
+  }
+
+  #resultArea{ display:none; margin-top:30px; }
+
+  .summary-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+    gap:10px;
+    margin-bottom:22px;
+  }
+  .summary-box{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 16px;
+    box-shadow:var(--shadow);
+  }
+  .summary-box .lbl{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 4px;
+  }
+  .summary-box .val{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:17px;
+    font-weight:600;
+    color:var(--plum-deep);
+    margin:0;
+  }
+
+  .toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:flex-end;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:14px 16px;
+    margin-bottom:16px;
+  }
+  .field{ display:flex; flex-direction:column; gap:4px; }
+  .field label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .field input, .field select{
+    padding:7px 10px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--ivory);
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    color:var(--ink);
+  }
+  .field.grow{ flex:1; min-width:220px; }
+  .field.grow input{ width:100%; }
+  .pill-btn{
+    padding:7px 14px;
+    border:1px solid var(--line);
+    border-radius:20px;
+    background:var(--ivory);
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .pill-btn.active{ background:var(--plum); color:#fff; border-color:var(--plum); }
+  .btn-export{
+    padding:9px 16px;
+    border-radius:8px;
+    border:none;
+    background:var(--plum);
+    color:#fff;
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+  }
+  .btn-export:hover{ background:var(--plum-deep); }
+
+  .table-scroll{
+    overflow-x:auto;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:12px;
+  }
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  thead th{
+    position:sticky; top:0;
+    background:var(--blush);
+    color:var(--plum-deep);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.03em;
+    text-transform:uppercase;
+    padding:10px 12px;
+    text-align:left;
+    white-space:nowrap;
+    cursor:pointer;
+    user-select:none;
+    border-bottom:1px solid var(--line);
+  }
+  thead th .arrow{ opacity:.3; margin-left:4px; font-size:10px; }
+  thead th.active .arrow{ opacity:1; }
+  tbody td{
+    padding:9px 12px;
+    border-bottom:1px solid var(--line);
+    white-space:nowrap;
+  }
+  tbody tr:hover{ background:var(--ivory); }
+  .mono{ font-family:'IBM Plex Mono',monospace; }
+  .num{ text-align:right; }
+  .muted{ color:var(--ink-soft); }
+  .badge{
+    display:inline-block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    padding:2px 8px;
+    border-radius:20px;
+    font-weight:600;
+  }
+  .badge.induk{ background:var(--blush); color:var(--plum); }
+  .badge.tunggal{ background:var(--gold-soft); color:#6b4d1f; }
+
+  .pager{
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:8px; margin-top:12px; font-size:13px; color:var(--ink-soft);
+  }
+  .pager select{
+    padding:4px 8px; border-radius:6px; border:1px solid var(--line);
+    background:var(--paper); font-size:13px;
+  }
+  .pager .nav{ display:flex; align-items:center; gap:6px; }
+  .pager button{
+    padding:4px 10px; border-radius:6px; border:1px solid var(--line);
+    background:var(--paper); cursor:pointer; font-size:13px;
+  }
+  .pager button:disabled{ opacity:.4; cursor:default; }
+
+  @media (max-width:720px){
+    header.top, .wrap{ padding-left:18px; padding-right:18px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <p class="eyebrow">Produk Terlaris &middot; Rekap</p>
+  <h1>Rekap SKU Induk</h1>
+  <p class="subhead">
+    Upload file Excel hasil ekspor "Produk Terlaris". Semua varian (kode dengan titik,
+    mis. <span class="mono">105132.3.02</span>) akan dijumlahkan ke SKU induknya
+    (<span class="mono">105132</span>). SKU tanpa titik ditampilkan apa adanya dan
+    <b>tidak</b> digabung ke grup manapun.
+  </p>
+</header>
+
+<div class="wrap">
+
+  <div id="dropzone">
+    <svg class="tag-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M27 5 L43 21 V41 A2 2 0 0 1 41 43 H7 A2 2 0 0 1 5 41 V7 A2 2 0 0 1 7 5 Z" stroke="#5E2338" stroke-width="1.6" fill="#F0DAD7"/>
+      <circle cx="16" cy="16" r="3.4" stroke="#B08D4F" stroke-width="1.6" fill="none"/>
+      <path d="M27 5 V19 A2 2 0 0 0 29 21 H43" stroke="#5E2338" stroke-width="1.6" fill="none"/>
+    </svg>
+    <p class="main">Seret file .xlsx hasil ekspor Produk Terlaris ke sini, atau klik untuk memilih</p>
+    <p class="sub">Kolom yang dibaca: Kode Barang, Nama Barang, Brand, Terjual, Harga Produk, Stock, HPP PCS, Total HPP</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  </div>
+
+  <div class="rule-box">
+    <b>Aturan pengelompokan:</b> SKU induk = teks sebelum titik pertama pada Kode Barang
+    (mis. <span class="mono">2005922.2.03</span> &rarr; induk <span class="mono">2005922</span>).
+    Terjual, Harga Produk, Stock, dan Total HPP dijumlahkan per induk. HPP PCS &amp; SSR pada
+    baris induk dihitung ulang dari hasil penjumlahan (Total HPP &divide; Stock, dan Stock &divide; Terjual) &mdash;
+    bukan rata-rata dari kolom HPP PCS/SSR asli, supaya tetap akurat.
+    <br><br>
+    <b>Kode tanpa titik</b> (mis. <span class="mono">105132</span>) ditampilkan sebagai baris
+    tersendiri berlabel <span class="badge tunggal">Tunggal</span> dan tidak pernah dijumlahkan
+    ke grup induk manapun, meskipun angkanya sama dengan kode induk dari varian lain.
+  </div>
+
+  <p id="status"></p>
+
+  <div id="resultArea">
+    <div class="summary-grid" id="summaryGrid"></div>
+
+    <div class="toolbar">
+      <div class="field grow">
+        <label for="searchInput">Cari SKU / nama barang</label>
+        <input type="text" id="searchInput" placeholder="cth: BH DK 129, 105132...">
+      </div>
+      <div class="field">
+        <label>Tampilkan</label>
+        <div style="display:flex; gap:6px;">
+          <button class="pill-btn active" data-view="all">Semua</button>
+          <button class="pill-btn" data-view="induk">Induk saja</button>
+          <button class="pill-btn" data-view="tunggal">Tunggal saja</button>
+        </div>
+      </div>
+      <button class="btn-export" id="exportBtn">&darr; Ekspor Excel</button>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr id="headerRow"></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="pager">
+      <div>
+        <label style="margin-right:6px;">Baris per halaman</label>
+        <select id="pageSize">
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+          <option value="all">Semua</option>
+        </select>
+        <span class="mono" id="rangeLabel" style="margin-left:10px;"></span>
+      </div>
+      <div class="nav">
+        <button id="firstPage">&laquo;</button>
+        <button id="prevPage">&lsaquo;</button>
+        <span class="mono" id="pageLabel"></span>
+        <button id="nextPage">&rsaquo;</button>
+        <button id="lastPage">&raquo;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var COLS = [
+    { key:'parent',    label:'SKU Induk',    align:'left'  },
+    { key:'tipe',       label:'Tipe',         align:'left'  },
+    { key:'nama',       label:'Nama Barang',  align:'left'  },
+    { key:'brand',      label:'Brand',        align:'left'  },
+    { key:'variantCount', label:'Jml Varian', align:'right' },
+    { key:'terjual',    label:'Terjual',      align:'right' },
+    { key:'harga',      label:'Harga Produk', align:'right' },
+    { key:'stock',      label:'Stock',        align:'right' },
+    { key:'hpp',        label:'HPP PCS',      align:'right' },
+    { key:'totalHpp',   label:'Total HPP',    align:'right' },
+    { key:'ssr',        label:'SSR',          align:'right' },
+  ];
+
+  var allRows = [];      // hasil grouping, siap tampil
+  var filtered = [];
+  var sortKey = 'terjual';
+  var sortDir = 'desc';
+  var searchQuery = '';
+  var viewMode = 'all';  // all | induk | tunggal
+  var page = 1;
+  var pageSize = 50;
+
+  var dropzone   = document.getElementById('dropzone');
+  var fileInput  = document.getElementById('fileInput');
+  var statusEl   = document.getElementById('status');
+  var resultArea = document.getElementById('resultArea');
+
+  dropzone.addEventListener('click', function(){ fileInput.click(); });
+  ['dragover','dragenter'].forEach(function(evt){
+    dropzone.addEventListener(evt, function(e){ e.preventDefault(); dropzone.classList.add('drag'); });
+  });
+  ['dragleave','drop'].forEach(function(evt){
+    dropzone.addEventListener(evt, function(e){ e.preventDefault(); dropzone.classList.remove('drag'); });
+  });
+  dropzone.addEventListener('drop', function(e){
+    var f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  fileInput.addEventListener('change', function(e){
+    var f = e.target.files[0];
+    if (f) handleFile(f);
+  });
+
+  function setStatus(msg, isError){
+    statusEl.textContent = msg || '';
+    statusEl.style.display = msg ? 'block' : 'none';
+    statusEl.style.color = isError ? 'var(--warn)' : 'var(--ink-soft)';
+  }
+
+  function handleFile(file){
+    setStatus('Membaca file…');
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try {
+        var data = new Uint8Array(e.target.result);
+        var wb = XLSX.read(data, { type: 'array' });
+        var sheet = wb.Sheets[wb.SheetNames[0]];
+        var raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        var parsed = parseExport(raw);
+        if (!parsed.length) {
+          setStatus('Tidak menemukan baris data produk pada file ini. Pastikan file adalah hasil ekspor Produk Terlaris.', true);
+          return;
+        }
+        allRows = buildParentSummary(parsed);
+        setStatus('');
+        resultArea.style.display = 'block';
+        page = 1;
+        applyFilters();
+      } catch (err) {
+        console.error(err);
+        setStatus('Gagal membaca file: ' + err.message, true);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // ── Parse baris mentah hasil ekspor Produk Terlaris ─────────────────────────
+  function parseExport(raw){
+    var headerIdx = -1;
+    for (var i = 0; i < raw.length; i++) {
+      var r = raw[i];
+      if (r && String(r[0]).trim() === '#' && String(r[1] || '').trim().toLowerCase() === 'kode barang') {
+        headerIdx = i;
+        break;
+      }
+    }
+    if (headerIdx === -1) return [];
+
+    var header = raw[headerIdx].map(function(h){ return String(h || '').trim().toLowerCase(); });
+    var idx = {
+      kode:     header.indexOf('kode barang'),
+      nama:     header.indexOf('nama barang'),
+      brand:    header.indexOf('brand'),
+      terjual:  header.indexOf('terjual'),
+      harga:    header.indexOf('harga produk'),
+      stock:    header.indexOf('stock'),
+      hpp:      header.indexOf('hpp pcs'),
+      totalHpp: header.indexOf('total hpp'),
+    };
+
+    var out = [];
+    for (var i2 = headerIdx + 1; i2 < raw.length; i2++) {
+      var row = raw[i2];
+      if (!row || row.length === 0) continue;
+      var rankCell = row[0];
+      if (rankCell === '' || rankCell == null) break;          // baris kosong = akhir data
+      if (typeof rankCell !== 'number') break;                 // baris TOTAL / non-data = akhir data
+      var kode = idx.kode  >= 0 ? String(row[idx.kode]  || '').trim() : '';
+      if (!kode) continue;
+      out.push({
+        kode: kode,
+        nama:     idx.nama     >= 0 ? String(row[idx.nama]  || '') : kode,
+        brand:    idx.brand    >= 0 ? String(row[idx.brand] || '') : '',
+        terjual:  idx.terjual  >= 0 ? Number(row[idx.terjual])  || 0 : 0,
+        harga:    idx.harga    >= 0 ? Number(row[idx.harga])    || 0 : 0,
+        stock:    idx.stock    >= 0 ? Number(row[idx.stock])    || 0 : 0,
+        totalHpp: idx.totalHpp >= 0 ? Number(row[idx.totalHpp]) || 0 : 0,
+      });
+    }
+    return out;
+  }
+
+  // ── Kelompokkan per SKU induk; kode tanpa titik selalu berdiri sendiri ──────
+  function buildParentSummary(rows){
+    var groups = {};      // parent -> accumulator
+    var standalone = [];
+
+    rows.forEach(function(r){
+      var hasDot = r.kode.indexOf('.') !== -1;
+
+      if (!hasDot) {
+        standalone.push({
+          parent: r.kode,
+          tipe: 'tunggal',
+          nama: r.nama || r.kode,
+          brand: r.brand,
+          variantCount: 1,
+          terjual: r.terjual,
+          harga: r.harga,
+          stock: r.stock,
+          totalHpp: r.totalHpp,
+        });
+        return;
+      }
+
+      var parent = r.kode.split('.')[0];
+      if (!groups[parent]) {
+        groups[parent] = {
+          parent: parent, brand: r.brand, terjual: 0, harga: 0, stock: 0, totalHpp: 0,
+          variantCount: 0, bestNama: r.nama || parent, bestTerjual: -1,
+        };
+      }
+      var g = groups[parent];
+      g.terjual   += r.terjual;
+      g.harga     += r.harga;
+      g.stock     += r.stock;
+      g.totalHpp  += r.totalHpp;
+      g.variantCount += 1;
+      if (r.terjual > g.bestTerjual) {
+        g.bestTerjual = r.terjual;
+        g.bestNama = r.nama || parent;
+        g.brand = r.brand || g.brand;
+      }
+    });
+
+    var groupRows = Object.keys(groups).map(function(k){
+      var g = groups[k];
+      return {
+        parent: g.parent,
+        tipe: 'induk',
+        nama: g.bestNama,
+        brand: g.brand,
+        variantCount: g.variantCount,
+        terjual: g.terjual,
+        harga: g.harga,
+        stock: g.stock,
+        totalHpp: g.totalHpp,
+      };
+    });
+
+    return groupRows.concat(standalone).map(function(r){
+      return Object.assign({}, r, {
+        hpp: r.stock > 0 ? r.totalHpp / r.stock : 0,
+        ssr: r.terjual > 0 ? r.stock / r.terjual : null,
+      });
+    });
+  }
+
+  // ── Filter, sort, render ─────────────────────────────────────────────────────
+  function applyFilters(){
+    var q = searchQuery.trim().toLowerCase();
+    filtered = allRows.filter(function(r){
+      if (viewMode === 'induk' && r.tipe !== 'induk') return false;
+      if (viewMode === 'tunggal' && r.tipe !== 'tunggal') return false;
+      if (!q) return true;
+      return r.parent.toLowerCase().indexOf(q) !== -1 || (r.nama || '').toLowerCase().indexOf(q) !== -1;
+    });
+
+    filtered.sort(function(a, b){
+      var mult = sortDir === 'asc' ? 1 : -1;
+      if (sortKey === 'nama' || sortKey === 'parent' || sortKey === 'brand' || sortKey === 'tipe') {
+        return mult * String(a[sortKey] || '').localeCompare(String(b[sortKey] || ''), 'id');
+      }
+      var av = a[sortKey], bv = b[sortKey];
+      var aNull = av == null, bNull = bv == null;
+      if (aNull && bNull) return 0;
+      if (aNull) return 1;
+      if (bNull) return -1;
+      return mult * (av - bv);
+    });
+
+    page = 1;
+    renderSummary();
+    renderHeader();
+    renderPage();
+  }
+
+  function renderSummary(){
+    var totalTerjual = filtered.reduce(function(s,r){ return s + r.terjual; }, 0);
+    var totalHarga   = filtered.reduce(function(s,r){ return s + r.harga; }, 0);
+    var totalHpp     = filtered.reduce(function(s,r){ return s + r.totalHpp; }, 0);
+    var totalStock   = filtered.reduce(function(s,r){ return s + r.stock; }, 0);
+    var totalHppTerjual = filtered.reduce(function(s,r){ return s + r.hpp * r.terjual; }, 0);
+    var ssrGrand    = totalTerjual > 0 ? totalStock / totalTerjual : null;
+    var ssrHppGrand = totalHppTerjual > 0 ? totalHpp / totalHppTerjual : null;
+    var indukCount    = filtered.filter(function(r){ return r.tipe === 'induk'; }).length;
+    var tunggalCount  = filtered.filter(function(r){ return r.tipe === 'tunggal'; }).length;
+
+    var boxes = [
+      ['Total Terjual', totalTerjual.toLocaleString('id-ID')],
+      ['Total Harga Produk', formatRupiah(totalHarga)],
+      ['Total HPP', formatRupiah(totalHpp)],
+      ['Stock PCS', totalStock.toLocaleString('id-ID')],
+      ['SSR', ssrGrand != null ? ssrGrand.toFixed(2) : '—'],
+      ['SSR (HPP)', ssrHppGrand != null ? ssrHppGrand.toFixed(2) : '—'],
+      ['Jml SKU Induk', indukCount.toLocaleString('id-ID')],
+      ['Jml SKU Tunggal', tunggalCount.toLocaleString('id-ID')],
+    ];
+    document.getElementById('summaryGrid').innerHTML = boxes.map(function(pair){
+      return '<div class="summary-box"><p class="lbl">' + pair[0] + '</p><p class="val">' + pair[1] + '</p></div>';
+    }).join('');
+  }
+
+  function renderHeader(){
+    var headerRow = document.getElementById('headerRow');
+    headerRow.innerHTML = COLS.map(function(c){
+      return '<th class="' + (sortKey === c.key ? 'active' : '') + '" data-key="' + c.key + '" style="text-align:' + c.align + '">' +
+        c.label + '<span class="arrow">' + (sortKey === c.key ? (sortDir === 'asc' ? '↑' : '↓') : '↓') + '</span></th>';
+    }).join('');
+    headerRow.querySelectorAll('th').forEach(function(th){
+      th.addEventListener('click', function(){
+        var key = th.dataset.key;
+        if (sortKey === key) {
+          sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          sortKey = key;
+          sortDir = (key === 'nama' || key === 'parent' || key === 'brand' || key === 'tipe') ? 'asc' : 'desc';
+        }
+        applyFilters();
+      });
+    });
+  }
+
+  function renderPage(){
+    var total = filtered.length;
+    var totalPages = pageSize === 'all' ? 1 : Math.max(1, Math.ceil(total / pageSize));
+    page = Math.min(page, totalPages);
+    var pageRows = pageSize === 'all' ? filtered : filtered.slice((page-1)*pageSize, page*pageSize);
+
+    document.getElementById('tbody').innerHTML = pageRows.map(function(r){
+      var badge = r.tipe === 'induk'
+        ? '<span class="badge induk">Induk (' + r.variantCount + ' varian)</span>'
+        : '<span class="badge tunggal">Tunggal</span>';
+      return '<tr>' +
+        '<td class="mono">' + escapeHtml(r.parent) + '</td>' +
+        '<td>' + badge + '</td>' +
+        '<td>' + escapeHtml(r.nama) + '</td>' +
+        '<td>' + escapeHtml(r.brand || '—') + '</td>' +
+        '<td class="mono num">' + r.variantCount + '</td>' +
+        '<td class="mono num">' + r.terjual.toLocaleString('id-ID') + '</td>' +
+        '<td class="mono num">' + formatRupiah(r.harga) + '</td>' +
+        '<td class="mono num">' + r.stock.toLocaleString('id-ID') + '</td>' +
+        '<td class="mono num">' + (r.hpp ? formatRupiah(r.hpp) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="mono num">' + (r.totalHpp ? formatRupiah(r.totalHpp) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="mono num">' + (r.ssr != null ? r.ssr.toFixed(2) : '<span class="muted">—</span>') + '</td>' +
+        '</tr>';
+    }).join('') || ('<tr><td colspan="' + COLS.length + '" class="muted" style="text-align:center; padding:24px;">Tidak ada data yang cocok.</td></tr>');
+
+    var startRow = total === 0 ? 0 : (page-1)*(pageSize === 'all' ? total : pageSize) + 1;
+    var endRow   = pageSize === 'all' ? total : Math.min(page*pageSize, total);
+    document.getElementById('rangeLabel').textContent = (total === 0 ? '0' : startRow + '–' + endRow) + ' dari ' + total;
+    document.getElementById('pageLabel').textContent = page + ' / ' + totalPages;
+    document.getElementById('firstPage').disabled = page <= 1;
+    document.getElementById('prevPage').disabled  = page <= 1;
+    document.getElementById('nextPage').disabled  = page >= totalPages;
+    document.getElementById('lastPage').disabled  = page >= totalPages;
+  }
+
+  document.getElementById('searchInput').addEventListener('input', function(e){
+    searchQuery = e.target.value;
+    applyFilters();
+  });
+  document.querySelectorAll('[data-view]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      viewMode = btn.dataset.view;
+      document.querySelectorAll('[data-view]').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      applyFilters();
+    });
+  });
+  document.getElementById('pageSize').addEventListener('change', function(e){
+    pageSize = e.target.value === 'all' ? 'all' : Number(e.target.value);
+    page = 1;
+    renderPage();
+  });
+  document.getElementById('firstPage').addEventListener('click', function(){ page = 1; renderPage(); });
+  document.getElementById('prevPage').addEventListener('click', function(){ page = Math.max(1, page-1); renderPage(); });
+  document.getElementById('nextPage').addEventListener('click', function(){ page = page+1; renderPage(); });
+  document.getElementById('lastPage').addEventListener('click', function(){
+    page = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
+    renderPage();
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', function(){
+    var aoa = [
+      ['Rekap SKU Induk — Produk Terlaris'],
+      [],
+      ['SKU Induk','Tipe','Nama Barang','Brand','Jml Varian','Terjual','Harga Produk','Stock','HPP PCS','Total HPP','SSR'],
+    ].concat(filtered.map(function(r){
+      return [
+        r.parent,
+        r.tipe === 'induk' ? ('Induk (' + r.variantCount + ' varian)') : 'Tunggal',
+        r.nama, r.brand || '', r.variantCount, r.terjual, r.harga, r.stock,
+        r.hpp || '', r.totalHpp || '', r.ssr != null ? Number(r.ssr.toFixed(2)) : '',
+      ];
+    }));
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:16},{wch:18},{wch:40},{wch:14},{wch:10},{wch:10},{wch:16},{wch:10},{wch:14},{wch:16},{wch:8}];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Rekap SKU Induk');
+    XLSX.writeFile(wb, 'Rekap_SKU_Induk.xlsx');
+  });
+
+  function formatRupiah(v){
+    return 'Rp' + Math.round(v || 0).toLocaleString('id-ID');
+  }
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
