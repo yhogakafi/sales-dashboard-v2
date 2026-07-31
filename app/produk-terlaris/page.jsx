@@ -1015,8 +1015,12 @@ export default function ProdukTerlarisPage() {
     }
   }, [])
 
+  // Ganti periode = reset filter tanggal manual. Tanpa ini, tanggal dari periode
+  // sebelumnya (mis. Juli) bisa nyangkut dan bikin periode baru (mis. Juni)
+  // kelihatan kosong padahal datanya ada, cuma ketutup filter tanggal yang stale.
   const handlePeriodChange = useCallback((newId) => {
     setSelectedId(newId)
+    setFilters(f => ({ ...f, dateFrom: '', dateTo: '' }))
     if (newId === ALL_MERGED_ID) {
       loadAllPeriodsMerged(periods)
     } else {
