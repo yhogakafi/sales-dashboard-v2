@@ -215,12 +215,36 @@
     padding:10px 12px;
     text-align:left;
     white-space:nowrap;
-    cursor:pointer;
-    user-select:none;
     border-bottom:1px solid var(--line);
+    position:relative;
   }
+  thead th .th-label{ cursor:pointer; user-select:none; display:inline-flex; align-items:center; }
   thead th .arrow{ opacity:.3; margin-left:4px; font-size:10px; }
   thead th.active .arrow{ opacity:1; }
+  .filter-btn{
+    border:none; background:none; cursor:pointer; padding:2px 4px;
+    color:var(--ink-soft); font-size:11px; margin-left:4px; vertical-align:middle;
+    border-radius:4px;
+  }
+  .filter-btn.active{ color:var(--plum); background:var(--gold-soft); }
+  .col-filter-popover{
+    position:absolute; top:100%; left:0; z-index:50;
+    background:var(--paper); border:1px solid var(--line); border-radius:10px;
+    box-shadow:var(--shadow); padding:12px; min-width:220px; margin-top:4px;
+    display:flex; flex-direction:column; gap:8px;
+    text-transform:none; letter-spacing:0; font-family:'Inter',sans-serif; cursor:default;
+  }
+  .col-filter-popover select, .col-filter-popover input{
+    padding:6px 8px; border:1px solid var(--line); border-radius:6px;
+    background:var(--ivory); font-size:12.5px; color:var(--ink); font-family:'Inter',sans-serif;
+  }
+  .col-filter-popover .row{ display:flex; gap:6px; }
+  .col-filter-popover .actions{ display:flex; justify-content:space-between; gap:6px; margin-top:2px; }
+  .col-filter-popover .actions button{
+    flex:1; padding:6px 8px; border-radius:6px; border:1px solid var(--line);
+    font-size:12px; cursor:pointer; background:var(--ivory); color:var(--ink);
+  }
+  .col-filter-popover .actions button.apply{ background:var(--plum); color:#fff; border-color:var(--plum); }
   tbody td{
     padding:9px 12px;
     border-bottom:1px solid var(--line);
@@ -321,22 +345,6 @@
         <label for="brandFilter">Brand</label>
         <select id="brandFilter"><option value="">Semua Brand</option></select>
       </div>
-      <div class="field">
-        <label for="minTerjual">Terjual min.</label>
-        <input type="number" id="minTerjual" placeholder="0" min="0">
-      </div>
-      <div class="field">
-        <label for="minStock">Stock min.</label>
-        <input type="number" id="minStock" placeholder="0" min="0">
-      </div>
-      <div class="field">
-        <label for="minSsr">SSR min.</label>
-        <input type="number" id="minSsr" placeholder="0" min="0" step="0.1">
-      </div>
-      <div class="field">
-        <label for="maxSsr">SSR maks.</label>
-        <input type="number" id="maxSsr" placeholder="tanpa batas" min="0" step="0.1">
-      </div>
       <button class="pill-btn" id="resetFilterBtn">Reset Filter</button>
       <button class="btn-export" id="exportBtn">&darr; Ekspor Excel</button>
     </div>
@@ -377,17 +385,37 @@
 <script>
 (function(){
   var COLS = [
-    { key:'parent',    label:'SKU Induk',    align:'left'  },
-    { key:'tipe',       label:'Tipe',         align:'left'  },
-    { key:'nama',       label:'Nama Barang',  align:'left'  },
-    { key:'brand',      label:'Brand',        align:'left'  },
-    { key:'variantCount', label:'Jml Varian', align:'right' },
-    { key:'terjual',    label:'Terjual',      align:'right' },
-    { key:'harga',      label:'Harga Produk', align:'right' },
-    { key:'stock',      label:'Stock',        align:'right' },
-    { key:'hpp',        label:'HPP PCS',      align:'right' },
-    { key:'totalHpp',   label:'Total HPP',    align:'right' },
-    { key:'ssr',        label:'SSR',          align:'right' },
+    { key:'parent',       label:'SKU Induk',    align:'left',  type:'text' },
+    { key:'tipe',         label:'Tipe',         align:'left',  type:'text' },
+    { key:'nama',         label:'Nama Barang',  align:'left',  type:'text' },
+    { key:'brand',        label:'Brand',        align:'left',  type:'text' },
+    { key:'variantCount', label:'Jml Varian',   align:'right', type:'num'  },
+    { key:'terjual',      label:'Terjual',      align:'right', type:'num'  },
+    { key:'harga',        label:'Harga Produk', align:'right', type:'num'  },
+    { key:'stock',        label:'Stock',        align:'right', type:'num'  },
+    { key:'hpp',          label:'HPP PCS',      align:'right', type:'num'  },
+    { key:'totalHpp',     label:'Total HPP',    align:'right', type:'num'  },
+    { key:'ssr',          label:'SSR',          align:'right', type:'num'  },
+  ];
+
+  var TEXT_OPS = [
+    { value:'contains',     label:'Mengandung' },
+    { value:'not_contains', label:'Tidak mengandung' },
+    { value:'equals',       label:'Sama dengan' },
+    { value:'not_equals',   label:'Tidak sama dengan' },
+    { value:'starts_with',  label:'Dimulai dengan' },
+    { value:'ends_with',    label:'Diakhiri dengan' },
+    { value:'is_empty',     label:'Kosong' },
+    { value:'is_not_empty', label:'Tidak kosong' },
+  ];
+  var NUM_OPS = [
+    { value:'eq',      label:'= Sama dengan' },
+    { value:'neq',     label:'≠ Tidak sama dengan' },
+    { value:'gt',      label:'> Lebih dari' },
+    { value:'gte',     label:'≥ Lebih dari atau sama dengan' },
+    { value:'lt',      label:'< Kurang dari' },
+    { value:'lte',     label:'≤ Kurang dari atau sama dengan' },
+    { value:'between', label:'↔ Di antara' },
   ];
 
   var allRows = [];      // hasil grouping, siap tampil
@@ -397,10 +425,8 @@
   var searchQuery = '';
   var viewMode = 'all';  // all | induk | tunggal
   var brandFilter = '';
-  var minTerjual = null;
-  var minStock = null;
-  var minSsr = null;
-  var maxSsr = null;
+  var colFilters = {};   // { [col]: { op, value, value2 } }
+  var openFilterCol = null;
   var page = 1;
   var pageSize = 50;
 
@@ -581,6 +607,42 @@
       brands.map(function(b){ return '<option value="' + escapeHtml(b) + '">' + escapeHtml(b) + '</option>'; }).join('');
   }
 
+  // ── Cek satu baris terhadap filter per-kolom (colFilters) ───────────────────
+  function passesColFilters(r){
+    for (var col in colFilters) {
+      var f = colFilters[col];
+      if (!f || !f.op) continue;
+      var colDef = COLS.filter(function(c){ return c.key === col; })[0];
+      if (!colDef) continue;
+
+      if (colDef.type === 'text') {
+        var raw = String(r[col] == null ? '' : r[col]).toLowerCase();
+        var val = String(f.value || '').toLowerCase();
+        if (f.op === 'contains'     && raw.indexOf(val) === -1) return false;
+        if (f.op === 'not_contains' && raw.indexOf(val) !== -1) return false;
+        if (f.op === 'equals'       && raw !== val) return false;
+        if (f.op === 'not_equals'   && raw === val) return false;
+        if (f.op === 'starts_with'  && raw.indexOf(val) !== 0) return false;
+        if (f.op === 'ends_with'    && raw.slice(-val.length) !== val) return false;
+        if (f.op === 'is_empty'     && raw !== '') return false;
+        if (f.op === 'is_not_empty' && raw === '') return false;
+      } else {
+        var cell = r[col];
+        if (cell == null) return false; // kolom numerik (mis. SSR) yang null tidak bisa dibandingkan
+        var v1 = parseFloat(f.value);
+        var v2 = parseFloat(f.value2);
+        if (f.op === 'eq'      && !(cell === v1)) return false;
+        if (f.op === 'neq'     && !(cell !== v1)) return false;
+        if (f.op === 'gt'      && !(cell > v1))   return false;
+        if (f.op === 'gte'     && !(cell >= v1))  return false;
+        if (f.op === 'lt'      && !(cell < v1))   return false;
+        if (f.op === 'lte'     && !(cell <= v1))  return false;
+        if (f.op === 'between' && !(cell >= v1 && cell <= v2)) return false;
+      }
+    }
+    return true;
+  }
+
   // ── Filter, sort, render ─────────────────────────────────────────────────────
   function applyFilters(){
     var q = searchQuery.trim().toLowerCase();
@@ -588,10 +650,7 @@
       if (viewMode === 'induk' && r.tipe !== 'induk') return false;
       if (viewMode === 'tunggal' && r.tipe !== 'tunggal') return false;
       if (brandFilter && r.brand !== brandFilter) return false;
-      if (minTerjual != null && r.terjual < minTerjual) return false;
-      if (minStock != null && r.stock < minStock) return false;
-      if (minSsr != null && (r.ssr == null || r.ssr < minSsr)) return false;
-      if (maxSsr != null && (r.ssr == null || r.ssr > maxSsr)) return false;
+      if (!passesColFilters(r)) return false;
       if (!q) return true;
       return r.parent.toLowerCase().indexOf(q) !== -1 || (r.nama || '').toLowerCase().indexOf(q) !== -1;
     });
@@ -647,12 +706,19 @@
   function renderHeader(){
     var headerRow = document.getElementById('headerRow');
     headerRow.innerHTML = COLS.map(function(c){
+      var hasFilter = colFilters[c.key] && colFilters[c.key].op;
+      var popover = openFilterCol === c.key ? buildFilterPopoverHtml(c) : '';
       return '<th class="' + (sortKey === c.key ? 'active' : '') + '" data-key="' + c.key + '" style="text-align:' + c.align + '">' +
-        c.label + '<span class="arrow">' + (sortKey === c.key ? (sortDir === 'asc' ? '↑' : '↓') : '↓') + '</span></th>';
+        '<span class="th-label" data-key="' + c.key + '">' + c.label +
+        '<span class="arrow">' + (sortKey === c.key ? (sortDir === 'asc' ? '↑' : '↓') : '↓') + '</span></span>' +
+        '<button class="filter-btn' + (hasFilter ? ' active' : '') + '" data-filter-key="' + c.key + '" title="Filter ' + c.label + '">▾</button>' +
+        popover +
+        '</th>';
     }).join('');
-    headerRow.querySelectorAll('th').forEach(function(th){
-      th.addEventListener('click', function(){
-        var key = th.dataset.key;
+
+    headerRow.querySelectorAll('.th-label').forEach(function(el){
+      el.addEventListener('click', function(){
+        var key = el.dataset.key;
         if (sortKey === key) {
           sortDir = sortDir === 'asc' ? 'desc' : 'asc';
         } else {
@@ -662,7 +728,88 @@
         applyFilters();
       });
     });
+
+    headerRow.querySelectorAll('.filter-btn').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var key = btn.dataset.filterKey;
+        openFilterCol = openFilterCol === key ? null : key;
+        renderHeader();
+      });
+    });
+
+    wireFilterPopoverEvents();
   }
+
+  function buildFilterPopoverHtml(col){
+    var current = colFilters[col.key] || { op:'', value:'', value2:'' };
+    var ops = col.type === 'text' ? TEXT_OPS : NUM_OPS;
+    var opOptions = '<option value="">— Tidak difilter —</option>' + ops.map(function(o){
+      return '<option value="' + o.value + '"' + (current.op === o.value ? ' selected' : '') + '>' + o.label + '</option>';
+    }).join('');
+    var needsValue = current.op && current.op !== 'is_empty' && current.op !== 'is_not_empty';
+    var needsValue2 = current.op === 'between';
+    var valueInputType = col.type === 'text' ? 'text' : 'number';
+
+    return '<div class="col-filter-popover" onclick="event.stopPropagation()">' +
+      '<select class="cf-op" data-key="' + col.key + '">' + opOptions + '</select>' +
+      (needsValue ? '<div class="row">' +
+        '<input class="cf-value" type="' + valueInputType + '" placeholder="Nilai" value="' + escapeHtml(current.value || '') + '">' +
+        (needsValue2 ? '<input class="cf-value2" type="number" placeholder="s/d" value="' + escapeHtml(current.value2 || '') + '">' : '') +
+        '</div>' : '') +
+      '<div class="actions">' +
+        '<button class="cf-clear">Hapus</button>' +
+        '<button class="apply cf-apply">Terapkan</button>' +
+      '</div>' +
+      '</div>';
+  }
+
+  function wireFilterPopoverEvents(){
+    var popover = document.querySelector('.col-filter-popover');
+    if (!popover) return;
+    var th = popover.closest('th');
+    var key = th.dataset.key;
+
+    var opSelect = popover.querySelector('.cf-op');
+    opSelect.addEventListener('change', function(){
+      colFilters[key] = colFilters[key] || { op:'', value:'', value2:'' };
+      colFilters[key].op = opSelect.value;
+      renderHeader(); // rebuild popover so value input shows/hides correctly
+    });
+
+    var valueInput = popover.querySelector('.cf-value');
+    if (valueInput) {
+      valueInput.addEventListener('input', function(){
+        colFilters[key] = colFilters[key] || { op:'', value:'', value2:'' };
+        colFilters[key].value = valueInput.value;
+      });
+    }
+    var value2Input = popover.querySelector('.cf-value2');
+    if (value2Input) {
+      value2Input.addEventListener('input', function(){
+        colFilters[key] = colFilters[key] || { op:'', value:'', value2:'' };
+        colFilters[key].value2 = value2Input.value;
+      });
+    }
+
+    popover.querySelector('.cf-apply').addEventListener('click', function(){
+      openFilterCol = null;
+      applyFilters();
+    });
+    popover.querySelector('.cf-clear').addEventListener('click', function(){
+      delete colFilters[key];
+      openFilterCol = null;
+      applyFilters();
+    });
+  }
+
+  // Klik di luar popover kolom manapun akan menutupnya.
+  document.addEventListener('click', function(e){
+    if (openFilterCol && !e.target.closest('.col-filter-popover') && !e.target.closest('.filter-btn')) {
+      openFilterCol = null;
+      renderHeader();
+    }
+  });
 
   function renderPage(){
     var total = filtered.length;
@@ -715,31 +862,11 @@
     brandFilter = e.target.value;
     applyFilters();
   });
-  document.getElementById('minTerjual').addEventListener('input', function(e){
-    minTerjual = e.target.value === '' ? null : Number(e.target.value);
-    applyFilters();
-  });
-  document.getElementById('minStock').addEventListener('input', function(e){
-    minStock = e.target.value === '' ? null : Number(e.target.value);
-    applyFilters();
-  });
-  document.getElementById('minSsr').addEventListener('input', function(e){
-    minSsr = e.target.value === '' ? null : Number(e.target.value);
-    applyFilters();
-  });
-  document.getElementById('maxSsr').addEventListener('input', function(e){
-    maxSsr = e.target.value === '' ? null : Number(e.target.value);
-    applyFilters();
-  });
   document.getElementById('resetFilterBtn').addEventListener('click', function(){
-    searchQuery = ''; brandFilter = ''; minTerjual = null; minStock = null; minSsr = null; maxSsr = null;
+    searchQuery = ''; brandFilter = ''; colFilters = {}; openFilterCol = null;
     viewMode = 'all';
     document.getElementById('searchInput').value = '';
     document.getElementById('brandFilter').value = '';
-    document.getElementById('minTerjual').value = '';
-    document.getElementById('minStock').value = '';
-    document.getElementById('minSsr').value = '';
-    document.getElementById('maxSsr').value = '';
     document.querySelectorAll('[data-view]').forEach(function(b){ b.classList.remove('active'); });
     document.querySelector('[data-view="all"]').classList.add('active');
     applyFilters();
