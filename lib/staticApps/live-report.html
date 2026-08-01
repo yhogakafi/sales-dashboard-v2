@@ -64,6 +64,20 @@
   .dropzone input{display:none;}
   #fileMeta{font-size:13px;color:var(--good);margin-top:10px;font-family:'IBM Plex Mono',monospace;display:none;}
 
+  .file-list{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
+  .file-item{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:10px 14px;font-size:13.5px;
+  }
+  .file-item .fi-name{font-weight:600;color:var(--ink);}
+  .file-item .fi-meta{color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:12px;margin-left:8px;}
+  .file-item .fi-remove{
+    border:none;background:none;color:var(--ink-soft);cursor:pointer;font-size:16px;
+    line-height:1;padding:2px 6px;border-radius:6px;
+  }
+  .file-item .fi-remove:hover{background:#F4E3E3;color:#B0562E;}
+
   #app{display:none;}
 
   /* ---- dial (signature element) ---- */
@@ -210,15 +224,16 @@
   <header>
     <div class="eyebrow">Scelta Live · Shopee</div>
     <h1>Siapa yang live, jam berapa?</h1>
-    <p>Unggah laporan live streaming Shopee (.xlsx). Setiap sesi otomatis dikelompokkan ke host berdasarkan jam berakhirnya siaran — <b>06.00–17.00 → Astrid</b>, di luar itu → <b>Fifi</b> — lalu dirangkum jadi pencapaian per host.</p>
+    <p>Unggah satu atau beberapa laporan live streaming Shopee (.xlsx) sekaligus — datanya digabung otomatis. Setiap sesi otomatis dikelompokkan ke host berdasarkan jam berakhirnya siaran — <b>06.00–17.00 → Astrid</b>, di luar itu → <b>Fifi</b> — lalu dirangkum jadi pencapaian per host.</p>
   </header>
 
   <div class="dropzone" id="dropzone">
-    <input type="file" id="fileInput" accept=".xlsx,.xls">
-    <strong>Tarik file laporan ke sini, atau klik untuk pilih</strong>
-    <span>Format .xlsx dari Shopee Seller Centre — kolom Start Time &amp; Durasi wajib ada</span>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" multiple>
+    <strong>Tarik satu atau beberapa file laporan ke sini, atau klik untuk pilih</strong>
+    <span>Format .xlsx dari Shopee Seller Centre — kolom Start Time &amp; Durasi wajib ada. Bisa pilih banyak file sekaligus, atau tambah satu-satu — datanya otomatis tergabung.</span>
     <div id="fileMeta"></div>
   </div>
+  <div id="fileList" class="file-list"></div>
 
   <div id="app">
 
@@ -344,31 +359,74 @@ dropzone.addEventListener('click', () => fileInput.click());
 ['dragenter','dragover'].forEach(ev=>dropzone.addEventListener(ev, e=>{e.preventDefault();dropzone.classList.add('drag');}));
 ['dragleave','drop'].forEach(ev=>dropzone.addEventListener(ev, e=>{e.preventDefault();dropzone.classList.remove('drag');}));
 dropzone.addEventListener('drop', e=>{
-  const f = e.dataTransfer.files[0];
-  if(f) handleFile(f);
+  if(e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
 });
 fileInput.addEventListener('change', e=>{
-  if(e.target.files[0]) handleFile(e.target.files[0]);
+  if(e.target.files.length) handleFiles(e.target.files);
+  fileInput.value = ''; // biar bisa pilih file yang sama lagi kalau perlu re-upload
 });
 
-function handleFile(file){
-  fileMeta.style.display='block';
-  fileMeta.textContent = 'Membaca ' + file.name + ' …';
-  const reader = new FileReader();
-  reader.onload = e=>{
-    try{
-      const data = new Uint8Array(e.target.result);
-      const wb = XLSX.read(data, {type:'array'});
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const grid = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:null});
-      processGrid(grid, file.name);
-      fileMeta.textContent = '✓ ' + file.name + ' dimuat — ' + rows.length + ' sesi';
-    }catch(err){
-      fileMeta.textContent = 'Gagal membaca file: ' + err.message;
-      console.error(err);
-    }
-  };
-  reader.readAsArrayBuffer(file);
+let uploadedFiles = []; // [{ name, grid }]
+
+function handleFiles(fileList){
+  const files = Array.from(fileList);
+  fileMeta.style.display = 'block';
+  fileMeta.textContent = 'Membaca ' + files.length + ' file…';
+
+  Promise.all(files.map(readFileAsGrid)).then(results=>{
+    results.forEach(res=>{
+      if(!res) return;
+      // Kalau nama file sama sudah pernah diupload, timpa (anggap re-upload versi terbaru)
+      const existingIdx = uploadedFiles.findIndex(f=>f.name === res.name);
+      if(existingIdx > -1) uploadedFiles[existingIdx] = res;
+      else uploadedFiles.push(res);
+    });
+    const failed = files.length - results.filter(Boolean).length;
+    fileMeta.textContent = failed
+      ? ('✓ ' + (files.length-failed) + ' file dimuat, ' + failed + ' gagal dibaca')
+      : ('✓ ' + files.length + ' file dimuat');
+    rebuildRows();
+  });
+}
+
+function readFileAsGrid(file){
+  return new Promise(resolve=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      try{
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, {type:'array'});
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const grid = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:null});
+        resolve({name: file.name, grid});
+      }catch(err){
+        console.error('Gagal membaca ' + file.name, err);
+        resolve(null);
+      }
+    };
+    reader.onerror = ()=>resolve(null);
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function removeFile(name){
+  uploadedFiles = uploadedFiles.filter(f=>f.name !== name);
+  rebuildRows();
+}
+
+function renderFileList(){
+  const el = document.getElementById('fileList');
+  if(!uploadedFiles.length){ el.innerHTML=''; return; }
+  el.innerHTML = uploadedFiles.map(f=>{
+    const n = rows.filter(r=>r.sourceFiles.includes(f.name)).length;
+    return `<div class="file-item">
+      <div><span class="fi-name">${f.name}</span><span class="fi-meta">${n} sesi</span></div>
+      <button class="fi-remove" data-name="${f.name.replace(/"/g,'&quot;')}" title="Hapus file ini">✕</button>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.fi-remove').forEach(btn=>{
+    btn.addEventListener('click', ()=>removeFile(btn.dataset.name));
+  });
 }
 
 function findCol(headers, needle){
@@ -442,7 +500,7 @@ function parseRupiah(val){
   return isNaN(n) ? 0 : n;
 }
 
-function processGrid(grid, filename){
+function parseGridRows(grid, filename){
   const headers = grid[0];
   const col = {
     periode: findCol(headers, 'Periode Data'),
@@ -461,7 +519,7 @@ function processGrid(grid, filename){
     penjualanSiap: findCol(headers, 'Penjualan(Pesanan Siap Dikirim)')
   };
 
-  rows = [];
+  const out = [];
   for(let i=1;i<grid.length;i++){
     const r = grid[i];
     if(!r || col.start === -1 || r[col.start] == null) continue;
@@ -472,11 +530,16 @@ function processGrid(grid, filename){
     const endHour = end.getHours() + end.getMinutes()/60;
     const autoHost = (endHour >= 6 && endHour < 17) ? 'Astrid' : 'Fifi';
     const dateKey = fmtDate(start);
+    const nama = col.nama>-1 ? (r[col.nama]||'') : '';
 
-    rows.push({
-      id: rows.length,
-      autoHost, host: autoHost, dateKey, start, end, durSec,
-      nama: col.nama>-1 ? (r[col.nama]||'') : '',
+    // Id stabil berbasis isi data (bukan urutan array) — supaya kalau file
+    // ditambah/dihapus/diupload ulang, override per-sesi yang sudah diatur
+    // tetap nyambung ke sesi yang sama, dan sesi yang persis sama dari 2 file
+    // yang tumpang tindih otomatis ke-dedup (bukan dobel dihitung).
+    const id = dateKey + '__' + start.getTime() + '__' + nama.toString().slice(0,40);
+
+    out.push({
+      id, autoHost, host: autoHost, dateKey, start, end, durSec, nama,
       penontonAktif: Number(r[col.penontonAktif])||0,
       komentar: Number(r[col.komentar])||0,
       atc: Number(r[col.atc])||0,
@@ -487,15 +550,46 @@ function processGrid(grid, filename){
       produkSiap: Number(r[col.produkSiap])||0,
       penjualanDibuat: parseRupiah(r[col.penjualanDibuat]),
       penjualanSiap: parseRupiah(r[col.penjualanSiap]),
-      periode: col.periode>-1 ? (r[col.periode]||'') : ''
+      periode: col.periode>-1 ? (r[col.periode]||'') : '',
+      sourceFiles: [filename]
     });
   }
+  return out;
+}
 
-  overrides = {};
-  sessionOverrides = {};
+function rebuildRows(){
+  // Gabungkan sesi dari semua file yang sudah diupload. Kalau ada sesi yang
+  // identik (tanggal + jam mulai + nama sama) muncul di lebih dari satu file
+  // (mis. rentang periode ekspor yang tumpang tindih), gabungkan sourceFiles-nya
+  // tapi cuma dihitung sekali — tidak dobel.
+  const merged = new Map();
+  uploadedFiles.forEach(f=>{
+    parseGridRows(f.grid, f.name).forEach(r=>{
+      const existing = merged.get(r.id);
+      if(existing){ existing.sourceFiles = Array.from(new Set(existing.sourceFiles.concat(r.sourceFiles))); }
+      else merged.set(r.id, r);
+    });
+  });
+  rows = Array.from(merged.values());
+
   applyOverrides();
-  document.getElementById('app').style.display = 'block';
-  document.getElementById('periodInfo').textContent = rows[0] && rows[0].periode ? ('Periode data: ' + rows[0].periode) : '';
+
+  const hasData = rows.length > 0;
+  document.getElementById('app').style.display = hasData ? 'block' : 'none';
+
+  if(hasData){
+    const sorted = [...rows].sort((a,b)=>a.start-b.start);
+    const periodeSet = Array.from(new Set(rows.map(r=>r.periode).filter(Boolean)));
+    const rangeLabel = fmtDate(sorted[0].start) + ' – ' + fmtDate(sorted[sorted.length-1].start);
+    const filesLabel = uploadedFiles.length + ' file';
+    document.getElementById('periodInfo').textContent =
+      'Rentang data gabungan: ' + rangeLabel + ' (' + filesLabel + ', ' + rows.length + ' sesi total)' +
+      (periodeSet.length ? ' — periode ekspor: ' + periodeSet.join(' · ') : '');
+  } else {
+    document.getElementById('periodInfo').textContent = '';
+  }
+
+  renderFileList();
   renderAll();
 }
 
