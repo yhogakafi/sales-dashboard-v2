@@ -273,6 +273,16 @@ function applyColFilter(rows, colFilters) {
   return rows.filter(row => {
     for (const [col, f] of Object.entries(colFilters)) {
       if (!f.op) continue
+
+      // Checklist multi-select (dipakai kolom Brand) — beda struktur dari filter teks/angka biasa
+      if (f.op === 'in') {
+        if (!f.values || f.values.length === 0) return false // semua di-uncheck = tidak ada yang cocok
+        const rawCell = row[col]
+        const cell = (!rawCell || rawCell === '—') ? '' : rawCell
+        if (!f.values.includes(cell)) return false
+        continue
+      }
+
       const noVal = ['is_empty', 'is_not_empty'].includes(f.op)
       if (!noVal && f.value === '' && f.op !== 'between') continue
       if (f.op === 'between' && f.value === '' && f.value2 === '') continue
@@ -425,10 +435,12 @@ function HighlightText({ text, query }) {
 
 // ── Column filter popover ─────────────────────────────────────────────────────
 
-function ColFilterPopover({ col, filter, onChange, onClose, anchorRef }) {
-  const isText  = col === 'namaBarang' || col === 'brand' || col === 'kodeBarang'
-  const ops     = isText ? TEXT_OPS : NUM_OPS
-  const ref     = useRef(null)
+function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }) {
+  const isText   = col === 'namaBarang' || col === 'brand' || col === 'kodeBarang'
+  const isBrand  = col === 'brand'
+  const ops      = isText ? TEXT_OPS : NUM_OPS
+  const ref      = useRef(null)
+  const [brandSearch, setBrandSearch] = useState('')
 
   // Close on outside click
   useEffect(() => {
@@ -441,6 +453,92 @@ function ColFilterPopover({ col, filter, onChange, onClose, anchorRef }) {
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [onClose, anchorRef])
+
+  if (isBrand) {
+    const allOptions = options || []
+    // Kalau belum ada filter aktif ('in' belum diset), anggap semua brand ke-checklist
+    const checked = filter.op === 'in' ? (filter.values || []) : allOptions
+    const visibleOptions = brandSearch.trim()
+      ? allOptions.filter(b => b.toLowerCase().includes(brandSearch.trim().toLowerCase()))
+      : allOptions
+
+    const toggleBrand = (brand) => {
+      const current = filter.op === 'in' ? (filter.values || []) : allOptions
+      const next = current.includes(brand) ? current.filter(b => b !== brand) : [...current, brand]
+      if (next.length === allOptions.length) {
+        onChange(EMPTY_COL_FILTER) // semua ke-checklist lagi = sama saja dengan tidak difilter
+      } else {
+        onChange({ ...EMPTY_COL_FILTER, op: 'in', values: next })
+      }
+    }
+
+    return (
+      <div ref={ref} style={{
+        position: 'absolute', top: '100%', left: 0, zIndex: 200,
+        background: 'var(--surface, #fff)', border: '1px solid var(--border, #ddd)',
+        borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.12)',
+        padding: '0.75rem', minWidth: 220, marginTop: 4,
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <input
+          type="text"
+          placeholder="Cari brand…"
+          value={brandSearch}
+          onChange={e => setBrandSearch(e.target.value)}
+          style={{
+            width: '100%', padding: '6px 10px', borderRadius: 6,
+            border: '1px solid var(--border, #ddd)', background: 'var(--surface, #fff)',
+            color: 'var(--ink, #111)', fontSize: 13, marginBottom: 6, boxSizing: 'border-box',
+          }}
+          autoFocus
+        />
+
+        <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+          <button
+            onClick={() => onChange(EMPTY_COL_FILTER)}
+            style={{ flex: 1, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border, #ddd)', background: 'none', cursor: 'pointer', fontSize: 11.5, color: 'var(--muted, #888)' }}
+          >
+            Pilih Semua
+          </button>
+          <button
+            onClick={() => onChange({ ...EMPTY_COL_FILTER, op: 'in', values: [] })}
+            style={{ flex: 1, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border, #ddd)', background: 'none', cursor: 'pointer', fontSize: 11.5, color: 'var(--muted, #888)' }}
+          >
+            Kosongkan
+          </button>
+        </div>
+
+        <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3, paddingRight: 2 }}>
+          {visibleOptions.length === 0 && (
+            <p style={{ fontSize: 12.5, color: 'var(--muted, #888)', margin: '4px 0' }}>Tidak ada brand yang cocok.</p>
+          )}
+          {visibleOptions.map(brand => (
+            <label key={brand} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer', padding: '2px 2px' }}>
+              <input
+                type="checkbox"
+                checked={checked.includes(brand)}
+                onChange={() => toggleBrand(brand)}
+              />
+              {brand}
+            </label>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '5px 12px', borderRadius: 6, border: 'none',
+              background: 'var(--ink, #111)', color: '#fff',
+              cursor: 'pointer', fontSize: 12, fontWeight: 600,
+            }}
+          >
+            Selesai
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const noValueOps  = ['is_empty', 'is_not_empty']
   const isBetween   = filter.op === 'between'
@@ -532,13 +630,15 @@ function ColFilterPopover({ col, filter, onChange, onClose, anchorRef }) {
 
 // ── Column header with sort + filter ─────────────────────────────────────────
 
-function ColHeader({ col, label, align = 'left', sortBy, sortDir, onSortChange, colFilters, onColFilterChange }) {
+function ColHeader({ col, label, align = 'left', sortBy, sortDir, onSortChange, colFilters, onColFilterChange, brandOptions }) {
   const [open, setOpen] = useState(false)
   const btnRef = useRef(null)
   const filter  = colFilters[col] || EMPTY_COL_FILTER
-  const isActive = !!(filter.op && (
-    ['is_empty', 'is_not_empty'].includes(filter.op) || filter.value !== ''
-  ))
+  const isActive = filter.op === 'in'
+    ? !!(filter.values && filter.values.length > 0)
+    : !!(filter.op && (
+        ['is_empty', 'is_not_empty'].includes(filter.op) || filter.value !== ''
+      ))
 
   return (
     <th
@@ -586,6 +686,7 @@ function ColHeader({ col, label, align = 'left', sortBy, sortDir, onSortChange, 
         <ColFilterPopover
           col={col}
           filter={filter}
+          options={brandOptions}
           onChange={f => onColFilterChange(col, f)}
           onClose={() => setOpen(false)}
           anchorRef={btnRef}
@@ -683,7 +784,7 @@ function BestSellerTable({
   rows, loading, sortBy, sortDir, onSortChange,
   searchQuery, onSearchChange,
   colFilters, onColFilterChange,
-  stockLookup,
+  stockLookup, brandOptions,
 }) {
   const totalKuantitas   = rows.reduce((s, r) => s + r.kuantitas, 0)
   const totalHargaProduk = rows.reduce((s, r) => s + r.hargaProduk, 0)
@@ -694,7 +795,7 @@ function BestSellerTable({
   const ssrHppGrand      = totalHppTerjual > 0 ? totalHpp / totalHppTerjual     : null       // Total HPP / Σ(HPP × Terjual)
   const hasStock = stockLookup !== null
 
-  const colHeaderProps = { sortBy, sortDir, onSortChange, colFilters, onColFilterChange }
+  const colHeaderProps = { sortBy, sortDir, onSortChange, colFilters, onColFilterChange, brandOptions }
 
   // ── Pagination (client-side; slices the already-filtered `rows`) ──
   const [pageSize, setPageSize] = useState(50)
@@ -1134,7 +1235,7 @@ export default function ProdukTerlarisPage() {
     }))
   }, [analysis?.firstDateKey, analysis?.lastDateKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filteredRows = useMemo(() => {
+  const enrichedRows = useMemo(() => {
     const hasStockMaster = !!stockLookup && Object.keys(stockLookup).length > 0
 
     // 1. base rows — every stock SKU first (matched with sales by kode), or the
@@ -1145,6 +1246,21 @@ export default function ProdukTerlarisPage() {
 
     // 2. merge in brand/stock so they can be filtered & sorted like any other column
     rows = enrichWithStock(rows, stockLookup)
+
+    return rows
+  }, [rawRows, filters, stockLookup])
+
+  // Semua brand yang ada untuk periode/filter tanggal saat ini — dipakai buat
+  // checklist di kolom Brand. Diambil SEBELUM search/kolom-filter lain supaya
+  // daftar pilihannya tidak ikut menyusut saat sedang milih brand.
+  const brandOptions = useMemo(() => {
+    return Array.from(new Set(
+      enrichedRows.map(r => r.brand).filter(b => b && b !== '—')
+    )).sort((a, b) => a.localeCompare(b, 'id'))
+  }, [enrichedRows])
+
+  const filteredRows = useMemo(() => {
+    let rows = enrichedRows
 
     // 3. global search (substring, case-insensitive)
     if (searchQuery.trim()) {
@@ -1160,7 +1276,7 @@ export default function ProdukTerlarisPage() {
 
     // 6. re-rank after all filters
     return rows.map((r, i) => ({ ...r, rank: i + 1 }))
-  }, [rawRows, filters, sortBy, sortDir, searchQuery, colFilters, stockLookup])
+  }, [enrichedRows, searchQuery, colFilters, sortBy, sortDir])
 
   // ── Active filter description ──────────────────────────────────────────────────
   const activeFilterDesc = useMemo(() => {
@@ -1179,6 +1295,11 @@ export default function ProdukTerlarisPage() {
     }
     for (const [col, f] of Object.entries(colFilters)) {
       if (!f.op) continue
+      if (f.op === 'in') {
+        if (!f.values || f.values.length === 0) continue
+        parts.push(`${colLabels[col]}: ${f.values.join(', ')}`)
+        continue
+      }
       const noVal = ['is_empty', 'is_not_empty'].includes(f.op)
       if (!noVal && f.value === '' && f.op !== 'between') continue
       const opLabel = [...TEXT_OPS, ...NUM_OPS].find(o => o.value === f.op)?.label || f.op
@@ -1192,6 +1313,7 @@ export default function ProdukTerlarisPage() {
   const activeColFilterCount = useMemo(() => {
     return Object.values(colFilters).filter(f => {
       if (!f.op) return false
+      if (f.op === 'in') return !!(f.values && f.values.length > 0)
       if (['is_empty', 'is_not_empty'].includes(f.op)) return true
       return f.value !== ''
     }).length
@@ -1342,6 +1464,7 @@ export default function ProdukTerlarisPage() {
             colFilters={colFilters}
             onColFilterChange={handleColFilterChange}
             stockLookup={stockLookup}
+            brandOptions={brandOptions}
           />
         </div>
       )}
