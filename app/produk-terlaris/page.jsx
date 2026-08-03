@@ -845,18 +845,7 @@ function BestSellerTable({
 
       {loading && <p className="loading-text">Memuat data…</p>}
 
-      {!loading && !rows.length && (
-        <div className="upload-zone has-error" style={{ textAlign: 'center', padding: '2.5rem' }}>
-          <p className="upload-title">Tidak ada produk ditemukan</p>
-          <p className="upload-sub">
-            {searchQuery
-              ? `Tidak ada produk yang cocok dengan "${searchQuery}". Coba kata kunci lain.`
-              : 'Coba ubah filter kolom, tanggal, akun, atau kategori.'}
-          </p>
-        </div>
-      )}
-
-      {!loading && rows.length > 0 && (
+      {!loading && (
         <>
           {/* ── Grand total summary ── */}
           <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
@@ -951,6 +940,18 @@ function BestSellerTable({
                 </tr>
               </thead>
               <tbody>
+                {pageRows.length === 0 && (
+                  <tr>
+                    <td colSpan={hasStock ? 10 : 5} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                      <p className="upload-title" style={{ margin: '0 0 4px' }}>Tidak ada produk ditemukan</p>
+                      <p className="upload-sub" style={{ margin: 0 }}>
+                        {searchQuery
+                          ? `Tidak ada produk yang cocok dengan "${searchQuery}". Coba kata kunci lain.`
+                          : 'Coba ubah filter kolom, tanggal, akun, atau kategori — termasuk checklist Brand, kalau semua brand-nya sedang dikosongkan.'}
+                      </p>
+                    </td>
+                  </tr>
+                )}
                 {pageRows.map((row) => {
                   const si = hasStock ? { brand: row.brand, stock: row.stock, hasData: row.hasStockData } : null
                   return (
