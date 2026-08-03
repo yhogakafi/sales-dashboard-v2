@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { formatRupiah, formatDateLabel } from '@/lib/parseBarangTerlaris'
 import { exportBarangTerlaris } from '@/lib/exportExcel'
 
@@ -441,6 +442,22 @@ function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }
   const ops      = isText ? TEXT_OPS : NUM_OPS
   const ref      = useRef(null)
   const [brandSearch, setBrandSearch] = useState('')
+  const [pos, setPos] = useState(null)
+
+  // Popover ini di-portal ke document.body dan diposisikan fixed berdasarkan
+  // posisi tombol filternya di layar — bukan position:absolute relatif ke <th>.
+  // Soalnya <th> ada di dalam .table-scroll yang overflow-x:auto, jadi kalau
+  // masih position:absolute, popovernya kepotong di tepi area scroll tabel.
+  useLayoutEffect(() => {
+    if (!anchorRef.current) return
+    const updatePos = () => {
+      const rect = anchorRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: rect.left })
+    }
+    updatePos()
+    window.addEventListener('resize', updatePos)
+    return () => window.removeEventListener('resize', updatePos)
+  }, [anchorRef])
 
   // Close on outside click
   useEffect(() => {
@@ -453,6 +470,22 @@ function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [onClose, anchorRef])
+
+  // Kalau tabel (atau apapun) di-scroll, posisi tombolnya berubah relatif ke
+  // viewport, jadi popover fixed-position bakal nyangkut di tempat lama —
+  // paling aman langsung ditutup aja daripada ngambang salah tempat.
+  useEffect(() => {
+    const handleScroll = (e) => {
+      if (ref.current && ref.current.contains(e.target)) return // scroll di dalam popover sendiri (list brand) — jangan ditutup
+      onClose()
+    }
+    window.addEventListener('scroll', handleScroll, true)
+    return () => window.removeEventListener('scroll', handleScroll, true)
+  }, [onClose])
+
+  if (!pos) return null // tunggu posisi anchor didapat dulu (1 tick pertama)
+
+  const basePos = { position: 'fixed', top: pos.top, left: pos.left, zIndex: 500 }
 
   if (isBrand) {
     const allOptions = options || []
@@ -472,12 +505,12 @@ function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }
       }
     }
 
-    return (
+    return createPortal((
       <div ref={ref} style={{
-        position: 'absolute', top: '100%', left: 0, zIndex: 200,
+        ...basePos,
         background: 'var(--surface, #fff)', border: '1px solid var(--border, #ddd)',
         borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.12)',
-        padding: '0.75rem', minWidth: 220, marginTop: 4,
+        padding: '0.75rem', minWidth: 220,
         display: 'flex', flexDirection: 'column',
       }}>
         <input
@@ -537,7 +570,7 @@ function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }
           </button>
         </div>
       </div>
-    )
+    ), document.body)
   }
 
   const noValueOps  = ['is_empty', 'is_not_empty']
@@ -552,19 +585,15 @@ function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }
     fontSize: 13, marginTop: 6, boxSizing: 'border-box',
   }
 
-  return (
+  return createPortal((
     <div ref={ref} style={{
-      position: 'absolute',
-      top: '100%',
-      left: 0,
-      zIndex: 200,
+      ...basePos,
       background: 'var(--surface, #fff)',
       border: '1px solid var(--border, #ddd)',
       borderRadius: 10,
       boxShadow: '0 8px 24px rgba(0,0,0,.12)',
       padding: '0.85rem',
       minWidth: 240,
-      marginTop: 4,
       display: 'flex',
       flexDirection: 'column',
     }}>
@@ -625,7 +654,7 @@ function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }
         </button>
       </div>
     </div>
-  )
+  ), document.body)
 }
 
 // ── Column header with sort + filter ─────────────────────────────────────────
@@ -954,8 +983,13 @@ function BestSellerTable({
                 )}
                 {pageRows.map((row) => {
                   const si = hasStock ? { brand: row.brand, stock: row.stock, hasData: row.hasStockData } : null
+                  const lowSsr = hasStock && row.ssr != null && row.ssr < 1
                   return (
-                    <tr key={row.kodeBarang ? `k-${row.kodeBarang}` : `r-${row.rank}`}>
+                    <tr
+                      key={row.kodeBarang ? `k-${row.kodeBarang}` : `r-${row.rank}`}
+                      style={lowSsr ? { background: 'rgba(216, 90, 48, 0.08)' } : undefined}
+                      title={lowSsr ? 'SSR < 1 — stock lebih sedikit dari yang terjual' : undefined}
+                    >
                       <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
                       <td className="muted mono" style={{ whiteSpace: 'nowrap' }}>
                         {row.kodeBarang || '—'}
