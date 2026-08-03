@@ -1105,20 +1105,45 @@ export default function ProdukTerlarisPage() {
 
   // Stock lookup: { kodeBarang: { brand, stock } } — digabung dari underwear + sport
   const [stockLookup, setStockLookup] = useState(null)
+  const [stockError, setStockError] = useState(null)
 
   const handleColFilterChange = useCallback((col, f) => {
     setColFilters(prev => ({ ...prev, [col]: f }))
   }, [])
 
+  // Ambil underwear & sport TERPISAH (bukan satu request gabungan) — supaya
+  // masing-masing response tetap kecil. Kalau digabung jadi satu response di
+  // server, totalnya bisa kelewat batas 4.5MB Vercel Function begitu salah
+  // satu katalog (mis. underwear) sudah puluhan ribu SKU — request itu gagal
+  // dengan 413, dan sebelumnya kegagalan itu didiamkan begitu saja sehingga
+  // stock (termasuk punya kategori lain yang sebetulnya baik-baik saja)
+  // kelihatan "hilang" tanpa pesan apapun.
   const loadStock = useCallback(async () => {
-    try {
-      const res = await fetch('/api/stock-data', { cache: 'no-store' })
-      if (!res.ok) return
-      const body = await res.json()
-      setStockLookup(body.byKodePenuh || {})
-    } catch {
-      // Stock tidak kritis — kalau gagal, kolom tetap tampil dengan nilai 0/—
+    setStockError(null)
+    const results = await Promise.allSettled([
+      fetch('/api/stock-data?type=underwear', { cache: 'no-store' }).then(async res => {
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Gagal memuat stock underwear (${res.status})`)
+        return res.json()
+      }),
+      fetch('/api/stock-data?type=sport', { cache: 'no-store' }).then(async res => {
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Gagal memuat stock sport (${res.status})`)
+        return res.json()
+      }),
+    ])
+
+    const [underwearResult, sportResult] = results
+    const merged = {}
+    if (sportResult.status === 'fulfilled') Object.assign(merged, sportResult.value.byKodePenuh)
+    if (underwearResult.status === 'fulfilled') Object.assign(merged, underwearResult.value.byKodePenuh) // underwear menang jika kode sama
+
+    const failures = []
+    if (underwearResult.status === 'rejected') failures.push(`Underwear: ${underwearResult.reason.message}`)
+    if (sportResult.status === 'rejected') failures.push(`Sport: ${sportResult.reason.message}`)
+
+    if (failures.length) {
+      setStockError(`Sebagian data stock gagal dimuat — ${failures.join(' · ')}. Kolom Brand/Stock/HPP/SSR untuk kategori itu mungkin tidak akurat.`)
     }
+    setStockLookup(merged)
   }, [])
 
   // ── Session check ────────────────────────────────────────────────────────────
@@ -1421,6 +1446,12 @@ export default function ProdukTerlarisPage() {
         <div className="upload-zone has-error">
           <p className="upload-title">Belum ada data untuk ditampilkan</p>
           <p className="upload-sub">{dataError}</p>
+        </div>
+      )}
+
+      {stockError && (
+        <div className="upload-zone has-error" style={{ marginBottom: '1rem' }}>
+          <p className="upload-sub">⚠️ {stockError}</p>
         </div>
       )}
 
