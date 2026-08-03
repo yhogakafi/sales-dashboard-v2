@@ -97,11 +97,14 @@ export default function AccountChart({ mode = 'single', data, dataA, dataB, labe
       const labels = Array.from({ length: span }, (_, i) => `Hari ke-${i + 1}`)
       const omsetA = Array.from({ length: span }, (_, i) => {
         const key = dateKeyAtOffset(dataA.firstDateKey, i)
-        return dataA.pivotOmset[key]?.[selected] || 0
+        // null (bukan 0) kalau hari ini di luar rentang data A -- misalnya saat
+        // membandingkan periode penuh yang panjangnya beda (31 hari vs 30 hari),
+        // supaya batangnya kosong bukan kelihatan seperti omset anjlok ke nol.
+        return dataA.pivotOmset[key] ? (dataA.pivotOmset[key][selected] || 0) : null
       })
       const omsetB = Array.from({ length: span }, (_, i) => {
         const key = dateKeyAtOffset(dataB.firstDateKey, i)
-        return dataB.pivotOmset[key]?.[selected] || 0
+        return dataB.pivotOmset[key] ? (dataB.pivotOmset[key][selected] || 0) : null
       })
       const dateLabelsA = Array.from({ length: span }, (_, i) => formatDateLabel(dateKeyAtOffset(dataA.firstDateKey, i)))
       const dateLabelsB = Array.from({ length: span }, (_, i) => formatDateLabel(dateKeyAtOffset(dataB.firstDateKey, i)))
@@ -130,6 +133,7 @@ export default function AccountChart({ mode = 'single', data, dataA, dataB, labe
                 label: (ctx) => {
                   const i = ctx.dataIndex
                   const dl = ctx.dataset.label === labelA ? dateLabelsA[i] : dateLabelsB[i]
+                  if (ctx.raw == null) return `${ctx.dataset.label}: tidak ada data (di luar periode)`
                   return `${ctx.dataset.label} (${dl}): ${formatRupiah(ctx.raw)}`
                 },
               },

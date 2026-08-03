@@ -31,6 +31,7 @@ export default function HomePage() {
   const [periods, setPeriods] = useState([])
   const [selectedId, setSelectedId] = useState('') // '' = terbaru
   const [compareId, setCompareId] = useState('') // '' = tidak ada perbandingan
+  const [alignMode, setAlignMode] = useState('aligned') // 'aligned' = selaraskan jumlah hari, 'full' = bandingkan periode penuh apa adanya
 
   const [payload, setPayload] = useState(null)
   const [comparePayload, setComparePayload] = useState(null)
@@ -175,6 +176,31 @@ export default function HomePage() {
               ))}
             </select>
           </div>
+          {compareId && (
+            <div className="period-picker-group">
+              <label className="period-picker-label">Mode perbandingan</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  type="button"
+                  className="pill-btn"
+                  onClick={() => setAlignMode('aligned')}
+                  title="Bandingkan jumlah hari yang sama di kedua periode (mis. 1-10 Jul vs 1-10 Jun kalau Juli baru jalan 10 hari)"
+                  style={alignMode === 'aligned' ? { background: 'var(--primary)', color: '#fff', borderColor: 'transparent' } : undefined}
+                >
+                  Selaraskan hari
+                </button>
+                <button
+                  type="button"
+                  className="pill-btn"
+                  onClick={() => setAlignMode('full')}
+                  title="Bandingkan kedua periode apa adanya, meski jumlah harinya beda (mis. Juli 31 hari vs Juni 30 hari)"
+                  style={alignMode === 'full' ? { background: 'var(--primary)', color: '#fff', borderColor: 'transparent' } : undefined}
+                >
+                  Bandingkan penuh
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -194,6 +220,7 @@ export default function HomePage() {
           payloadB={comparePayload}
           labelA={periods.find(p => p.id === (selectedId || periods[0]?.id))?.label || 'Periode A'}
           labelB={periods.find(p => p.id === compareId)?.label || 'Periode B'}
+          alignMode={alignMode}
         />
       )}
 

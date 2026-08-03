@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { formatRupiah, formatNumber } from '@/lib/parseData'
 import { CATEGORY_OPTIONS, UNCATEGORIZED } from './CategoryAssign'
-import { alignForComparison } from '@/lib/trimAnalysis'
+import { alignForComparison, getSpanDays, trimAnalysisToSpan } from '@/lib/trimAnalysis'
 import AccountChart from './AccountChart'
 
 const ORDERED_CATEGORIES = [...CATEGORY_OPTIONS, UNCATEGORIZED]
@@ -38,20 +38,32 @@ function MetricCompareCard({ label, valA, valB, format }) {
   )
 }
 
-export default function CompareView({ payloadA, payloadB, labelA, labelB }) {
+export default function CompareView({ payloadA, payloadB, labelA, labelB, alignMode = 'aligned' }) {
   const rawA = payloadA?.analysis
   const rawB = payloadB?.analysis
   const catA = payloadA?.categories || {}
   const catB = payloadB?.categories || {}
 
-  // Selaraskan dua periode berdasarkan jumlah hari sejak awal masing-masing,
-  // bukan tanggal kalender absolut -- supaya periode yang belum penuh sebulan
-  // (misal baru 1-10 Jul) dibandingkan dengan hari yang setara di periode lain
-  // (1-10 Jun), bukan dengan sebulan penuh.
+  // Dua mode:
+  // - 'aligned' (default): selaraskan berdasarkan jumlah hari sejak awal masing-masing
+  //   periode -- supaya periode yang belum penuh sebulan (misal baru 1-10 Jul)
+  //   dibandingkan dengan hari yang setara di periode lain (1-10 Jun), bukan sebulan penuh.
+  // - 'full': bandingkan kedua periode apa adanya, walau jumlah harinya beda
+  //   (mis. Juli 31 hari penuh vs Juni 30 hari penuh) -- dipilih user lewat toggle
+  //   saat kedua periode sudah sama-sama selesai/lengkap.
   const aligned = useMemo(() => {
     if (!rawA || !rawB) return null
+    if (alignMode === 'full') {
+      const spanA = getSpanDays(rawA)
+      const spanB = getSpanDays(rawB)
+      return {
+        a: trimAnalysisToSpan(rawA, spanA), // no-op trim, cuma buat samain shape dgn effectiveSpanDays
+        b: trimAnalysisToSpan(rawB, spanB),
+        spanDays: Math.max(spanA, spanB),
+      }
+    }
     return alignForComparison(rawA, rawB)
-  }, [rawA, rawB])
+  }, [rawA, rawB, alignMode])
 
   const customersByCategory = useMemo(() => {
     if (!rawA || !rawB) return {}
@@ -69,6 +81,7 @@ export default function CompareView({ payloadA, payloadB, labelA, labelB }) {
 
   const { a, b, spanDays } = aligned
   const wasTrimmed = a.trimmed || b.trimmed
+  const spansDiffer = a.effectiveSpanDays !== b.effectiveSpanDays
 
   const aovA = a.totalOrder > 0 ? a.totalOmset / a.totalOrder : 0
   const aovB = b.totalOrder > 0 ? b.totalOmset / b.totalOrder : 0
@@ -87,13 +100,18 @@ export default function CompareView({ payloadA, payloadB, labelA, labelB }) {
           Dibandingkan hanya {spanDays} hari pertama tiap periode (mengikuti periode yang paling pendek), supaya adil.
         </p>
       )}
+      {!wasTrimmed && spansDiffer && (
+        <p className="compare-align-note">
+          Membandingkan periode penuh apa adanya — {labelA} ({a.effectiveSpanDays} hari) vs {labelB} ({b.effectiveSpanDays} hari). Selisih jumlah hari bisa mempengaruhi hasil total.
+        </p>
+      )}
 
       {/* Kartu metrik utama */}
       <div className="card-grid">
         <MetricCompareCard label="Total omset" valA={a.totalOmset} valB={b.totalOmset} format={formatRupiah} />
         <MetricCompareCard label="Total order" valA={a.totalOrder} valB={b.totalOrder} format={formatNumber} />
         <MetricCompareCard label="Rata-rata nilai order" valA={aovA} valB={aovB} format={formatRupiah} />
-        <MetricCompareCard label="Hari yang dibandingkan" valA={spanDays} valB={spanDays} format={formatNumber} />
+        <MetricCompareCard label="Hari yang dibandingkan" valA={a.effectiveSpanDays} valB={b.effectiveSpanDays} format={formatNumber} />
       </div>
 
       {/* Grafik per akun */}
