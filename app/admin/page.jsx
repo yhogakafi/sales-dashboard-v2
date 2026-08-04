@@ -611,10 +611,9 @@ function StockDiagnostics() {
                 {state.result.collisions.length > 10 ? ', …' : ''}
               </p>
               <p className="upload-sub">
-                Kode-kode ini sekarang ditandai milik kedua kategori — nilai stock/HPP-nya memakai versi
-                underwear, tapi tetap muncul juga saat filter pill "Online Sport" dipilih (tidak hilang lagi).
-                Kalau file underwear kamu memang berisi seluruh inventaris (bukan cuma underwear), ini
-                perilaku yang wajar dan tidak perlu diperbaiki di sumbernya.
+                Untuk kode-kode ini, data underwear akan selalu menimpa data sport di Produk Terlaris —
+                ini kemungkinan besar penyebab data sport "hilang". Solusinya: pastikan Kode Barang unik
+                lintas kedua katalog (mis. beri prefix berbeda per kategori di sistem sumbernya).
               </p>
             </>
           )}

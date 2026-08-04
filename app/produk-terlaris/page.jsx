@@ -157,7 +157,7 @@ function buildStockFirstRows(rawRows, filters, stockLookup) {
 
   // 1. Every SKU from the stock master, always shown — even with zero sales.
   for (const [kode, stockEntry] of Object.entries(stockLookup)) {
-    if (wantedSource && !(stockEntry.sources || [stockEntry.source]).includes(wantedSource)) continue
+    if (wantedSource && stockEntry.source !== wantedSource) continue
     const sales = byKode[kode]
     consumedKodes.add(kode)
     rows.push({
@@ -1133,25 +1133,8 @@ export default function ProdukTerlarisPage() {
 
     const [underwearResult, sportResult] = results
     const merged = {}
-    // Kalau kode yang sama ada di dua file (di data kamu: SEMUA 616 kode sport
-    // ternyata juga ada di file underwear — kemungkinan besar underwear.xls
-    // adalah export inventaris LENGKAP, bukan katalog khusus underwear),
-    // JANGAN saling menimpa penuh. Simpan sebagai satu entry, nilainya pakai
-    // punya underwear (kebiasaan sebelumnya), tapi tandai kode itu "milik"
-    // kedua kategori lewat `sources` — supaya tetap muncul saat filter pill
-    // "Online Sport" dipilih, bukan hilang begitu saja.
-    if (sportResult.status === 'fulfilled') {
-      for (const [kode, entry] of Object.entries(sportResult.value.byKodePenuh || {})) {
-        merged[kode] = { ...entry, sources: [entry.source] }
-      }
-    }
-    if (underwearResult.status === 'fulfilled') {
-      for (const [kode, entry] of Object.entries(underwearResult.value.byKodePenuh || {})) {
-        merged[kode] = merged[kode]
-          ? { ...entry, sources: Array.from(new Set([...merged[kode].sources, entry.source])) }
-          : { ...entry, sources: [entry.source] }
-      }
-    }
+    if (sportResult.status === 'fulfilled') Object.assign(merged, sportResult.value.byKodePenuh)
+    if (underwearResult.status === 'fulfilled') Object.assign(merged, underwearResult.value.byKodePenuh) // underwear menang jika kode sama
 
     const failures = []
     if (underwearResult.status === 'rejected') failures.push(`Underwear: ${underwearResult.reason.message}`)
