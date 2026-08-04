@@ -240,7 +240,63 @@ function enrichWithStock(rows, stockLookup, category) {
 
 // ─── Sorting ────────────────────────────────────────────────────────────────
 
-const TEXT_SORT_COLS = ['namaBarang', 'kodeBarang', 'brand']
+const TEXT_SORT_COLS = ['namaBarang', 'kodeBarang', 'brand', 'tipe']
+
+// ─── Kelompokkan per SKU induk (dipakai mode "Per SKU Gabungan") ──────────────
+// Logic sama seperti tool Rekap SKU Induk: kode dengan titik (mis. 105132.3.02)
+// digabung ke induknya (105132) dan angka-angkanya dijumlahkan; kode TANPA
+// titik selalu berdiri sendiri (tipe "tunggal"), tidak pernah ikut digabung.
+function groupByParentSku(rows) {
+  const groups = {}
+  const standalone = []
+
+  rows.forEach(r => {
+    const kode = String(r.kodeBarang || '').trim()
+    const hasDot = kode.includes('.')
+
+    if (!kode || !hasDot) {
+      standalone.push({ ...r, tipe: 'tunggal', variantCount: 1 })
+      return
+    }
+
+    const parent = kode.split('.')[0]
+    if (!groups[parent]) {
+      groups[parent] = {
+        kodeBarang: parent, brand: r.brand,
+        kuantitas: 0, hargaProduk: 0, stock: 0, totalHpp: 0,
+        variantCount: 0, hasStockData: false,
+        bestNama: r.namaBarang, bestKuantitas: -1,
+      }
+    }
+    const g = groups[parent]
+    g.kuantitas    += r.kuantitas
+    g.hargaProduk  += r.hargaProduk
+    g.stock        += r.stock || 0
+    g.totalHpp     += r.totalHpp || 0
+    g.variantCount += 1
+    g.hasStockData  = g.hasStockData || r.hasStockData
+    if (r.kuantitas > g.bestKuantitas) {
+      g.bestKuantitas = r.kuantitas
+      g.bestNama = r.namaBarang
+      g.brand = r.brand
+    }
+  })
+
+  const groupRows = Object.values(groups).map(g => {
+    // HPP & SSR dihitung ULANG dari hasil penjumlahan — bukan rata-rata dari
+    // kolom HPP/SSR variannya masing-masing, supaya tetap akurat.
+    const hpp = g.stock > 0 ? g.totalHpp / g.stock : 0
+    const ssr = g.kuantitas > 0 ? g.stock / g.kuantitas : null
+    return {
+      kodeBarang: g.kodeBarang, namaBarang: g.bestNama, brand: g.brand,
+      kuantitas: g.kuantitas, hargaProduk: g.hargaProduk, stock: g.stock,
+      hpp, totalHpp: g.totalHpp, ssr, hasStockData: g.hasStockData,
+      tipe: 'gabungan', variantCount: g.variantCount,
+    }
+  })
+
+  return [...groupRows, ...standalone]
+}
 
 function sortRows(rows, sortBy, sortDir = 'desc') {
   const col   = sortBy || 'kuantitas'
@@ -322,7 +378,7 @@ function applyColFilter(rows, colFilters) {
       if (!noVal && f.value === '' && f.op !== 'between') continue
       if (f.op === 'between' && f.value === '' && f.value2 === '') continue
 
-      if (col === 'namaBarang' || col === 'brand' || col === 'kodeBarang') {
+      if (col === 'namaBarang' || col === 'brand' || col === 'kodeBarang' || col === 'tipe') {
         const rawCell = col === 'namaBarang' ? row.namaBarang
           : col === 'brand' ? row.brand
           : row.kodeBarang
@@ -471,7 +527,7 @@ function HighlightText({ text, query }) {
 // ── Column filter popover ─────────────────────────────────────────────────────
 
 function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }) {
-  const isText   = col === 'namaBarang' || col === 'brand' || col === 'kodeBarang'
+  const isText   = col === 'namaBarang' || col === 'brand' || col === 'kodeBarang' || col === 'tipe'
   const isBrand  = col === 'brand'
   const ops      = isText ? TEXT_OPS : NUM_OPS
   const ref      = useRef(null)
@@ -848,6 +904,7 @@ function BestSellerTable({
   searchQuery, onSearchChange,
   colFilters, onColFilterChange,
   stockLookup, brandOptions,
+  groupMode, onGroupModeChange,
 }) {
   const totalKuantitas   = rows.reduce((s, r) => s + r.kuantitas, 0)
   const totalHargaProduk = rows.reduce((s, r) => s + r.hargaProduk, 0)
@@ -877,6 +934,28 @@ function BestSellerTable({
 
   return (
     <>
+      {/* ── Mode tampilan: per varian vs per SKU induk (gabungan) ── */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: '0.75rem' }}>
+        <button
+          type="button"
+          className="pill-btn"
+          onClick={() => onGroupModeChange('variant')}
+          title="Tampilkan setiap varian SKU sebagai baris terpisah (perilaku biasa)"
+          style={groupMode === 'variant' ? { background: 'var(--primary, #3B3A8C)', color: '#fff', borderColor: 'transparent' } : undefined}
+        >
+          Per Varian
+        </button>
+        <button
+          type="button"
+          className="pill-btn"
+          onClick={() => onGroupModeChange('induk')}
+          title="Gabungkan varian dengan kode yang sama sebelum titik (mis. 105132.3.02) ke SKU induknya (105132). Kode tanpa titik tetap tampil sendiri."
+          style={groupMode === 'induk' ? { background: 'var(--primary, #3B3A8C)', color: '#fff', borderColor: 'transparent' } : undefined}
+        >
+          Per SKU Gabungan
+        </button>
+      </div>
+
       {/* ── Search bar ── */}
       <div style={{ marginBottom: '0.75rem', position: 'relative' }}>
         <span style={{
@@ -992,6 +1071,7 @@ function BestSellerTable({
                 <tr>
                   <th style={{ width: 44 }}>#</th>
                   <ColHeader col="kodeBarang"   label="Kode Barang"   align="left"  {...colHeaderProps} />
+                  {groupMode === 'induk' && <ColHeader col="tipe" label="Tipe" align="left" {...colHeaderProps} />}
                   <ColHeader col="namaBarang"   label="Nama Barang"   align="left"  {...colHeaderProps} />
                   {hasStock && <ColHeader col="brand" label="Brand" align="left"  {...colHeaderProps} />}
                   <ColHeader col="kuantitas"    label="Terjual"       align="right" {...colHeaderProps} />
@@ -1005,7 +1085,7 @@ function BestSellerTable({
               <tbody>
                 {pageRows.length === 0 && (
                   <tr>
-                    <td colSpan={hasStock ? 10 : 5} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                    <td colSpan={(hasStock ? 10 : 5) + (groupMode === 'induk' ? 1 : 0)} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
                       <p className="upload-title" style={{ margin: '0 0 4px' }}>Tidak ada produk ditemukan</p>
                       <p className="upload-sub" style={{ margin: 0 }}>
                         {searchQuery
@@ -1028,6 +1108,13 @@ function BestSellerTable({
                       <td className="muted mono" style={{ whiteSpace: 'nowrap' }}>
                         {row.kodeBarang || '—'}
                       </td>
+                      {groupMode === 'induk' && (
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {row.tipe === 'gabungan'
+                            ? <span className="badge-brand" style={{ background: 'var(--surface-2, #f0eefc)' }}>Gabungan ({row.variantCount}x)</span>
+                            : <span className="muted" style={{ fontSize: 12.5 }}>Tunggal</span>}
+                        </td>
+                      )}
                       <td style={{ fontWeight: 500 }}>
                         <HighlightText text={row.namaBarang} query={searchQuery} />
                       </td>
@@ -1117,6 +1204,7 @@ export default function ProdukTerlarisPage() {
 
   // Sort
   const [sortBy, setSortBy] = useState('kuantitas')
+  const [groupMode, setGroupMode] = useState('variant') // 'variant' | 'induk'
   const [sortDir, setSortDir] = useState('desc')
 
   // Kolom teks (Nama Barang, Kode Barang, Brand) default ascending (A→Z) saat
@@ -1368,7 +1456,7 @@ export default function ProdukTerlarisPage() {
   }, [enrichedRows])
 
   const filteredRows = useMemo(() => {
-    let rows = enrichedRows
+    let rows = groupMode === 'induk' ? groupByParentSku(enrichedRows) : enrichedRows
 
     // 3. global search (substring, case-insensitive)
     if (searchQuery.trim()) {
@@ -1384,7 +1472,7 @@ export default function ProdukTerlarisPage() {
 
     // 6. re-rank after all filters
     return rows.map((r, i) => ({ ...r, rank: i + 1 }))
-  }, [enrichedRows, searchQuery, colFilters, sortBy, sortDir])
+  }, [enrichedRows, groupMode, searchQuery, colFilters, sortBy, sortDir])
 
   // ── Active filter description ──────────────────────────────────────────────────
   const activeFilterDesc = useMemo(() => {
@@ -1579,6 +1667,8 @@ export default function ProdukTerlarisPage() {
             onColFilterChange={handleColFilterChange}
             stockLookup={stockLookup}
             brandOptions={brandOptions}
+            groupMode={groupMode}
+            onGroupModeChange={setGroupMode}
           />
         </div>
       )}
