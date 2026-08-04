@@ -188,8 +188,14 @@ function buildStockFirstRows(rawRows, filters, stockLookup) {
     if (wantedSource && !stockEntry[wantedSource]) continue
     const sales = byKode[kode]
     consumedKodes.add(kode)
+    // stockEntry sekarang { underwear, sport } (dipisah per sumber) — ambil nama
+    // dari sumber yang sedang aktif kalau ada pill kategori, atau dari sumber
+    // manapun yang punya datanya kalau "Semua".
+    const stockNama = wantedSource
+      ? stockEntry[wantedSource]?.nama
+      : (stockEntry.underwear?.nama || stockEntry.sport?.nama)
     rows.push({
-      namaBarang: sales?.namaBarang || stockEntry.nama || kode,
+      namaBarang: sales?.namaBarang || stockNama || kode,
       kodeBarang: kode,
       kuantitas: sales?.kuantitas || 0,
       hargaProduk: sales?.hargaProduk || 0,
