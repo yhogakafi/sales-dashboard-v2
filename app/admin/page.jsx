@@ -611,9 +611,10 @@ function StockDiagnostics() {
                 {state.result.collisions.length > 10 ? ', …' : ''}
               </p>
               <p className="upload-sub">
-                Untuk kode-kode ini, data underwear akan selalu menimpa data sport di Produk Terlaris —
-                ini kemungkinan besar penyebab data sport "hilang". Solusinya: pastikan Kode Barang unik
-                lintas kedua katalog (mis. beri prefix berbeda per kategori di sistem sumbernya).
+                Untuk kode-kode ini: saat filter kategori "Semua" dipilih di Produk Terlaris, stock-nya
+                dijumlahkan dari kedua file. Saat pill "Online Underwear" atau "Online Sport" dipilih,
+                yang ditampilkan cuma angka dari file yang sesuai — jadi datanya tidak saling menimpa
+                atau hilang lagi.
               </p>
             </>
           )}

@@ -7,11 +7,39 @@ import { exportBarangTerlaris } from '@/lib/exportExcel'
 
 // ─── Stock lookup helper ───────────────────────────────────────────────────────
 
-function getStockInfo(kodeBarang, stockLookup) {
+// stockLookup[kode] sekarang berbentuk { underwear: entryOrNull, sport: entryOrNull }
+// — dipisah per sumber (bukan digabung jadi satu), supaya kode yang kebetulan
+// ada di kedua file (mis. underwear.xls yang sebetulnya inventaris lengkap)
+// bisa ditangani sesuai konteks: gabung saat "Semua", pisah saat kategori dipilih.
+function getStockInfo(kodeBarang, stockLookup, category) {
   if (!stockLookup || !kodeBarang) return { brand: '—', stock: 0, nama: null, hpp: 0, hasData: false }
-  const data = stockLookup[kodeBarang]
-  if (!data) return { brand: '—', stock: 0, nama: null, hpp: 0, hasData: false }
-  return { brand: data.brand || '—', stock: data.stock ?? 0, nama: data.nama || null, hpp: data.hpp ?? 0, hasData: true }
+  const entry = stockLookup[kodeBarang]
+  if (!entry) return { brand: '—', stock: 0, nama: null, hpp: 0, hasData: false }
+
+  const wantedSource = category ? CATEGORY_TO_STOCK_SOURCE[category] : null
+
+  if (wantedSource) {
+    // Kategori spesifik dipilih (Online Underwear / Online Sport) — pakai HANYA
+    // data dari sumber itu, jangan digabung dengan sumber yang lain.
+    const data = entry[wantedSource]
+    if (!data) return { brand: '—', stock: 0, nama: null, hpp: 0, hasData: false }
+    return { brand: data.brand || '—', stock: data.stock ?? 0, nama: data.nama || null, hpp: data.hpp ?? 0, hasData: true }
+  }
+
+  // "Semua" (tidak ada kategori dipilih) — gabungkan stock dari kedua sumber
+  // kalau kodenya kebetulan ada di keduanya.
+  const u = entry.underwear
+  const s = entry.sport
+  if (u && s) {
+    const combinedStock = (u.stock || 0) + (s.stock || 0)
+    // HPP per pcs bisa beda antar sumber, jadi hitung ulang sebagai rata-rata
+    // tertimbang dari total nilai stock masing-masing, bukan cuma dijumlah.
+    const combinedValue = (u.hpp || 0) * (u.stock || 0) + (s.hpp || 0) * (s.stock || 0)
+    const combinedHpp = combinedStock > 0 ? combinedValue / combinedStock : 0
+    return { brand: u.brand || s.brand || '—', stock: combinedStock, nama: u.nama || s.nama || null, hpp: combinedHpp, hasData: true }
+  }
+  const only = u || s
+  return { brand: only.brand || '—', stock: only.stock ?? 0, nama: only.nama || null, hpp: only.hpp ?? 0, hasData: true }
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -157,7 +185,7 @@ function buildStockFirstRows(rawRows, filters, stockLookup) {
 
   // 1. Every SKU from the stock master, always shown — even with zero sales.
   for (const [kode, stockEntry] of Object.entries(stockLookup)) {
-    if (wantedSource && stockEntry.source !== wantedSource) continue
+    if (wantedSource && !stockEntry[wantedSource]) continue
     const sales = byKode[kode]
     consumedKodes.add(kode)
     rows.push({
@@ -195,9 +223,9 @@ function buildStockFirstRows(rawRows, filters, stockLookup) {
 
 // ─── Stock enrichment (adds brand/stock so they can be filtered & sorted) ─────
 
-function enrichWithStock(rows, stockLookup) {
+function enrichWithStock(rows, stockLookup, category) {
   return rows.map(r => {
-    const si = getStockInfo(r.kodeBarang, stockLookup)
+    const si = getStockInfo(r.kodeBarang, stockLookup, category)
     const totalHpp = si.hpp * si.stock
     const ssr = r.kuantitas > 0 ? si.stock / r.kuantitas : null // stock / terjual — null = tidak bisa dihitung (belum ada yang terjual)
     return { ...r, brand: si.brand, stock: si.stock, hasStockData: si.hasData, hpp: si.hpp, totalHpp, ssr }
@@ -1133,8 +1161,22 @@ export default function ProdukTerlarisPage() {
 
     const [underwearResult, sportResult] = results
     const merged = {}
-    if (sportResult.status === 'fulfilled') Object.assign(merged, sportResult.value.byKodePenuh)
-    if (underwearResult.status === 'fulfilled') Object.assign(merged, underwearResult.value.byKodePenuh) // underwear menang jika kode sama
+    // Kalau kode yang sama ada di dua file (di data kamu: SEMUA 616 kode sport
+    // ternyata juga ada di file underwear — kemungkinan besar underwear.xls
+    // adalah export inventaris LENGKAP, bukan katalog khusus underwear), kedua
+    // versinya disimpan terpisah per kode (bukan yang satu menimpa yang lain).
+    // Nanti getStockInfo() yang memutuskan: gabungkan stock-nya saat filter
+    // kategori "Semua", atau pakai cuma salah satu saat pill Underwear/Sport dipilih.
+    if (sportResult.status === 'fulfilled') {
+      for (const [kode, entry] of Object.entries(sportResult.value.byKodePenuh || {})) {
+        merged[kode] = { sport: entry, underwear: null }
+      }
+    }
+    if (underwearResult.status === 'fulfilled') {
+      for (const [kode, entry] of Object.entries(underwearResult.value.byKodePenuh || {})) {
+        merged[kode] = merged[kode] ? { ...merged[kode], underwear: entry } : { underwear: entry, sport: null }
+      }
+    }
 
     const failures = []
     if (underwearResult.status === 'rejected') failures.push(`Underwear: ${underwearResult.reason.message}`)
@@ -1305,7 +1347,7 @@ export default function ProdukTerlarisPage() {
       : aggregateRows(rawRows, filters)
 
     // 2. merge in brand/stock so they can be filtered & sorted like any other column
-    rows = enrichWithStock(rows, stockLookup)
+    rows = enrichWithStock(rows, stockLookup, filters.category)
 
     return rows
   }, [rawRows, filters, stockLookup])
