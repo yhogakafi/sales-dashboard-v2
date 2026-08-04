@@ -534,6 +534,104 @@ function StockUploadCard({ type, label, status, onUploaded }) {
   )
 }
 
+function StockDiagnostics() {
+  const [state, setState] = useState({ loading: true, error: null, result: null })
+
+  const runCheck = useCallback(async () => {
+    setState({ loading: true, error: null, result: null })
+    try {
+      const [uRes, sRes] = await Promise.all([
+        fetch('/api/stock-data?type=underwear', { cache: 'no-store' }),
+        fetch('/api/stock-data?type=sport', { cache: 'no-store' }),
+      ])
+
+      const uSizeHeader = uRes.headers.get('content-length')
+      const sSizeHeader = sRes.headers.get('content-length')
+
+      if (!uRes.ok || !sRes.ok) {
+        const uErr = !uRes.ok ? `Underwear: HTTP ${uRes.status}` : null
+        const sErr = !sRes.ok ? `Sport: HTTP ${sRes.status}` : null
+        setState({ loading: false, error: [uErr, sErr].filter(Boolean).join(' · '), result: null })
+        return
+      }
+
+      const uBody = await uRes.json()
+      const sBody = await sRes.json()
+      const uKodes = Object.keys(uBody.byKodePenuh || {})
+      const sKodes = Object.keys(sBody.byKodePenuh || {})
+      const sSet = new Set(sKodes)
+      const collisions = uKodes.filter(k => sSet.has(k))
+
+      setState({
+        loading: false,
+        error: null,
+        result: {
+          underwearCount: uKodes.length,
+          sportCount: sKodes.length,
+          underwearBytes: uSizeHeader ? Number(uSizeHeader) : new Blob([JSON.stringify(uBody)]).size,
+          sportBytes: sSizeHeader ? Number(sSizeHeader) : new Blob([JSON.stringify(sBody)]).size,
+          collisions,
+        },
+      })
+    } catch (err) {
+      setState({ loading: false, error: err.message, result: null })
+    }
+  }, [])
+
+  useEffect(() => { runCheck() }, [runCheck])
+
+  const fmtKb = (bytes) => bytes == null ? '—' : `${(bytes / 1024).toFixed(0)} KB`
+
+  return (
+    <div className="upload-zone" style={{ marginTop: '1.5rem' }}>
+      <p className="upload-title" style={{ marginBottom: 8 }}>Diagnosa data stock</p>
+      <p className="upload-sub" style={{ marginBottom: 12 }}>
+        Cek langsung apakah kedua file stock berhasil dimuat terpisah, seberapa besar masing-masing,
+        dan apakah ada Kode Barang yang sama persis dipakai di underwear <em>maupun</em> sport
+        (kalau ada, salah satunya akan "menang" dan yang lain jadi tidak muncul di Produk Terlaris).
+      </p>
+
+      {state.loading && <p className="loading-text">Memeriksa…</p>}
+
+      {!state.loading && state.error && (
+        <p className="upload-error">Gagal memeriksa: {state.error}</p>
+      )}
+
+      {!state.loading && state.result && (
+        <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
+          <p>✅ Underwear: <strong>{state.result.underwearCount.toLocaleString('id-ID')}</strong> kode — response {fmtKb(state.result.underwearBytes)}</p>
+          <p>✅ Sport: <strong>{state.result.sportCount.toLocaleString('id-ID')}</strong> kode — response {fmtKb(state.result.sportBytes)}</p>
+          {state.result.collisions.length === 0 ? (
+            <p>✅ Tidak ada Kode Barang yang bentrok antara underwear &amp; sport.</p>
+          ) : (
+            <>
+              <p style={{ color: 'var(--accent, #D85A30)', fontWeight: 600 }}>
+                ⚠️ Ditemukan {state.result.collisions.length.toLocaleString('id-ID')} Kode Barang yang sama persis
+                dipakai di kedua file. Contoh: {state.result.collisions.slice(0, 10).join(', ')}
+                {state.result.collisions.length > 10 ? ', …' : ''}
+              </p>
+              <p className="upload-sub">
+                Untuk kode-kode ini, data underwear akan selalu menimpa data sport di Produk Terlaris —
+                ini kemungkinan besar penyebab data sport "hilang". Solusinya: pastikan Kode Barang unik
+                lintas kedua katalog (mis. beri prefix berbeda per kategori di sistem sumbernya).
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="pill-btn"
+        onClick={runCheck}
+        style={{ marginTop: 10 }}
+      >
+        Cek ulang
+      </button>
+    </div>
+  )
+}
+
 function StockTab() {
   const [status, setStatus]   = useState(null)
   const [loading, setLoading] = useState(true)
@@ -572,6 +670,7 @@ function StockTab() {
             status={status?.sport}
             onUploaded={fetchStatus}
           />
+          <StockDiagnostics />
         </>
       )}
     </div>
