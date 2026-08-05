@@ -1106,7 +1106,7 @@ function BestSellerTable({
                   return (
                     <tr
                       key={row.kodeBarang ? `k-${row.kodeBarang}-${row.tipe || 'v'}` : `r-${row.rank}`}
-                      style={lowSsr ? { background: 'rgba(216, 90, 48, 0.08)' } : undefined}
+                      style={lowSsr ? { background: 'rgb(255, 162, 162)' } : undefined}
                       title={lowSsr ? 'SSR < 1 — stock lebih sedikit dari yang terjual' : undefined}
                     >
                       <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
