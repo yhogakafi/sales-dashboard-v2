@@ -319,6 +319,11 @@ function sortRows(rows, sortBy, sortDir = 'desc') {
       if (a.brand === '—' && b.brand === '—') return 0
       return mult * a.brand.localeCompare(b.brand, 'id')
     }
+    if (col === 'tipe') {
+      // Cuma ada di mode "Per SKU Gabungan" — kalau kepanggil di mode lain
+      // (row.tipe undefined semua), biarkan urutan aslinya (bukan NaN sort).
+      return mult * String(a.tipe || '').localeCompare(String(b.tipe || ''), 'id')
+    }
     // Numeric columns: kuantitas, hargaProduk, stock, hpp, totalHpp, ssr…
     // Missing/null values (mis. SSR saat terjual = 0) selalu di akhir,
     // terlepas dari arah urutan — bukan ikut kebalik pas toggle ke ascending.
@@ -1100,7 +1105,7 @@ function BestSellerTable({
                   const lowSsr = hasStock && row.ssr != null && row.ssr < 1
                   return (
                     <tr
-                      key={row.kodeBarang ? `k-${row.kodeBarang}` : `r-${row.rank}`}
+                      key={row.kodeBarang ? `k-${row.kodeBarang}-${row.tipe || 'v'}` : `r-${row.rank}`}
                       style={lowSsr ? { background: 'rgba(216, 90, 48, 0.08)' } : undefined}
                       title={lowSsr ? 'SSR < 1 — stock lebih sedikit dari yang terjual' : undefined}
                     >
@@ -1205,6 +1210,21 @@ export default function ProdukTerlarisPage() {
   // Sort
   const [sortBy, setSortBy] = useState('kuantitas')
   const [groupMode, setGroupMode] = useState('variant') // 'variant' | 'induk'
+
+  // Kolom "Tipe" cuma ada di mode "Per SKU Gabungan" — kalau filternya masih
+  // aktif terus mode dipindah ke "Per Varian", baris di mode itu jadi gak
+  // punya field `tipe` sama sekali dan filternya bakal cocok ke NOL baris
+  // (tabel kelihatan kosong tanpa penjelasan). Makanya filter Tipe di-reset
+  // tiap kali mode ganti.
+  const handleGroupModeChange = useCallback((mode) => {
+    setGroupMode(mode)
+    setColFilters(prev => {
+      if (!prev.tipe) return prev
+      const next = { ...prev }
+      delete next.tipe
+      return next
+    })
+  }, [])
   const [sortDir, setSortDir] = useState('desc')
 
   // Kolom teks (Nama Barang, Kode Barang, Brand) default ascending (A→Z) saat
@@ -1289,9 +1309,17 @@ export default function ProdukTerlarisPage() {
         setCheckingSession(false)
         if (!res.ok) return
         setLoggedIn(true)
-        loadPeriods()
-        loadData('')
         loadStock()
+
+        // Default halaman pertama kali dibuka: "30 hari terakhir" (gabungan semua
+        // periode, difilter ke 30 hari terakhir) — bukan cuma periode terbaru.
+        const list = await loadPeriods()
+        if (list.length > 0) {
+          setSelectedId(ALL_MERGED_ID)
+          loadAllPeriodsMerged(list, last30DaysRange())
+        } else {
+          loadData('') // belum ada periode tersimpan sama sekali — fallback lama
+        }
       })
       .catch(() => setCheckingSession(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1299,7 +1327,10 @@ export default function ProdukTerlarisPage() {
   // ── Load periods ─────────────────────────────────────────────────────────────
   const loadPeriods = useCallback(async () => {
     const res = await fetch('/api/barang-terlaris-periods', { cache: 'no-store' })
-    if (res.ok) setPeriods(await res.json())
+    if (!res.ok) return []
+    const list = await res.json()
+    setPeriods(list)
+    return list
   }, [])
 
   // ── Load data ─────────────────────────────────────────────────────────────────
@@ -1486,8 +1517,8 @@ export default function ProdukTerlarisPage() {
     }
     // add active column filters
     const colLabels = {
-      kodeBarang: 'Kode Barang', namaBarang: 'Nama Barang', kuantitas: 'Kuantitas', hargaProduk: 'Harga Produk',
-      brand: 'Brand', stock: 'Stock',
+      kodeBarang: 'Kode Barang', namaBarang: 'Nama Barang', kuantitas: 'Terjual', hargaProduk: 'Harga Produk',
+      brand: 'Brand', stock: 'Stock', hpp: 'HPP PCS', totalHpp: 'Total HPP', ssr: 'SSR', tipe: 'Tipe',
     }
     for (const [col, f] of Object.entries(colFilters)) {
       if (!f.op) continue
@@ -1668,7 +1699,7 @@ export default function ProdukTerlarisPage() {
             stockLookup={stockLookup}
             brandOptions={brandOptions}
             groupMode={groupMode}
-            onGroupModeChange={setGroupMode}
+            onGroupModeChange={handleGroupModeChange}
           />
         </div>
       )}
