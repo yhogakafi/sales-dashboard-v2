@@ -12,34 +12,29 @@ import { exportBarangTerlaris } from '@/lib/exportExcel'
 // ada di kedua file (mis. underwear.xls yang sebetulnya inventaris lengkap)
 // bisa ditangani sesuai konteks: gabung saat "Semua", pisah saat kategori dipilih.
 function getStockInfo(kodeBarang, stockLookup, category) {
-  if (!stockLookup || !kodeBarang) return { brand: '—', stock: 0, nama: null, hpp: 0, hasData: false }
+  if (!stockLookup || !kodeBarang) return { brand: '—', stock: 0, unit: '', nama: null, hpp: 0, hasData: false }
   const entry = stockLookup[kodeBarang]
-  if (!entry) return { brand: '—', stock: 0, nama: null, hpp: 0, hasData: false }
+  if (!entry) return { brand: '—', stock: 0, unit: '', nama: null, hpp: 0, hasData: false }
 
   const wantedSource = category ? CATEGORY_TO_STOCK_SOURCE[category] : null
 
   if (wantedSource) {
-    // Kategori spesifik dipilih (Online Underwear / Online Sport) — pakai HANYA
-    // data dari sumber itu, jangan digabung dengan sumber yang lain.
     const data = entry[wantedSource]
-    if (!data) return { brand: '—', stock: 0, nama: null, hpp: 0, hasData: false }
-    return { brand: data.brand || '—', stock: data.stock ?? 0, nama: data.nama || null, hpp: data.hpp ?? 0, hasData: true }
+    if (!data) return { brand: '—', stock: 0, unit: '', nama: null, hpp: 0, hasData: false }
+    return { brand: data.brand || '—', stock: data.stock ?? 0, unit: data.unit || '', nama: data.nama || null, hpp: data.hpp ?? 0, hasData: true }
   }
 
-  // "Semua" (tidak ada kategori dipilih) — gabungkan stock dari kedua sumber
-  // kalau kodenya kebetulan ada di keduanya.
+  // "Semua" — gabungkan stock dari kedua sumber
   const u = entry.underwear
   const s = entry.sport
   if (u && s) {
     const combinedStock = (u.stock || 0) + (s.stock || 0)
-    // HPP per pcs bisa beda antar sumber, jadi hitung ulang sebagai rata-rata
-    // tertimbang dari total nilai stock masing-masing, bukan cuma dijumlah.
     const combinedValue = (u.hpp || 0) * (u.stock || 0) + (s.hpp || 0) * (s.stock || 0)
     const combinedHpp = combinedStock > 0 ? combinedValue / combinedStock : 0
-    return { brand: u.brand || s.brand || '—', stock: combinedStock, nama: u.nama || s.nama || null, hpp: combinedHpp, hasData: true }
+    return { brand: u.brand || s.brand || '—', stock: combinedStock, unit: u.unit || s.unit || '', nama: u.nama || s.nama || null, hpp: combinedHpp, hasData: true }
   }
   const only = u || s
-  return { brand: only.brand || '—', stock: only.stock ?? 0, nama: only.nama || null, hpp: only.hpp ?? 0, hasData: true }
+  return { brand: only.brand || '—', stock: only.stock ?? 0, unit: only.unit || '', nama: only.nama || null, hpp: only.hpp ?? 0, hasData: true }
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -233,8 +228,8 @@ function enrichWithStock(rows, stockLookup, category) {
   return rows.map(r => {
     const si = getStockInfo(r.kodeBarang, stockLookup, category)
     const totalHpp = si.hpp * si.stock
-    const ssr = r.kuantitas > 0 ? si.stock / r.kuantitas : null // stock / terjual — null = tidak bisa dihitung (belum ada yang terjual)
-    return { ...r, brand: si.brand, stock: si.stock, hasStockData: si.hasData, hpp: si.hpp, totalHpp, ssr }
+    const ssr = r.kuantitas > 0 ? si.stock / r.kuantitas : null
+    return { ...r, brand: si.brand, stock: si.stock, unit: si.unit, hasStockData: si.hasData, hpp: si.hpp, totalHpp, ssr }
   })
 }
 
@@ -266,6 +261,7 @@ function groupByParentSku(rows) {
         kuantitas: 0, hargaProduk: 0, stock: 0, totalHpp: 0,
         variantCount: 0, hasStockData: false,
         bestNama: r.namaBarang, bestKuantitas: -1,
+        unit: r.unit || '',
       }
     }
     const g = groups[parent]
@@ -275,6 +271,7 @@ function groupByParentSku(rows) {
     g.totalHpp     += r.totalHpp || 0
     g.variantCount += 1
     g.hasStockData  = g.hasStockData || r.hasStockData
+    if (!g.unit && r.unit) g.unit = r.unit
     if (r.kuantitas > g.bestKuantitas) {
       g.bestKuantitas = r.kuantitas
       g.bestNama = r.namaBarang
@@ -283,14 +280,12 @@ function groupByParentSku(rows) {
   })
 
   const groupRows = Object.values(groups).map(g => {
-    // HPP & SSR dihitung ULANG dari hasil penjumlahan — bukan rata-rata dari
-    // kolom HPP/SSR variannya masing-masing, supaya tetap akurat.
     const hpp = g.stock > 0 ? g.totalHpp / g.stock : 0
     const ssr = g.kuantitas > 0 ? g.stock / g.kuantitas : null
     return {
       kodeBarang: g.kodeBarang, namaBarang: g.bestNama, brand: g.brand,
       kuantitas: g.kuantitas, hargaProduk: g.hargaProduk, stock: g.stock,
-      hpp, totalHpp: g.totalHpp, ssr, hasStockData: g.hasStockData,
+      unit: g.unit, hpp, totalHpp: g.totalHpp, ssr, hasStockData: g.hasStockData,
       tipe: 'gabungan', variantCount: g.variantCount,
     }
   })
@@ -1082,6 +1077,7 @@ function BestSellerTable({
                   <ColHeader col="kuantitas"    label="Terjual"       align="right" {...colHeaderProps} />
                   <ColHeader col="hargaProduk"  label="Harga Produk"  align="right" {...colHeaderProps} />
                   {hasStock && <ColHeader col="stock" label="Stock" align="right" {...colHeaderProps} />}
+                  {hasStock && <ColHeader col="unit" label="Unit" align="left" {...colHeaderProps} />}
                   {hasStock && <ColHeader col="hpp" label="HPP PCS" align="right" {...colHeaderProps} />}
                   {hasStock && <ColHeader col="totalHpp" label="Total HPP" align="right" {...colHeaderProps} />}
                   {hasStock && <ColHeader col="ssr" label="SSR" align="right" {...colHeaderProps} />}
@@ -1143,6 +1139,13 @@ function BestSellerTable({
                                 {si.stock.toLocaleString('id-ID')}
                               </span>
                             : <span className="muted">0</span>}
+                        </td>
+                      )}
+                      {hasStock && (
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {row.unit
+                            ? <span>{row.unit}</span>
+                            : <span className="muted">—</span>}
                         </td>
                       )}
                       {hasStock && (
