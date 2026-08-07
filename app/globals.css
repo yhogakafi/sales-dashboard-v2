@@ -36,7 +36,7 @@ html, body {
    from using more of the available desktop width before falling back to
    horizontal scroll. Other pages keep the narrower, easier-to-read default. */
 .app-shell--wide {
-  max-width: 1440px;
+  max-width: 1800px;
 }
 
 .app-header {
