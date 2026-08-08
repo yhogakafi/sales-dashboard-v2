@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scelta Live · Shift Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --ivory: #FAF6F1;
+      --card: #FFFFFF;
+      --ink: #2A1F2A;
+      --ink-soft: #6B5D67;
+      --line: #E6DACB;
+      --astrid: #C88A2E;
+      --astrid-soft: #F4E3C4;
+      --fifi: #40396E;
+      --fifi-soft: #DCD9EE;
+      --good: #3E7A52;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--ivory);
+      color: var(--ink);
+      font-family: 'Inter', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1,
+    h2,
+    h3 {
+      font-family: 'Fraunces', serif;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .mono {
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 28px;
+    }
+
+    /* ---- header ---- */
+    header {
+      padding: 56px 0 28px;
+    }
+
+    .eyebrow {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 20px;
+      height: 1px;
+      background: var(--astrid);
+    }
+
+    header h1 {
+      font-size: clamp(30px, 4.2vw, 46px);
+      line-height: 1.05;
+      max-width: 720px;
+    }
+
+    header p {
+      max-width: 560px;
+      color: var(--ink-soft);
+      font-size: 15.5px;
+      line-height: 1.6;
+      margin-top: 14px;
+    }
+
+    /* ---- upload ---- */
+    .dropzone {
+      margin: 32px 0 8px;
+      border: 1.5px dashed #CBB98F;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #FFFDFA, #FBF4E9);
+      padding: 38px 30px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s ease, background .15s ease;
+    }
+
+    .dropzone.drag {
+      border-color: var(--astrid);
+      background: var(--astrid-soft);
+    }
+
+    .dropzone strong {
+      font-size: 16px;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .dropzone span {
+      color: var(--ink-soft);
+      font-size: 13.5px;
+    }
+
+    .dropzone input {
+      display: none;
+    }
+
+    #fileMeta {
+      font-size: 13px;
+      color: var(--good);
+      margin-top: 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      display: none;
+    }
+
+    .file-list {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13.5px;
+    }
+
+    .file-item .fi-name {
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .file-item .fi-meta {
+      color: var(--ink-soft);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+
+    .file-item .fi-remove {
+      border: none;
+      background: none;
+      color: var(--ink-soft);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    .file-item .fi-remove:hover {
+      background: #F4E3E3;
+      color: #B0562E;
+    }
+
+    #app {
+      display: none;
+    }
+
+    /* ---- dial (signature element) ---- */
+    .dial-section {
+      margin: 48px 0 36px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 34px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 36px;
+      align-items: center;
+    }
+
+    .dial-section h3 {
+      font-size: 20px;
+      margin-bottom: 6px;
+    }
+
+    .dial-section .desc {
+      color: var(--ink-soft);
+      font-size: 13.5px;
+      line-height: 1.6;
+      max-width: 420px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 22px;
+      margin-top: 18px;
+      flex-wrap: wrap;
+    }
+
+    .legend div {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--ink-soft);
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot.astrid {
+      background: var(--astrid);
+    }
+
+    .dot.fifi {
+      background: var(--fifi);
+    }
+
+    /* ---- day overrides ---- */
+    .override-section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 30px 32px;
+      margin-bottom: 36px;
+    }
+
+    .override-head h3 {
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+
+    .override-head .desc {
+      color: var(--ink-soft);
+      font-size: 13.5px;
+      line-height: 1.6;
+      max-width: 640px;
+      margin-bottom: 20px;
+    }
+
+    .day-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 10px;
+    }
+
+    .day-row {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: #FEFCFA;
+    }
+
+    .day-row.overridden {
+      border-color: var(--astrid);
+      background: #FFFBF2;
+    }
+
+    .day-row .date {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .day-row .breakdown {
+      font-size: 11.5px;
+      color: var(--ink-soft);
+    }
+
+    .seg-control {
+      display: flex;
+      gap: 4px;
+    }
+
+    .seg-btn {
+      flex: 1;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      padding: 5px 0;
+      text-align: center;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--ink-soft);
+    }
+
+    .seg-btn.active.astrid {
+      background: var(--astrid);
+      border-color: var(--astrid);
+      color: #fff;
+    }
+
+    .seg-btn.active.fifi {
+      background: var(--fifi);
+      border-color: var(--fifi);
+      color: #fff;
+    }
+
+    .seg-btn.active.auto {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: #fff;
+    }
+
+    /* ---- summary cards ---- */
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      margin-bottom: 36px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 28px 30px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 5px;
+    }
+
+    .card.astrid::before {
+      background: var(--astrid);
+    }
+
+    .card.fifi::before {
+      background: var(--fifi);
+    }
+
+    .card .name {
+      font-size: 22px;
+      margin-bottom: 2px;
+    }
+
+    .card .tag {
+      font-size: 12.5px;
+      color: var(--ink-soft);
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: .03em;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px 20px;
+      margin-top: 22px;
+    }
+
+    .metric .val {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 21px;
+      font-weight: 600;
+    }
+
+    .metric .lbl {
+      font-size: 12px;
+      color: var(--ink-soft);
+      margin-top: 2px;
+    }
+
+    .metric.wide {
+      grid-column: 1 / -1;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+    }
+
+    .metric.wide .val {
+      font-size: 26px;
+    }
+
+    .card.astrid .val {
+      color: #95651C;
+    }
+
+    .card.fifi .val {
+      color: var(--fifi);
+    }
+
+    /* ---- comparison bars ---- */
+    .compare {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 30px 32px;
+      margin-bottom: 36px;
+    }
+
+    .compare h3 {
+      font-size: 18px;
+      margin-bottom: 20px;
+    }
+
+    .barrow {
+      margin-bottom: 16px;
+    }
+
+    .barrow .lbl {
+      font-size: 12.5px;
+      color: var(--ink-soft);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .track {
+      display: flex;
+      height: 12px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #F1EAE0;
+    }
+
+    .seg {
+      height: 100%;
+    }
+
+    .seg.astrid {
+      background: var(--astrid);
+    }
+
+    .seg.fifi {
+      background: var(--fifi);
+    }
+
+    /* ---- table ---- */
+    .table-section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 26px 0 8px;
+      margin-bottom: 60px;
+    }
+
+    .table-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 30px 18px;
+      flex-wrap: wrap;
+      gap: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .table-head h3 {
+      font-size: 18px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .tab {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12.5px;
+      padding: 7px 14px;
+      border-radius: 100px;
+      border: 1px solid var(--line);
+      background: #fff;
+      cursor: pointer;
+      color: var(--ink-soft);
+    }
+
+    .tab.active {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    .search {
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      padding: 8px 14px;
+      border-radius: 100px;
+      border: 1px solid var(--line);
+      min-width: 200px;
+      background: #fff;
+    }
+
+    .exportbtn {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 13.5px;
+      background: var(--ink);
+      color: #fff;
+      border: none;
+      border-radius: 100px;
+      padding: 9px 20px;
+      cursor: pointer;
+    }
+
+    .exportbtn:hover {
+      opacity: .88;
+    }
+
+    .tablewrap {
+      overflow-x: auto;
+      padding: 18px 30px 6px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 960px;
+    }
+
+    th {
+      text-align: left;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--ink-soft);
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      background: var(--card);
+    }
+
+    th:first-child,
+    td:first-child {
+      width: 42px;
+    }
+
+    td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #F1EAE0;
+      white-space: nowrap;
+    }
+
+    tr:hover td {
+      background: #FBF8F3;
+    }
+
+    .hostpill {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 100px;
+      font-weight: 600;
+    }
+
+    .hostpill.astrid {
+      background: var(--astrid-soft);
+      color: #8A5D1B;
+    }
+
+    .hostpill.fifi {
+      background: var(--fifi-soft);
+      color: var(--fifi);
+    }
+
+    .rowcount {
+      padding: 14px 30px 4px;
+      color: var(--ink-soft);
+      font-size: 12.5px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .host-cell {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .host-select {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 100px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    .host-select.astrid {
+      background: var(--astrid-soft);
+      color: #8A5D1B;
+    }
+
+    .host-select.fifi {
+      background: var(--fifi-soft);
+      color: var(--fifi);
+    }
+
+    .manual-tag {
+      color: var(--astrid);
+      font-size: 9px;
+    }
+
+    footer {
+      color: var(--ink-soft);
+      font-size: 12px;
+      padding: 0 0 50px;
+      line-height: 1.7;
+    }
+
+    footer b {
+      color: var(--ink);
+    }
+
+    @media(max-width:760px) {
+      .dial-section {
+        grid-template-columns: 1fr;
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .metrics {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <header>
+      <div class="eyebrow">Scelta Live · Shopee</div>
+      <h1>Siapa yang live, jam berapa?</h1>
+      <p>Unggah satu atau beberapa laporan live streaming Shopee (.xlsx, .csv) sekaligus — datanya digabung otomatis.
+        Setiap sesi otomatis dikelompokkan ke host berdasarkan jam berakhirnya siaran — <b>06.00–17.00 → Astrid</b>, di
+        luar itu → <b>Fifi</b> — lalu dirangkum jadi pencapaian per host.</p>
+    </header>
+
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput"
+        accept=".xlsx,.xls,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        multiple>
+      <strong>Tarik satu atau beberapa file laporan ke sini, atau klik untuk pilih</strong>
+      <span>Format .xlsx / .csv dari Shopee Seller Centre — kolom Start Time &amp; Durasi wajib ada. Bisa pilih banyak
+        file sekaligus, atau tambah satu-satu — datanya otomatis tergabung.</span>
+      <div id="fileMeta"></div>
+    </div>
+    <div id="fileList" class="file-list"></div>
+
+    <div id="app">
+
+      <section class="dial-section">
+        <div>
+          <h3>Peta jam siaran</h3>
+          <p class="desc">Tiap titik adalah satu sesi live, diletakkan sesuai jam mulainya di lingkaran 24 jam. Area
+            terang menandai jam kerja Astrid, area gelap adalah jam Fifi.</p>
+          <div class="legend">
+            <div><span class="dot astrid"></span>Astrid · 06.00–17.00</div>
+            <div><span class="dot fifi"></span>Fifi · 17.00–06.00</div>
+          </div>
+        </div>
+        <div id="dial"></div>
+      </section>
+
+      <section class="override-section">
+        <div class="override-head">
+          <h3>Sesuaikan host per hari</h3>
+          <p class="desc">Kalau ada hari tukar shift atau salah satu host gantikan yang lain, pindahkan hari itu ke host
+            yang benar di sini. Pencapaian di bawah otomatis terhitung ulang.</p>
+        </div>
+        <div id="dayOverrides" class="day-grid"></div>
+      </section>
+
+      <div class="cards">
+        <div class="card astrid">
+          <div class="tag">HOST · SHIFT SIANG</div>
+          <div class="name">Astrid</div>
+          <div class="metrics" id="cardAstrid"></div>
+        </div>
+        <div class="card fifi">
+          <div class="tag">HOST · SHIFT MALAM</div>
+          <div class="name">Fifi</div>
+          <div class="metrics" id="cardFifi"></div>
+        </div>
+      </div>
+
+      <div class="compare">
+        <h3>Astrid vs Fifi</h3>
+        <div id="compareBars"></div>
+      </div>
+
+      <div class="table-section">
+        <div class="table-head">
+          <h3>Laporan harian per host</h3>
+        </div>
+        <p class="desc" style="margin:-8px 0 14px;">Rekap tiap tanggal, dipecah per host — untuk cek pencapaian harian
+          atau hari yang belum ada siarannya.</p>
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tanggal</th>
+                <th>Host</th>
+                <th>Sesi</th>
+                <th>Penonton</th>
+                <th>Pesanan Dibuat</th>
+                <th>Produk Terjual</th>
+                <th>Penjualan Dibuat (Rp)</th>
+              </tr>
+            </thead>
+            <tbody id="dailyTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="table-section">
+        <div class="table-head">
+          <h3>Detail sesi live</h3>
+          <div class="controls">
+            <button class="tab active" data-filter="all">Semua</button>
+            <button class="tab" data-filter="Astrid">Astrid</button>
+            <button class="tab" data-filter="Fifi">Fifi</button>
+            <input class="search" id="searchBox" placeholder="Cari judul livestream…">
+            <button class="exportbtn" id="exportBtn">Export ke Excel</button>
+          </div>
+        </div>
+        <div class="rowcount" id="rowcount"></div>
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Host</th>
+                <th>Tanggal</th>
+                <th>Mulai</th>
+                <th>Selesai</th>
+                <th>Durasi</th>
+                <th>Nama Livestream</th>
+                <th>Penonton Aktif</th>
+                <th>Komentar</th>
+                <th>Add to Cart</th>
+                <th>Penonton</th>
+                <th>Pesanan Dibuat</th>
+                <th>Pesanan Siap Kirim</th>
+                <th>Produk Terjual</th>
+                <th>Penjualan (Rp)</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <footer>
+        <p><b>Aturan pembagian host:</b> jam selesai siaran (jam mulai + durasi) dihitung, lalu dicocokkan ke jendela
+          06.00–17.00 (Astrid) atau di luar jendela itu (Fifi). Satu hari penuh bisa dipindahkan lewat panel "Sesuaikan
+          host per hari" di atas, atau satu sesi tertentu saja lewat dropdown host langsung di tabel — pilih "Otomatis"
+          untuk kembali ke aturan jam. Sesi yang diubah manual per sesi ditandai titik oranye di tabel dan sheet export.
+        </p>
+        <p id="periodInfo"></p>
+      </footer>
+
+    </div>
+  </div>
+
+  <script>
+    let rows = [];       // processed session objects
+    let overrides = {};  // dateKey -> 'Astrid' | 'Fifi' (manual override for a whole day)
+    let sessionOverrides = {}; // row id -> 'Astrid' | 'Fifi' (manual override for one session, wins over day override)
+    let currentFilter = 'all';
+    let currentSearch = '';
+
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const fileMeta = document.getElementById('fileMeta');
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    ['dragenter', 'dragover'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
+    ['dragleave', 'drop'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+    dropzone.addEventListener('drop', e => {
+      if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', e => {
+      if (e.target.files.length) handleFiles(e.target.files);
+      fileInput.value = ''; // biar bisa pilih file yang sama lagi kalau perlu re-upload
+    });
+
+    let uploadedFiles = []; // [{ name, grid }]
+
+    function handleFiles(fileList) {
+      const files = Array.from(fileList);
+      fileMeta.style.display = 'block';
+      fileMeta.textContent = 'Membaca ' + files.length + ' file…';
+
+      Promise.all(files.map(readFileAsGrid)).then(results => {
+        results.forEach(res => {
+          if (!res) return;
+          // Kalau nama file sama sudah pernah diupload, timpa (anggap re-upload versi terbaru)
+          const existingIdx = uploadedFiles.findIndex(f => f.name === res.name);
+          if (existingIdx > -1) uploadedFiles[existingIdx] = res;
+          else uploadedFiles.push(res);
+        });
+        const failed = files.length - results.filter(Boolean).length;
+        fileMeta.textContent = failed
+          ? ('✓ ' + (files.length - failed) + ' file dimuat, ' + failed + ' gagal dibaca')
+          : ('✓ ' + files.length + ' file dimuat');
+        rebuildRows();
+      });
+    }
+
+    function readFileAsGrid(file) {
+      return new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, { type: 'array' });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
+            resolve({ name: file.name, grid });
+          } catch (err) {
+            console.error('Gagal membaca ' + file.name, err);
+            resolve(null);
+          }
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function removeFile(name) {
+      uploadedFiles = uploadedFiles.filter(f => f.name !== name);
+      rebuildRows();
+    }
+
+    function renderFileList() {
+      const el = document.getElementById('fileList');
+      if (!uploadedFiles.length) { el.innerHTML = ''; return; }
+      el.innerHTML = uploadedFiles.map(f => {
+        const n = rows.filter(r => r.sourceFiles.includes(f.name)).length;
+        return `<div class="file-item">
+      <div><span class="fi-name">${f.name}</span><span class="fi-meta">${n} sesi</span></div>
+      <button class="fi-remove" data-name="${f.name.replace(/"/g, '&quot;')}" title="Hapus file ini">✕</button>
+    </div>`;
+      }).join('');
+      el.querySelectorAll('.fi-remove').forEach(btn => {
+        btn.addEventListener('click', () => removeFile(btn.dataset.name));
+      });
+    }
+
+    function findCol(headers, needle) {
+      const norm = s => (s || '').toString().trim().toLowerCase();
+      let idx = headers.findIndex(h => norm(h) === norm(needle));
+      if (idx === -1) idx = headers.findIndex(h => norm(h).includes(norm(needle)));
+      return idx;
+    }
+
+    // Excel serial date -> JS Date (fallback path if a cell arrives as a number)
+    function excelSerialToDate(serial) {
+      const utc_days = Math.floor(serial - 25569);
+      const utc_value = utc_days * 86400;
+      const date_info = new Date(utc_value * 1000);
+      const fractional_day = serial - Math.floor(serial) + 0.0000001;
+      let total_seconds = Math.floor(86400 * fractional_day);
+      const seconds = total_seconds % 60; total_seconds -= seconds;
+      const hours = Math.floor(total_seconds / (60 * 60));
+      const minutes = Math.floor(total_seconds / 60) % 60;
+      return new Date(date_info.getFullYear(), date_info.getMonth(), date_info.getDate(), hours, minutes, seconds);
+    }
+
+    function parseStartTime(val) {
+      if (val == null) return null;
+      if (typeof val === 'number') return excelSerialToDate(val);
+      const str = val.toString().trim();
+      // expected "dd-mm-yyyy HH:MM" (seconds optional)
+      const m = str.match(/(\d{1,2})-(\d{1,2})-(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (!m) return null;
+      const [, dd, mm, yyyy, HH, MM, SS] = m;
+      return new Date(+yyyy, +mm - 1, +dd, +HH, +MM, +(SS || 0));
+    }
+
+    function parseDurationSeconds(val) {
+      if (val == null) return 0;
+      if (typeof val === 'number') return Math.round(val * 86400); // fraction of a day
+      const str = val.toString().trim();
+      const parts = str.split(':').map(Number);
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+      return 0;
+    }
+
+    function fmtDate(d) {
+      return d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+    function fmtTime(d) {
+      return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+    function fmtDurHM(sec) {
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+      return h + 'j ' + String(m).padStart(2, '0') + 'm';
+    }
+    function fmtRp(n) {
+      return 'Rp' + Math.round(n).toLocaleString('id-ID');
+    }
+    function fmtInt(n) {
+      return Math.round(n).toLocaleString('id-ID');
+    }
+
+    // Kolom Penjualan dari Shopee formatnya string "Rp380.903" — ada prefix "Rp" dan
+    // titik sebagai pemisah ribuan, bukan angka mentah. Number() langsung gagal
+    // (jadi NaN) untuk string begini, makanya sebelumnya semua Penjualan kebaca 0.
+    function parseRupiah(val) {
+      if (val == null) return 0;
+      if (typeof val === 'number') return val;
+      const str = val.toString().trim();
+      if (!str) return 0;
+      const cleaned = str.replace(/[^0-9-]/g, ''); // buang "Rp", titik ribuan, spasi, dll — sisakan digit & minus
+      const n = parseInt(cleaned, 10);
+      return isNaN(n) ? 0 : n;
+    }
+
+    function parseGridRows(grid, filename) {
+      const headers = grid[0];
+      const col = {
+        periode: findCol(headers, 'Periode Data'),
+        start: findCol(headers, 'Start Time'),
+        durasi: findCol(headers, 'Durasi'),
+        nama: findCol(headers, 'Nama Livestream'),
+        penontonAktif: findCol(headers, 'Penonton Aktif'),
+        komentar: findCol(headers, 'Komentar'),
+        atc: findCol(headers, 'Tambah ke Keranjang'),
+        penonton: findCol(headers, 'Penonton'),
+        pesananDibuat: findCol(headers, 'Pesanan(Pesanan Dibuat)'),
+        pesananSiap: findCol(headers, 'Pesanan(Pesanan Siap Dikirim)'),
+        produkDibuat: findCol(headers, 'Produk Terjual(Pesanan Dibuat)'),
+        produkSiap: findCol(headers, 'Produk Terjual(Pesanan Siap Dikirim)'),
+        penjualanDibuat: findCol(headers, 'Penjualan(Pesanan Dibuat)'),
+        penjualanSiap: findCol(headers, 'Penjualan(Pesanan Siap Dikirim)')
+      };
+
+      const out = [];
+      for (let i = 1; i < grid.length; i++) {
+        const r = grid[i];
+        if (!r || col.start === -1 || r[col.start] == null) continue;
+        const start = parseStartTime(r[col.start]);
+        if (!start) continue;
+        const durSec = parseDurationSeconds(r[col.durasi]);
+        const end = new Date(start.getTime() + durSec * 1000);
+        const endHour = end.getHours() + end.getMinutes() / 60;
+        const autoHost = (endHour >= 6 && endHour < 17) ? 'Astrid' : 'Fifi';
+        const dateKey = fmtDate(start);
+        const nama = col.nama > -1 ? (r[col.nama] || '') : '';
+
+        // Id stabil berbasis isi data (bukan urutan array) — supaya kalau file
+        // ditambah/dihapus/diupload ulang, override per-sesi yang sudah diatur
+        // tetap nyambung ke sesi yang sama, dan sesi yang persis sama dari 2 file
+        // yang tumpang tindih otomatis ke-dedup (bukan dobel dihitung).
+        const id = dateKey + '__' + start.getTime() + '__' + nama.toString().slice(0, 40);
+
+        out.push({
+          id, autoHost, host: autoHost, dateKey, start, end, durSec, nama,
+          penontonAktif: Number(r[col.penontonAktif]) || 0,
+          komentar: Number(r[col.komentar]) || 0,
+          atc: Number(r[col.atc]) || 0,
+          penonton: Number(r[col.penonton]) || 0,
+          pesananDibuat: Number(r[col.pesananDibuat]) || 0,
+          pesananSiap: Number(r[col.pesananSiap]) || 0,
+          produkDibuat: Number(r[col.produkDibuat]) || 0,
+          produkSiap: Number(r[col.produkSiap]) || 0,
+          penjualanDibuat: parseRupiah(r[col.penjualanDibuat]),
+          penjualanSiap: parseRupiah(r[col.penjualanSiap]),
+          periode: col.periode > -1 ? (r[col.periode] || '') : '',
+          sourceFiles: [filename]
+        });
+      }
+      return out;
+    }
+
+    function rebuildRows() {
+      // Gabungkan sesi dari semua file yang sudah diupload. Kalau ada sesi yang
+      // identik (tanggal + jam mulai + nama sama) muncul di lebih dari satu file
+      // (mis. rentang periode ekspor yang tumpang tindih), gabungkan sourceFiles-nya
+      // tapi cuma dihitung sekali — tidak dobel.
+      const merged = new Map();
+      uploadedFiles.forEach(f => {
+        parseGridRows(f.grid, f.name).forEach(r => {
+          const existing = merged.get(r.id);
+          if (existing) { existing.sourceFiles = Array.from(new Set(existing.sourceFiles.concat(r.sourceFiles))); }
+          else merged.set(r.id, r);
+        });
+      });
+      rows = Array.from(merged.values());
+
+      applyOverrides();
+
+      const hasData = rows.length > 0;
+      document.getElementById('app').style.display = hasData ? 'block' : 'none';
+
+      if (hasData) {
+        const sorted = [...rows].sort((a, b) => a.start - b.start);
+        const periodeSet = Array.from(new Set(rows.map(r => r.periode).filter(Boolean)));
+        const rangeLabel = fmtDate(sorted[0].start) + ' – ' + fmtDate(sorted[sorted.length - 1].start);
+        const filesLabel = uploadedFiles.length + ' file';
+        document.getElementById('periodInfo').textContent =
+          'Rentang data gabungan: ' + rangeLabel + ' (' + filesLabel + ', ' + rows.length + ' sesi total)' +
+          (periodeSet.length ? ' — periode ekspor: ' + periodeSet.join(' · ') : '');
+      } else {
+        document.getElementById('periodInfo').textContent = '';
+      }
+
+      renderFileList();
+      renderAll();
+    }
+
+    function applyOverrides() {
+      rows.forEach(r => {
+        if (sessionOverrides[r.id] != null) { r.host = sessionOverrides[r.id]; r.overrideSource = 'session'; }
+        else if (overrides[r.dateKey]) { r.host = overrides[r.dateKey]; r.overrideSource = 'day'; }
+        else { r.host = r.autoHost; r.overrideSource = 'auto'; }
+      });
+    }
+
+    function summarize(list) {
+      const s = {
+        n: list.length, dur: 0, penontonAktif: 0, komentar: 0, atc: 0, penonton: 0,
+        pesananDibuat: 0, pesananSiap: 0, produkDibuat: 0, produkSiap: 0, penjualanDibuat: 0, penjualanSiap: 0
+      };
+      list.forEach(r => {
+        s.dur += r.durSec; s.penontonAktif += r.penontonAktif; s.komentar += r.komentar;
+        s.atc += r.atc; s.penonton += r.penonton; s.pesananDibuat += r.pesananDibuat;
+        s.pesananSiap += r.pesananSiap; s.produkDibuat += r.produkDibuat; s.produkSiap += r.produkSiap;
+        s.penjualanDibuat += r.penjualanDibuat; s.penjualanSiap += r.penjualanSiap;
+      });
+      return s;
+    }
+
+    function renderDaily() {
+      const dateKeys = Array.from(new Set(rows.map(r => r.dateKey)));
+      // Urutkan kronologis berdasarkan tanggal asli (dateKey adalah string "dd/mm/yyyy" dari toLocaleDateString)
+      dateKeys.sort((a, b) => {
+        const da = rows.find(r => r.dateKey === a).start;
+        const db = rows.find(r => r.dateKey === b).start;
+        return da - db;
+      });
+
+      const tbody = document.getElementById('dailyTbody');
+      let html = '';
+      dateKeys.forEach(dateKey => {
+        ['Astrid', 'Fifi'].forEach(host => {
+          const list = rows.filter(r => r.dateKey === dateKey && r.host === host);
+          const s = summarize(list);
+          html += `<tr>
+        <td>${dateKey}</td>
+        <td><span class="hostpill ${host.toLowerCase()}">${host}</span></td>
+        <td class="mono">${s.n}</td>
+        <td class="mono">${fmtInt(s.penonton)}</td>
+        <td class="mono">${fmtInt(s.pesananDibuat)}</td>
+        <td class="mono">${fmtInt(s.produkDibuat)}</td>
+        <td class="mono">${fmtRp(s.penjualanDibuat)}</td>
+      </tr>`;
+        });
+      });
+      tbody.innerHTML = html || '<tr><td colspan="7">Tidak ada data.</td></tr>';
+    }
+
+    function renderAll() {
+      renderDial();
+      renderDayOverrides();
+      renderCards();
+      renderCompare();
+      renderDaily();
+      renderTable();
+      bindSessionSelect();
+
+      document.querySelectorAll('.tab').forEach(btn => {
+        btn.onclick = () => {
+          document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentFilter = btn.dataset.filter;
+          renderTable();
+        };
+      });
+      document.getElementById('searchBox').oninput = e => {
+        currentSearch = e.target.value.toLowerCase();
+        renderTable();
+      };
+      document.getElementById('exportBtn').onclick = exportExcel;
+
+      document.querySelectorAll('.seg-btn').forEach(btn => {
+        btn.onclick = () => {
+          const key = btn.dataset.key;
+          const choice = btn.dataset.choice; // 'auto' | 'Astrid' | 'Fifi'
+          if (choice === 'auto') delete overrides[key];
+          else overrides[key] = choice;
+          applyOverrides();
+          renderAll();
+        };
+      });
+    }
+
+    let sessionSelectBound = false;
+    function bindSessionSelect() {
+      if (sessionSelectBound) return;
+      sessionSelectBound = true;
+      document.getElementById('tbody').addEventListener('change', e => {
+        if (!e.target.classList.contains('host-select')) return;
+        const id = +e.target.dataset.id;
+        const val = e.target.value;
+        if (val === 'auto') delete sessionOverrides[id];
+        else sessionOverrides[id] = val;
+        applyOverrides();
+        renderAll();
+      });
+    }
+
+    function renderDayOverrides() {
+      // one entry per calendar date, in chronological order
+      const byDate = new Map();
+      rows.forEach(r => {
+        if (!byDate.has(r.dateKey)) byDate.set(r.dateKey, { dateKey: r.dateKey, sortT: new Date(r.start).setHours(0, 0, 0, 0), astrid: 0, fifi: 0 });
+        const d = byDate.get(r.dateKey);
+        if (r.autoHost === 'Astrid') d.astrid++; else d.fifi++;
+      });
+      const days = [...byDate.values()].sort((a, b) => a.sortT - b.sortT);
+
+      document.getElementById('dayOverrides').innerHTML = days.map(d => {
+        const current = overrides[d.dateKey] || 'auto';
+        const seg = (choice, label) => `<button class="seg-btn${current === choice ? ' active ' + choice : ''}" data-key="${d.dateKey}" data-choice="${choice}">${label}</button>`;
+        return `
+      <div class="day-row${overrides[d.dateKey] ? ' overridden' : ''}">
+        <div class="date">${d.dateKey}</div>
+        <div class="breakdown">otomatis: ${d.astrid} Astrid · ${d.fifi} Fifi</div>
+        <div class="seg-control">
+          ${seg('auto', 'Otomatis')}
+          ${seg('Astrid', 'Astrid')}
+          ${seg('Fifi', 'Fifi')}
+        </div>
+      </div>`;
+      }).join('');
+    }
+
+    function renderDial() {
+      const size = 260, cx = size / 2, cy = size / 2, r = 96;
+      const toXY = (hourFloat, radius) => {
+        const angle = (hourFloat / 24) * 2 * Math.PI - Math.PI / 2;
+        return [cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)];
+      };
+      const arcPath = (h1, h2, radius) => {
+        const [x1, y1] = toXY(h1, radius), [x2, y2] = toXY(h2, radius);
+        const large = (h2 - h1) > 12 ? 1 : 0;
+        return `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${large} 1 ${x2} ${y2} Z`;
+      };
+
+      let dots = '';
+      rows.forEach(row => {
+        const hourFloat = row.start.getHours() + row.start.getMinutes() / 60;
+        const [x, y] = toXY(hourFloat, r);
+        dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="${row.host === 'Astrid' ? 'var(--astrid)' : 'var(--fifi)'}" fill-opacity="0.85" stroke="#fff" stroke-width="1"/>`;
+      });
+
+      let ticks = '';
+      for (let h = 0; h < 24; h += 3) {
+        const [tx, ty] = toXY(h, r + 16);
+        ticks += `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" font-family="IBM Plex Mono, monospace" font-size="10" fill="#8A7C86" text-anchor="middle" dominant-baseline="middle">${String(h).padStart(2, '0')}</text>`;
+      }
+
+      const svg = `
+  <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <path d="${arcPath(6, 17, r)}" fill="var(--astrid-soft)"/>
+    <path d="${arcPath(17, 30, r)}" fill="var(--fifi-soft)"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#E6DACB" stroke-width="1"/>
+    ${ticks}
+    ${dots}
+    <circle cx="${cx}" cy="${cy}" r="2" fill="#2A1F2A"/>
+  </svg>`;
+      document.getElementById('dial').innerHTML = svg;
+    }
+
+    function metricBlock(label, value, wide) {
+      return `<div class="metric${wide ? ' wide' : ''}"><div class="val">${value}</div><div class="lbl">${label}</div></div>`;
+    }
+
+    function renderCards() {
+      const a = summarize(rows.filter(r => r.host === 'Astrid'));
+      const f = summarize(rows.filter(r => r.host === 'Fifi'));
+
+      const build = s => [
+        metricBlock('Sesi live', fmtInt(s.n)),
+        metricBlock('Total durasi', fmtDurHM(s.dur)),
+        metricBlock('Penonton aktif', fmtInt(s.penontonAktif)),
+        metricBlock('Total penonton', fmtInt(s.penonton)),
+        metricBlock('Pesanan dibuat', fmtInt(s.pesananDibuat)),
+        metricBlock('Produk terjual', fmtInt(s.produkDibuat)),
+        metricBlock('Penjualan (pesanan dibuat)', fmtRp(s.penjualanDibuat), true),
+      ].join('');
+
+      document.getElementById('cardAstrid').innerHTML = build(a);
+      document.getElementById('cardFifi').innerHTML = build(f);
+    }
+
+    function renderCompare() {
+      const a = summarize(rows.filter(r => r.host === 'Astrid'));
+      const f = summarize(rows.filter(r => r.host === 'Fifi'));
+      const metrics = [
+        ['Sesi live', a.n, f.n, v => fmtInt(v)],
+        ['Total durasi (menit)', a.dur / 60, f.dur / 60, v => fmtInt(v)],
+        ['Penonton aktif', a.penontonAktif, f.penontonAktif, v => fmtInt(v)],
+        ['Pesanan dibuat', a.pesananDibuat, f.pesananDibuat, v => fmtInt(v)],
+        ['Penjualan (Rp, pesanan dibuat)', a.penjualanDibuat, f.penjualanDibuat, v => fmtRp(v)],
+      ];
+      let html = '';
+      metrics.forEach(([label, av, fv, fmt]) => {
+        const total = av + fv || 1;
+        const pa = (av / total * 100).toFixed(1);
+        const pf = (fv / total * 100).toFixed(1);
+        html += `
+      <div class="barrow">
+        <div class="lbl"><span>${label}</span><span>Astrid ${fmt(av)} · Fifi ${fmt(fv)}</span></div>
+        <div class="track">
+          <div class="seg astrid" style="width:${pa}%"></div>
+          <div class="seg fifi" style="width:${pf}%"></div>
+        </div>
+      </div>`;
+      });
+      document.getElementById('compareBars').innerHTML = html;
+    }
+
+    function filteredRows() {
+      return rows.filter(r => {
+        if (currentFilter !== 'all' && r.host !== currentFilter) return false;
+        if (currentSearch && !r.nama.toString().toLowerCase().includes(currentSearch)) return false;
+        return true;
+      });
+    }
+
+    function renderTable() {
+      const list = filteredRows();
+      document.getElementById('rowcount').textContent = list.length + ' dari ' + rows.length + ' sesi ditampilkan';
+      document.getElementById('tbody').innerHTML = list.map((r, i) => {
+        const selVal = sessionOverrides[r.id] || 'auto';
+        const autoLabel = r.overrideSource === 'day' ? `Otomatis (hari: ${r.host})` : `Otomatis (${r.autoHost})`;
+        return `
+    <tr>
+      <td class="mono">${i + 1}</td>
+      <td>
+        <div class="host-cell">
+          <select class="host-select ${r.host.toLowerCase()}" data-id="${r.id}">
+            <option value="auto" ${selVal === 'auto' ? 'selected' : ''}>${autoLabel}</option>
+            <option value="Astrid" ${selVal === 'Astrid' ? 'selected' : ''}>Astrid</option>
+            <option value="Fifi" ${selVal === 'Fifi' ? 'selected' : ''}>Fifi</option>
+          </select>
+          ${r.overrideSource === 'session' ? '<span class="manual-tag" title="Diubah manual untuk sesi ini">●</span>' : ''}
+        </div>
+      </td>
+      <td>${fmtDate(r.start)}</td>
+      <td>${fmtTime(r.start)}</td>
+      <td>${fmtTime(r.end)}</td>
+      <td>${fmtDurHM(r.durSec)}</td>
+      <td>${r.nama}</td>
+      <td>${fmtInt(r.penontonAktif)}</td>
+      <td>${fmtInt(r.komentar)}</td>
+      <td>${fmtInt(r.atc)}</td>
+      <td>${fmtInt(r.penonton)}</td>
+      <td>${fmtInt(r.pesananDibuat)}</td>
+      <td>${fmtInt(r.pesananSiap)}</td>
+      <td>${fmtInt(r.produkDibuat)}</td>
+      <td>${fmtRp(r.penjualanDibuat)}</td>
+    </tr>`;
+      }).join('');
+    }
+
+    function exportExcel() {
+      const list = filteredRows();
+      const detailRows = list.map((r, i) => ({
+        'No': i + 1,
+        'Host': r.host,
+        'Diubah Manual': r.overrideSource === 'session' ? 'Ya (per sesi, otomatis: ' + r.autoHost + ')'
+          : r.overrideSource === 'day' ? 'Ya (per hari, otomatis: ' + r.autoHost + ')'
+            : '',
+        'Tanggal': fmtDate(r.start),
+        'Mulai': fmtTime(r.start),
+        'Selesai': fmtTime(r.end),
+        'Durasi (menit)': Math.round(r.durSec / 60),
+        'Nama Livestream': r.nama,
+        'Penonton Aktif': r.penontonAktif,
+        'Komentar': r.komentar,
+        'Tambah ke Keranjang': r.atc,
+        'Penonton': r.penonton,
+        'Pesanan Dibuat': r.pesananDibuat,
+        'Pesanan Siap Dikirim': r.pesananSiap,
+        'Produk Terjual (Dibuat)': r.produkDibuat,
+        'Produk Terjual (Siap Dikirim)': r.produkSiap,
+        'Penjualan Dibuat (Rp)': r.penjualanDibuat,
+        'Penjualan Siap Dikirim (Rp)': r.penjualanSiap
+      }));
+
+      const a = summarize(rows.filter(r => r.host === 'Astrid'));
+      const f = summarize(rows.filter(r => r.host === 'Fifi'));
+      const summaryRows = ['Astrid', 'Fifi'].map(h => {
+        const s = h === 'Astrid' ? a : f;
+        return {
+          'Host': h,
+          'Sesi Live': s.n,
+          'Total Durasi (jam)': +(s.dur / 3600).toFixed(2),
+          'Penonton Aktif': s.penontonAktif,
+          'Komentar': s.komentar,
+          'Tambah ke Keranjang': s.atc,
+          'Total Penonton': s.penonton,
+          'Pesanan Dibuat': s.pesananDibuat,
+          'Pesanan Siap Dikirim': s.pesananSiap,
+          'Produk Terjual (Dibuat)': s.produkDibuat,
+          'Produk Terjual (Siap Dikirim)': s.produkSiap,
+          'Penjualan Dibuat (Rp)': s.penjualanDibuat,
+          'Penjualan Siap Dikirim (Rp)': s.penjualanSiap
+        };
+      });
+
+      const dateKeysExport = Array.from(new Set(rows.map(r => r.dateKey))).sort((a, b) => {
+        const da = rows.find(r => r.dateKey === a).start;
+        const db = rows.find(r => r.dateKey === b).start;
+        return da - db;
+      });
+      const dailyRows = [];
+      dateKeysExport.forEach(dateKey => {
+        ['Astrid', 'Fifi'].forEach(host => {
+          const s = summarize(rows.filter(r => r.dateKey === dateKey && r.host === host));
+          dailyRows.push({
+            'Tanggal': dateKey,
+            'Host': host,
+            'Sesi Live': s.n,
+            'Penonton': s.penonton,
+            'Pesanan Dibuat': s.pesananDibuat,
+            'Produk Terjual (Dibuat)': s.produkDibuat,
+            'Penjualan Dibuat (Rp)': s.penjualanDibuat,
+            'Penjualan Siap Dikirim (Rp)': s.penjualanSiap
+          });
+        });
+      });
+
+      const wb = XLSX.utils.book_new();
+      const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+      const wsDaily = XLSX.utils.json_to_sheet(dailyRows);
+      const wsDetail = XLSX.utils.json_to_sheet(detailRows);
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan per Host');
+      XLSX.utils.book_append_sheet(wb, wsDaily, 'Laporan Harian per Host');
+      XLSX.utils.book_append_sheet(wb, wsDetail, 'Detail Sesi');
+      XLSX.writeFile(wb, 'Scelta_Live_Report_Astrid_Fifi.xlsx');
+    }
+  </script>
+</body>
+
+</html>
