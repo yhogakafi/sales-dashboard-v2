@@ -1064,6 +1064,20 @@ function BestSellerTable({
             </p>
           )}
 
+          {hasStock && (
+            <p className="period-note" style={{ marginBottom: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.4rem 1rem', alignItems: 'center' }}>
+              <span>Keterangan warna baris berdasarkan SSR (Stock ÷ Terjual):</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 3, background: 'rgb(255, 162, 162)', display: 'inline-block' }} />
+                SSR &lt; 1 — stock lebih sedikit dari yang terjual, stock kritis
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 3, background: 'rgb(255, 235, 156)', display: 'inline-block' }} />
+                SSR 1–2 — stock menipis, perlu dipertimbangkan untuk restock
+              </span>
+            </p>
+          )}
+
           {/* ── Table ── */}
           <div className="table-scroll" style={{ overflowX: 'auto' }}>
             <table className="data-table">
@@ -1099,11 +1113,22 @@ function BestSellerTable({
                 {pageRows.map((row) => {
                   const si = hasStock ? { brand: row.brand, stock: row.stock, hasData: row.hasStockData } : null
                   const lowSsr = hasStock && row.ssr != null && row.ssr < 1
+                  const restockSoonSsr = hasStock && row.ssr != null && row.ssr >= 1 && row.ssr <= 2
+                  const rowStyle = lowSsr
+                    ? { background: 'rgb(255, 162, 162)' }
+                    : restockSoonSsr
+                    ? { background: 'rgb(255, 235, 156)' }
+                    : undefined
+                  const rowTitle = lowSsr
+                    ? 'SSR < 1 — stock lebih sedikit dari yang terjual'
+                    : restockSoonSsr
+                    ? 'SSR 1–2 — stock menipis, pertimbangkan untuk restock'
+                    : undefined
                   return (
                     <tr
                       key={row.kodeBarang ? `k-${row.kodeBarang}-${row.tipe || 'v'}` : `r-${row.rank}`}
-                      style={lowSsr ? { background: 'rgb(255, 162, 162)' } : undefined}
-                      title={lowSsr ? 'SSR < 1 — stock lebih sedikit dari yang terjual' : undefined}
+                      style={rowStyle}
+                      title={rowTitle}
                     >
                       <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
                       <td className="muted mono" style={{ whiteSpace: 'nowrap' }}>
