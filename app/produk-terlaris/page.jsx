@@ -984,19 +984,6 @@ function BestSellerTable({
         )}
       </div>
 
-      {hasStock && (
-        <p className="period-note" style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.4rem 1rem', alignItems: 'center' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 12, height: 12, borderRadius: 3, background: 'rgb(255, 162, 162)', display: 'inline-block' }} />
-            SSR &lt; 1 — stock lebih sedikit dari yang terjual, stock kritis.
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 12, height: 12, borderRadius: 3, background: 'rgb(255, 235, 156)', display: 'inline-block' }} />
-            SSR 1 – 2 — stock menipis, segera restock.
-          </span>
-        </p>
-      )}
-
       {loading && <p className="loading-text">Memuat data…</p>}
 
       {!loading && (
@@ -1073,6 +1060,19 @@ function BestSellerTable({
           {!hasStock && (
             <p className="period-note" style={{ marginBottom: '0.5rem', color: 'var(--ink-muted)' }}>
               ℹ️ Data stock belum diupload. Upload file stock di halaman Admin untuk melihat kolom Brand dan Stock.
+            </p>
+          )}
+
+          {hasStock && (
+            <p className="period-note" style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.4rem 1rem', alignItems: 'center' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 24, height: 24, borderRadius: 5, background: 'rgb(255, 162, 162)', display: 'inline-block' }} />
+                SSR &lt; 1 = stock tidak cukup untuk 1 bulan.
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 24, height: 24, borderRadius: 5, background: 'rgb(255, 235, 156)', display: 'inline-block' }} />
+                SSR 1 – 2 = stock hanya cukup untuk 1-2 bulan, segera restock.
+              </span>
             </p>
           )}
 
