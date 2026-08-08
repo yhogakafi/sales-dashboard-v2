@@ -100,7 +100,7 @@ const ALL_MERGED_ID = 'all-merged'
 
 function passesFilters(r, { account, category, dateFrom, dateTo }) {
   if (dateFrom && r.dateKey < dateFrom) return false
-  if (dateTo   && r.dateKey > dateTo)   return false
+  if (dateTo && r.dateKey > dateTo) return false
   if (account && r.pelanggan !== account) return false
   if (category) {
     const cat = getCategoryForAccount(r.pelanggan)
@@ -117,7 +117,7 @@ function aggregateRows(rawRows, filters) {
     if (!byBarang[r.namaBarang]) {
       byBarang[r.namaBarang] = { kuantitas: 0, hargaProduk: 0, kodeBarang: r.kodeBarang || null }
     }
-    byBarang[r.namaBarang].kuantitas   += r.kuantitas
+    byBarang[r.namaBarang].kuantitas += r.kuantitas
     byBarang[r.namaBarang].hargaProduk += r.hargaProduk
     if (!byBarang[r.namaBarang].kodeBarang && r.kodeBarang) {
       byBarang[r.namaBarang].kodeBarang = r.kodeBarang
@@ -135,7 +135,7 @@ function aggregateRows(rawRows, filters) {
 // ─── Sales aggregated by kode (needed to match onto the stock master) ─────────
 
 function aggregateSalesByKode(rawRows, filters) {
-  const byKode     = {}  // { kode: { namaBarang, kuantitas, hargaProduk } } — rows that have a kodeBarang
+  const byKode = {}  // { kode: { namaBarang, kuantitas, hargaProduk } } — rows that have a kodeBarang
   const byNamaOnly = {}  // { namaBarang: { kuantitas, hargaProduk } } — rows with no kodeBarang at all
 
   for (const r of rawRows) {
@@ -144,13 +144,13 @@ function aggregateSalesByKode(rawRows, filters) {
       if (!byKode[r.kodeBarang]) {
         byKode[r.kodeBarang] = { namaBarang: r.namaBarang, kuantitas: 0, hargaProduk: 0 }
       }
-      byKode[r.kodeBarang].kuantitas   += r.kuantitas
+      byKode[r.kodeBarang].kuantitas += r.kuantitas
       byKode[r.kodeBarang].hargaProduk += r.hargaProduk
     } else {
       if (!byNamaOnly[r.namaBarang]) {
         byNamaOnly[r.namaBarang] = { kuantitas: 0, hargaProduk: 0 }
       }
-      byNamaOnly[r.namaBarang].kuantitas   += r.kuantitas
+      byNamaOnly[r.namaBarang].kuantitas += r.kuantitas
       byNamaOnly[r.namaBarang].hargaProduk += r.hargaProduk
     }
   }
@@ -166,7 +166,7 @@ function aggregateSalesByKode(rawRows, filters) {
 // Kategori pill ('Online Underwear' / 'Online Sport') → source di stock master.
 const CATEGORY_TO_STOCK_SOURCE = {
   'Online Underwear': 'underwear',
-  'Online Sport':      'sport',
+  'Online Sport': 'sport',
 }
 
 function buildStockFirstRows(rawRows, filters, stockLookup) {
@@ -265,12 +265,12 @@ function groupByParentSku(rows) {
       }
     }
     const g = groups[parent]
-    g.kuantitas    += r.kuantitas
-    g.hargaProduk  += r.hargaProduk
-    g.stock        += r.stock || 0
-    g.totalHpp     += r.totalHpp || 0
+    g.kuantitas += r.kuantitas
+    g.hargaProduk += r.hargaProduk
+    g.stock += r.stock || 0
+    g.totalHpp += r.totalHpp || 0
     g.variantCount += 1
-    g.hasStockData  = g.hasStockData || r.hasStockData
+    g.hasStockData = g.hasStockData || r.hasStockData
     if (!g.unit && r.unit) g.unit = r.unit
     if (r.kuantitas > g.bestKuantitas) {
       g.bestKuantitas = r.kuantitas
@@ -294,8 +294,8 @@ function groupByParentSku(rows) {
 }
 
 function sortRows(rows, sortBy, sortDir = 'desc') {
-  const col   = sortBy || 'kuantitas'
-  const mult  = sortDir === 'asc' ? 1 : -1
+  const col = sortBy || 'kuantitas'
+  const mult = sortDir === 'asc' ? 1 : -1
   const sorted = [...rows]
 
   sorted.sort((a, b) => {
@@ -338,23 +338,23 @@ function sortRows(rows, sortBy, sortDir = 'desc') {
 // ─── Column filter definitions ────────────────────────────────────────────────
 
 const TEXT_OPS = [
-  { value: 'contains',        label: 'Mengandung' },
-  { value: 'not_contains',    label: 'Tidak mengandung' },
-  { value: 'equals',          label: 'Sama dengan' },
-  { value: 'not_equals',      label: 'Tidak sama dengan' },
-  { value: 'starts_with',     label: 'Dimulai dengan' },
-  { value: 'ends_with',       label: 'Diakhiri dengan' },
-  { value: 'is_empty',        label: 'Kosong' },
-  { value: 'is_not_empty',    label: 'Tidak kosong' },
+  { value: 'contains', label: 'Mengandung' },
+  { value: 'not_contains', label: 'Tidak mengandung' },
+  { value: 'equals', label: 'Sama dengan' },
+  { value: 'not_equals', label: 'Tidak sama dengan' },
+  { value: 'starts_with', label: 'Dimulai dengan' },
+  { value: 'ends_with', label: 'Diakhiri dengan' },
+  { value: 'is_empty', label: 'Kosong' },
+  { value: 'is_not_empty', label: 'Tidak kosong' },
 ]
 
 const NUM_OPS = [
-  { value: 'eq',      label: '= Sama dengan' },
-  { value: 'neq',     label: '≠ Tidak sama dengan' },
-  { value: 'gt',      label: '> Lebih dari' },
-  { value: 'gte',     label: '≥ Lebih dari atau sama dengan' },
-  { value: 'lt',      label: '< Kurang dari' },
-  { value: 'lte',     label: '≤ Kurang dari atau sama dengan' },
+  { value: 'eq', label: '= Sama dengan' },
+  { value: 'neq', label: '≠ Tidak sama dengan' },
+  { value: 'gt', label: '> Lebih dari' },
+  { value: 'gte', label: '≥ Lebih dari atau sama dengan' },
+  { value: 'lt', label: '< Kurang dari' },
+  { value: 'lte', label: '≤ Kurang dari atau sama dengan' },
   { value: 'between', label: '↔ Di antara' },
 ]
 
@@ -381,27 +381,27 @@ function applyColFilter(rows, colFilters) {
       if (col === 'namaBarang' || col === 'brand' || col === 'kodeBarang' || col === 'tipe') {
         const rawCell = col === 'namaBarang' ? row.namaBarang
           : col === 'brand' ? row.brand
-          : row.kodeBarang
+            : row.kodeBarang
         const cell = (!rawCell || rawCell === '—' ? '' : rawCell).toLowerCase()
-        const val  = f.value.toLowerCase()
-        if (f.op === 'contains'     && !cell.includes(val))    return false
-        if (f.op === 'not_contains' && cell.includes(val))     return false
-        if (f.op === 'equals'       && cell !== val)           return false
-        if (f.op === 'not_equals'   && cell === val)           return false
-        if (f.op === 'starts_with'  && !cell.startsWith(val))  return false
-        if (f.op === 'ends_with'    && !cell.endsWith(val))    return false
-        if (f.op === 'is_empty'     && cell.trim() !== '')     return false
-        if (f.op === 'is_not_empty' && cell.trim() === '')     return false
+        const val = f.value.toLowerCase()
+        if (f.op === 'contains' && !cell.includes(val)) return false
+        if (f.op === 'not_contains' && cell.includes(val)) return false
+        if (f.op === 'equals' && cell !== val) return false
+        if (f.op === 'not_equals' && cell === val) return false
+        if (f.op === 'starts_with' && !cell.startsWith(val)) return false
+        if (f.op === 'ends_with' && !cell.endsWith(val)) return false
+        if (f.op === 'is_empty' && cell.trim() !== '') return false
+        if (f.op === 'is_not_empty' && cell.trim() === '') return false
       } else {
         const cell = row[col]
-        const val  = parseFloat(f.value)
+        const val = parseFloat(f.value)
         const val2 = parseFloat(f.value2)
-        if (f.op === 'eq'      && cell !== val)              return false
-        if (f.op === 'neq'     && cell === val)              return false
-        if (f.op === 'gt'      && !(cell > val))             return false
-        if (f.op === 'gte'     && !(cell >= val))            return false
-        if (f.op === 'lt'      && !(cell < val))             return false
-        if (f.op === 'lte'     && !(cell <= val))            return false
+        if (f.op === 'eq' && cell !== val) return false
+        if (f.op === 'neq' && cell === val) return false
+        if (f.op === 'gt' && !(cell > val)) return false
+        if (f.op === 'gte' && !(cell >= val)) return false
+        if (f.op === 'lt' && !(cell < val)) return false
+        if (f.op === 'lte' && !(cell <= val)) return false
         if (f.op === 'between' && !(cell >= val && cell <= val2)) return false
       }
     }
@@ -444,9 +444,8 @@ function FilterBar({ accounts, filters, onChange, onQuickLast30Days }) {
             {categories.map(cat => (
               <button
                 key={cat}
-                className={`pill-btn ${filters.category === cat ? 'is-active' : ''} ${
-                  cat.includes('Underwear') ? 'pill-underwear' : 'pill-sport'
-                }`}
+                className={`pill-btn ${filters.category === cat ? 'is-active' : ''} ${cat.includes('Underwear') ? 'pill-underwear' : 'pill-sport'
+                  }`}
                 onClick={() => onChange({ ...filters, category: filters.category === cat ? '' : cat })}
               >
                 {cat.replace('Online ', '')}
@@ -527,10 +526,10 @@ function HighlightText({ text, query }) {
 // ── Column filter popover ─────────────────────────────────────────────────────
 
 function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }) {
-  const isText   = col === 'namaBarang' || col === 'brand' || col === 'kodeBarang' || col === 'tipe'
-  const isBrand  = col === 'brand'
-  const ops      = isText ? TEXT_OPS : NUM_OPS
-  const ref      = useRef(null)
+  const isText = col === 'namaBarang' || col === 'brand' || col === 'kodeBarang' || col === 'tipe'
+  const isBrand = col === 'brand'
+  const ops = isText ? TEXT_OPS : NUM_OPS
+  const ref = useRef(null)
   const [brandSearch, setBrandSearch] = useState('')
   const [pos, setPos] = useState(null)
 
@@ -553,7 +552,7 @@ function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }
   useEffect(() => {
     function handle(e) {
       if (ref.current && !ref.current.contains(e.target) &&
-          anchorRef.current && !anchorRef.current.contains(e.target)) {
+        anchorRef.current && !anchorRef.current.contains(e.target)) {
         onClose()
       }
     }
@@ -663,9 +662,9 @@ function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }
     ), document.body)
   }
 
-  const noValueOps  = ['is_empty', 'is_not_empty']
-  const isBetween   = filter.op === 'between'
-  const hideInput   = noValueOps.includes(filter.op)
+  const noValueOps = ['is_empty', 'is_not_empty']
+  const isBetween = filter.op === 'between'
+  const hideInput = noValueOps.includes(filter.op)
 
   const inputStyle = {
     width: '100%', padding: '6px 10px', borderRadius: 6,
@@ -752,12 +751,12 @@ function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }
 function ColHeader({ col, label, align = 'left', sortBy, sortDir, onSortChange, colFilters, onColFilterChange, brandOptions }) {
   const [open, setOpen] = useState(false)
   const btnRef = useRef(null)
-  const filter  = colFilters[col] || EMPTY_COL_FILTER
+  const filter = colFilters[col] || EMPTY_COL_FILTER
   const isActive = filter.op === 'in'
     ? !!(filter.values && filter.values.length > 0)
     : !!(filter.op && (
-        ['is_empty', 'is_not_empty'].includes(filter.op) || filter.value !== ''
-      ))
+      ['is_empty', 'is_not_empty'].includes(filter.op) || filter.value !== ''
+    ))
 
   return (
     <th
@@ -776,7 +775,7 @@ function ColHeader({ col, label, align = 'left', sortBy, sortDir, onSortChange, 
       >
         {align === 'right' && <SortIcon active={sortBy === col} dir={sortDir} />}
         {label}
-        {align === 'left'  && <SortIcon active={sortBy === col} dir={sortDir} />}
+        {align === 'left' && <SortIcon active={sortBy === col} dir={sortDir} />}
       </span>
 
       {/* Filter button */}
@@ -818,7 +817,7 @@ function ColHeader({ col, label, align = 'left', sortBy, sortDir, onSortChange, 
 // ── Main table component ──────────────────────────────────────────────────────
 
 const PAGE_SIZE_OPTIONS = [
-  { value: 50,  label: '50' },
+  { value: 50, label: '50' },
   { value: 100, label: '100' },
   { value: 200, label: '200' },
   { value: 'all', label: 'Semua' },
@@ -826,7 +825,7 @@ const PAGE_SIZE_OPTIONS = [
 
 function Pagination({ page, totalPages, pageSize, onPageChange, onPageSizeChange, totalRows }) {
   const startRow = totalRows === 0 ? 0 : (page - 1) * (pageSize === 'all' ? totalRows : pageSize) + 1
-  const endRow   = pageSize === 'all' ? totalRows : Math.min(page * pageSize, totalRows)
+  const endRow = pageSize === 'all' ? totalRows : Math.min(page * pageSize, totalRows)
 
   return (
     <div style={{
@@ -906,13 +905,13 @@ function BestSellerTable({
   stockLookup, brandOptions,
   groupMode, onGroupModeChange,
 }) {
-  const totalKuantitas   = rows.reduce((s, r) => s + r.kuantitas, 0)
+  const totalKuantitas = rows.reduce((s, r) => s + r.kuantitas, 0)
   const totalHargaProduk = rows.reduce((s, r) => s + r.hargaProduk, 0)
-  const totalHpp         = rows.reduce((s, r) => s + (r.totalHpp || 0), 0)
-  const totalStockPcs    = rows.reduce((s, r) => s + (r.stock || 0), 0)
-  const totalHppTerjual  = rows.reduce((s, r) => s + (r.hpp || 0) * (r.kuantitas || 0), 0) // Σ (HPP PCS × Terjual)
-  const ssrGrand         = totalKuantitas  > 0 ? totalStockPcs / totalKuantitas : null      // Stock PCS / Terjual
-  const ssrHppGrand      = totalHppTerjual > 0 ? totalHpp / totalHppTerjual     : null       // Total HPP / Σ(HPP × Terjual)
+  const totalHpp = rows.reduce((s, r) => s + (r.totalHpp || 0), 0)
+  const totalStockPcs = rows.reduce((s, r) => s + (r.stock || 0), 0)
+  const totalHppTerjual = rows.reduce((s, r) => s + (r.hpp || 0) * (r.kuantitas || 0), 0) // Σ (HPP PCS × Terjual)
+  const ssrGrand = totalKuantitas > 0 ? totalStockPcs / totalKuantitas : null      // Stock PCS / Terjual
+  const ssrHppGrand = totalHppTerjual > 0 ? totalHpp / totalHppTerjual : null       // Total HPP / Σ(HPP × Terjual)
   const hasStock = stockLookup !== null
 
   const colHeaderProps = { sortBy, sortDir, onSortChange, colFilters, onColFilterChange, brandOptions }
@@ -1065,7 +1064,7 @@ function BestSellerTable({
           )}
 
           {hasStock && (
-            <p className="period-note" style={{ marginBottom: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.4rem 1rem', alignItems: 'center' }}>
+            <p className="period-note" style={{ fontWeight: 'bold', marginBottom: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.4rem 1rem', alignItems: 'center' }}>
               <span>Keterangan warna baris berdasarkan SSR (Stock ÷ Terjual):</span>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 12, height: 12, borderRadius: 3, background: 'rgb(255, 162, 162)', display: 'inline-block' }} />
@@ -1084,12 +1083,12 @@ function BestSellerTable({
               <thead>
                 <tr>
                   <th style={{ width: 44 }}>#</th>
-                  <ColHeader col="kodeBarang"   label="Kode Barang"   align="left"  {...colHeaderProps} />
+                  <ColHeader col="kodeBarang" label="Kode Barang" align="left"  {...colHeaderProps} />
                   {groupMode === 'induk' && <ColHeader col="tipe" label="Tipe" align="left" {...colHeaderProps} />}
-                  <ColHeader col="namaBarang"   label="Nama Barang"   align="left"  {...colHeaderProps} />
+                  <ColHeader col="namaBarang" label="Nama Barang" align="left"  {...colHeaderProps} />
                   {hasStock && <ColHeader col="brand" label="Brand" align="left"  {...colHeaderProps} />}
-                  <ColHeader col="kuantitas"    label="Terjual"       align="right" {...colHeaderProps} />
-                  <ColHeader col="hargaProduk"  label="Harga Produk"  align="right" {...colHeaderProps} />
+                  <ColHeader col="kuantitas" label="Terjual" align="right" {...colHeaderProps} />
+                  <ColHeader col="hargaProduk" label="Harga Produk" align="right" {...colHeaderProps} />
                   {hasStock && <ColHeader col="stock" label="Stock" align="right" {...colHeaderProps} />}
                   {hasStock && <ColHeader col="unit" label="Unit" align="left" {...colHeaderProps} />}
                   {hasStock && <ColHeader col="hpp" label="HPP PCS" align="right" {...colHeaderProps} />}
@@ -1117,13 +1116,13 @@ function BestSellerTable({
                   const rowStyle = lowSsr
                     ? { background: 'rgb(255, 162, 162)' }
                     : restockSoonSsr
-                    ? { background: 'rgb(255, 235, 156)' }
-                    : undefined
+                      ? { background: 'rgb(255, 235, 156)' }
+                      : undefined
                   const rowTitle = lowSsr
                     ? 'SSR < 1 — stock lebih sedikit dari yang terjual'
                     : restockSoonSsr
-                    ? 'SSR 1–2 — stock menipis, pertimbangkan untuk restock'
-                    : undefined
+                      ? 'SSR 1–2 — stock menipis, pertimbangkan untuk restock'
+                      : undefined
                   return (
                     <tr
                       key={row.kodeBarang ? `k-${row.kodeBarang}-${row.tipe || 'v'}` : `r-${row.rank}`}
@@ -1161,8 +1160,8 @@ function BestSellerTable({
                         <td className="mono" style={{ textAlign: 'right' }}>
                           {si.hasData
                             ? <span style={{ color: si.stock === 0 ? 'var(--accent, #D85A30)' : 'inherit' }}>
-                                {si.stock.toLocaleString('id-ID')}
-                              </span>
+                              {si.stock.toLocaleString('id-ID')}
+                            </span>
                             : <span className="muted">0</span>}
                         </td>
                       )}
@@ -1212,27 +1211,27 @@ function BestSellerTable({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ProdukTerlarisPage() {
-  const [loggedIn, setLoggedIn]               = useState(false)
+  const [loggedIn, setLoggedIn] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
-  const [password, setPassword]               = useState('')
-  const [loginError, setLoginError]           = useState(null)
-  const [loginLoading, setLoginLoading]       = useState(false)
+  const [password, setPassword] = useState('')
+  const [loginError, setLoginError] = useState(null)
+  const [loginLoading, setLoginLoading] = useState(false)
 
   // Periods
-  const [periods, setPeriods]       = useState([])
+  const [periods, setPeriods] = useState([])
   const [selectedId, setSelectedId] = useState('')
 
   // Data
-  const [payload, setPayload]         = useState(null)
+  const [payload, setPayload] = useState(null)
   const [dataLoading, setDataLoading] = useState(false)
-  const [dataError, setDataError]     = useState(null)
+  const [dataError, setDataError] = useState(null)
 
   // Date / account / category filters
   const [filters, setFilters] = useState({
-    account:  '',
+    account: '',
     category: '',
     dateFrom: '',
-    dateTo:   '',
+    dateTo: '',
   })
 
   // Sort
@@ -1392,16 +1391,16 @@ export default function ProdukTerlarisPage() {
 
       const results = await Promise.all(idsToFetch.map(id => fetchBTData(id)))
 
-      const rawRows  = results.flatMap(r => r?.analysis?.rawRows || [])
+      const rawRows = results.flatMap(r => r?.analysis?.rawRows || [])
       const accounts = Array.from(new Set(results.flatMap(r => r?.analysis?.accounts || [])))
 
       if (!rawRows.length) {
         throw new Error('Tidak ada transaksi pada periode yang tersimpan.')
       }
 
-      const sortedKeys   = rawRows.map(r => r.dateKey).sort()
+      const sortedKeys = rawRows.map(r => r.dateKey).sort()
       const firstDateKey = sortedKeys[0]
-      const lastDateKey  = sortedKeys[sortedKeys.length - 1]
+      const lastDateKey = sortedKeys[sortedKeys.length - 1]
 
       setPayload({
         periodId: ALL_MERGED_ID,
@@ -1477,7 +1476,7 @@ export default function ProdukTerlarisPage() {
 
   // ── Derived data ──────────────────────────────────────────────────────────────
   const analysis = payload?.analysis
-  const rawRows  = analysis?.rawRows  || []
+  const rawRows = analysis?.rawRows || []
   const accounts = analysis?.accounts || []
   const hasStock = stockLookup !== null
 
@@ -1486,7 +1485,7 @@ export default function ProdukTerlarisPage() {
     setFilters(f => ({
       ...f,
       dateFrom: f.dateFrom || analysis.firstDateKey || '',
-      dateTo:   f.dateTo   || analysis.lastDateKey  || '',
+      dateTo: f.dateTo || analysis.lastDateKey || '',
     }))
   }, [analysis?.firstDateKey, analysis?.lastDateKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1536,11 +1535,11 @@ export default function ProdukTerlarisPage() {
   // ── Active filter description ──────────────────────────────────────────────────
   const activeFilterDesc = useMemo(() => {
     const parts = []
-    if (filters.account)  parts.push(`Akun: ${filters.account}`)
+    if (filters.account) parts.push(`Akun: ${filters.account}`)
     if (filters.category) parts.push(`Kategori: ${filters.category}`)
     if (filters.dateFrom || filters.dateTo) {
       const from = filters.dateFrom || analysis?.firstDateKey || '…'
-      const to   = filters.dateTo   || analysis?.lastDateKey  || '…'
+      const to = filters.dateTo || analysis?.lastDateKey || '…'
       parts.push(`Tanggal: ${from} s.d. ${to}`)
     }
     // add active column filters
