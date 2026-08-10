@@ -1,5 +1,5 @@
 import './globals.css'
-import BottomNav from '@/components/BottomNav'
+import Sidebar from '@/components/Sidebar'
 
 export const metadata = {
   title: 'Dashboard Penjualan Toko Online',
@@ -27,8 +27,8 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body>
+        <Sidebar />
         {children}
-        <BottomNav />
       </body>
     </html>
   )
