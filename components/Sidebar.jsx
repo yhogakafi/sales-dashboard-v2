@@ -119,15 +119,31 @@ export default function Sidebar() {
         aria-label="Navigasi utama"
       >
         <div className="sidebar-top">
-          <span className="sidebar-brand">{collapsed ? 'SD' : 'Sales Dashboard'}</span>
-          <button
-            type="button"
-            className="sidebar-close-mobile"
-            aria-label="Tutup menu navigasi"
-            onClick={() => setMobileOpen(false)}
-          >
-            ✕
-          </button>
+          <span className="sidebar-brand">{collapsed ? 'TMS' : 'TMS Online'}</span>
+          <div className="sidebar-top-actions">
+            <button
+              type="button"
+              className="sidebar-collapse-btn"
+              onClick={toggleCollapsed}
+              aria-label={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
+              title={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
+            >
+              <svg
+                width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+                style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }}
+              >
+                <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="sidebar-close-mobile"
+              aria-label="Tutup menu navigasi"
+              onClick={() => setMobileOpen(false)}
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         <nav className="sidebar-nav">
@@ -146,22 +162,6 @@ export default function Sidebar() {
             )
           })}
         </nav>
-
-        <button
-          type="button"
-          className="sidebar-collapse-btn"
-          onClick={toggleCollapsed}
-          aria-label={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
-          title={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
-        >
-          <svg
-            width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
-            style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }}
-          >
-            <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          {!collapsed && <span>Ciutkan</span>}
-        </button>
       </aside>
     </>
   )

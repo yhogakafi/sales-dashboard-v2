@@ -2,7 +2,7 @@ import './globals.css'
 import Sidebar from '@/components/Sidebar'
 
 export const metadata = {
-  title: 'Dashboard Penjualan Toko Online',
+  title: 'TMS Online',
   description: 'Dashboard penjualan toko online — khusus tim, perlu password untuk melihat.',
   robots: {
     index: false,

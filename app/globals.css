@@ -737,6 +737,13 @@ section { margin-bottom: 2.5rem; }
   white-space: nowrap;
   overflow: hidden;
 }
+.sidebar-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
 .sidebar-close-mobile {
   display: none;
   background: none;
@@ -790,18 +797,16 @@ section { margin-bottom: 2.5rem; }
 .sidebar-collapse-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0.6rem;
-  padding: 9px 10px;
-  border-radius: 8px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
   border: 1px solid var(--sidebar-border);
   background: none;
   color: var(--sidebar-ink-muted);
-  font-size: 12.5px;
-  font-family: var(--font-sans);
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
+  flex-shrink: 0;
 }
 .sidebar-collapse-btn:hover { color: var(--sidebar-ink); border-color: var(--sidebar-ink-muted); }
 
@@ -809,7 +814,7 @@ section { margin-bottom: 2.5rem; }
 .sidebar.is-collapsed .sidebar-nav-item { justify-content: center; }
 .sidebar.is-collapsed .sidebar-nav-label,
 .sidebar.is-collapsed .sidebar-brand { display: none; }
-.sidebar.is-collapsed .sidebar-collapse-btn { justify-content: center; }
+.sidebar.is-collapsed .sidebar-top { justify-content: center; }
 
 /* Mobile hamburger trigger — hidden on desktop */
 .sidebar-mobile-toggle {
