@@ -1136,7 +1136,7 @@ function BestSellerTable({
                         <td style={{ whiteSpace: 'nowrap' }}>
                           {row.tipe === 'gabungan'
                             ? <span className="badge-brand" style={{ background: 'var(--surface-2, #f0eefc)' }}>Gabungan ({row.variantCount}x)</span>
-                            : <span className="muted" style={{ fontSize: 12.5 }}>Tunggal</span>}
+                            : <span className="mono" style={{ fontSize: 12.5 }}>Tunggal</span>}
                         </td>
                       )}
                       <td style={{ fontWeight: 500 }}>
