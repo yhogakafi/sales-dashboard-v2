@@ -1128,8 +1128,8 @@ function BestSellerTable({
                       style={rowStyle}
                       title={rowTitle}
                     >
-                      <td className="muted mono" style={{ textAlign: 'center' }}>{row.rank}</td>
-                      <td className="muted mono" style={{ whiteSpace: 'nowrap' }}>
+                      <td className="mono" style={{ textAlign: 'center' }}>{row.rank}</td>
+                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>
                         {row.kodeBarang || '—'}
                       </td>
                       {groupMode === 'induk' && (
