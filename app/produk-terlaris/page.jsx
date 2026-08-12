@@ -508,19 +508,48 @@ function SortIcon({ active, dir }) {
 }
 
 function HighlightText({ text, query }) {
-  if (!query.trim()) return <>{text}</>
-  const keyword = query.trim().toLowerCase()
-  const idx = text.toLowerCase().indexOf(keyword)
-  if (idx === -1) return <>{text}</>
-  return (
-    <>
-      {text.slice(0, idx)}
-      <mark style={{ background: '#fde68a', color: 'inherit', borderRadius: 2, padding: '0 2px' }}>
-        {text.slice(idx, idx + keyword.length)}
+  const keywords = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (keywords.length === 0) return <>{text}</>
+
+  const lower = text.toLowerCase()
+
+  // Find every match range (for every keyword), then merge overlapping ones
+  // so words like "HOOK" and "HITAM" both get highlighted independently
+  // inside "BRA HOOK-01-HITAM".
+  const ranges = []
+  for (const kw of keywords) {
+    let from = 0
+    while (from <= lower.length) {
+      const idx = lower.indexOf(kw, from)
+      if (idx === -1) break
+      ranges.push([idx, idx + kw.length])
+      from = idx + kw.length
+    }
+  }
+  if (ranges.length === 0) return <>{text}</>
+
+  ranges.sort((a, b) => a[0] - b[0])
+  const merged = [ranges[0]]
+  for (const [start, end] of ranges.slice(1)) {
+    const last = merged[merged.length - 1]
+    if (start <= last[1]) last[1] = Math.max(last[1], end)
+    else merged.push([start, end])
+  }
+
+  const parts = []
+  let cursor = 0
+  merged.forEach(([start, end], i) => {
+    if (start > cursor) parts.push(<span key={`t${i}`}>{text.slice(cursor, start)}</span>)
+    parts.push(
+      <mark key={`m${i}`} style={{ background: '#fde68a', color: 'inherit', borderRadius: 2, padding: '0 2px' }}>
+        {text.slice(start, end)}
       </mark>
-      {text.slice(idx + keyword.length)}
-    </>
-  )
+    )
+    cursor = end
+  })
+  if (cursor < text.length) parts.push(<span key="tail">{text.slice(cursor)}</span>)
+
+  return <>{parts}</>
 }
 
 // ── Column filter popover ─────────────────────────────────────────────────────
@@ -1515,10 +1544,16 @@ export default function ProdukTerlarisPage() {
   const filteredRows = useMemo(() => {
     let rows = groupMode === 'induk' ? groupByParentSku(enrichedRows) : enrichedRows
 
-    // 3. global search (substring, case-insensitive)
+    // 3. global search — flexible/fuzzy: split query into words and require
+    //    every word to appear somewhere in the product name (in any order,
+    //    ignoring separators like "-"). This way "BRA HOOK HITAM" or just
+    //    "HOOK HITAM" will still match a name like "BRA HOOK-01-HITAM".
     if (searchQuery.trim()) {
-      const kw = searchQuery.trim().toLowerCase()
-      rows = rows.filter(r => r.namaBarang.toLowerCase().includes(kw))
+      const keywords = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean)
+      rows = rows.filter(r => {
+        const name = r.namaBarang.toLowerCase()
+        return keywords.every(kw => name.includes(kw))
+      })
     }
 
     // 4. column filters (namaBarang, brand, kuantitas, hargaProduk, stock)
