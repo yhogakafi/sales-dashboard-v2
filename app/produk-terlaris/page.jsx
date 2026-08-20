@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom'
 import { formatRupiah, formatDateLabel } from '@/lib/parseBarangTerlaris'
 import { exportBarangTerlaris } from '@/lib/exportExcel'
-import { parseSkuImageFile, lookupSkuImage } from '@/lib/parseSkuImage'
+import { lookupSkuImage } from '@/lib/parseSkuImage'
 
 // ─── Stock lookup helper ───────────────────────────────────────────────────────
 
@@ -934,7 +934,7 @@ function BestSellerTable({
   colFilters, onColFilterChange,
   stockLookup, brandOptions,
   groupMode, onGroupModeChange,
-  imageLookup, imageFileName, imageUploadError, imageUploading,
+  imageLookup, imageMeta, imageError, imageUploadError, imageUploading,
   onImageFile, showImages, onToggleShowImages,
 }) {
   const totalKuantitas = rows.reduce((s, r) => s + r.kuantitas, 0)
@@ -945,7 +945,8 @@ function BestSellerTable({
   const ssrGrand = totalKuantitas > 0 ? totalStockPcs / totalKuantitas : null      // Stock PCS / Terjual
   const ssrHppGrand = totalHppTerjual > 0 ? totalHpp / totalHppTerjual : null       // Total HPP / Σ(HPP × Terjual)
   const hasStock = stockLookup !== null
-  const showImageCol = showImages && !!imageLookup
+  const hasImages = imageMeta?.count > 0
+  const showImageCol = showImages && hasImages
 
   const colHeaderProps = { sortBy, sortDir, onSortChange, colFilters, onColFilterChange, brandOptions }
 
@@ -1010,24 +1011,28 @@ function BestSellerTable({
           disabled={imageUploading}
           title="Upload file .xlsx berisi kolom SKU dan IMAGE (link CDN gambar produk)"
         >
-          {imageUploading ? 'Mengupload…' : (imageFileName ? '📤 Ganti File Gambar SKU' : '📤 Upload Gambar SKU')}
+          {imageUploading ? 'Mengupload…' : (hasImages ? '📤 Ganti File Gambar SKU' : '📤 Upload Gambar SKU')}
         </button>
         <button
           type="button"
           className="pill-btn"
           onClick={onToggleShowImages}
-          disabled={!imageLookup}
-          title={!imageLookup ? 'Upload file gambar SKU dulu' : (showImages ? 'Sembunyikan kolom gambar' : 'Tampilkan kolom gambar')}
+          disabled={!hasImages}
+          title={!hasImages ? 'Upload file gambar SKU dulu' : (showImages ? 'Sembunyikan kolom gambar' : 'Tampilkan kolom gambar')}
           style={showImages ? { background: 'var(--primary, #3B3A8C)', color: '#fff', borderColor: 'transparent' } : undefined}
         >
           {showImages ? '🖼️ Sembunyikan Gambar' : '🖼️ Tampilkan Gambar'}
         </button>
-        {imageFileName && (
+        {hasImages && (
           <span className="muted" style={{ fontSize: 12.5 }}>
-            {imageFileName}{imageLookup ? ` · ${Object.keys(imageLookup).length} SKU` : ''}
+            {imageMeta.count.toLocaleString('id-ID')} SKU tersimpan di server
+            {imageMeta.savedAt ? ` · diupdate ${new Date(imageMeta.savedAt).toLocaleString('id-ID')}` : ''}
           </span>
         )}
       </div>
+      {imageError && (
+        <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {imageError}</p>
+      )}
       {imageUploadError && (
         <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {imageUploadError}</p>
       )}
@@ -1219,11 +1224,12 @@ function BestSellerTable({
                       )}
                       {showImageCol && (() => {
                         const imgUrl = lookupSkuImage(row.kodeBarang, imageLookup)
+                        const proxiedUrl = imgUrl ? `/api/image-proxy?url=${encodeURIComponent(imgUrl)}` : null
                         return (
                           <td style={{ textAlign: 'center' }}>
-                            {imgUrl
+                            {proxiedUrl
                               ? <img
-                                  src={imgUrl}
+                                  src={proxiedUrl}
                                   alt={row.namaBarang || row.kodeBarang || ''}
                                   style={{ height: 40, width: 'auto', borderRadius: 4, objectFit: 'cover', verticalAlign: 'middle' }}
                                   loading="lazy"
@@ -1369,37 +1375,48 @@ export default function ProdukTerlarisPage() {
   const [stockLookup, setStockLookup] = useState(null)
   const [stockError, setStockError] = useState(null)
 
-  // Gambar per SKU — { bySku: { kode: urlGambar } } dari file Excel yang diupload
-  // manual di halaman ini (tidak disimpan ke server, cuma untuk sesi ini).
-  const [imageLookup, setImageLookup] = useState(null)
-  const [imageFileName, setImageFileName] = useState('')
-  const [imageUploadError, setImageUploadError] = useState(null)
+  // Gambar per SKU — { kode: urlGambar } — disimpan di server (Vercel Blob) lewat
+  // /api/sku-images & /api/upload-sku-images, jadi sekali upload langsung
+  // kelihatan di semua browser/device, bukan cuma tersimpan lokal di sesi ini.
+  const [imageLookup, setImageLookup] = useState(null)       // null = belum dimuat dari server
+  const [imageMeta, setImageMeta] = useState({ count: 0, savedAt: null, exists: false })
+  const [imageError, setImageError] = useState(null)         // gagal MEMUAT mapping dari server
+  const [imageUploadError, setImageUploadError] = useState(null) // gagal UPLOAD file baru
   const [imageUploading, setImageUploading] = useState(false)
   const [showImages, setShowImages] = useState(false) // default: sembunyi
+
+  const loadSkuImages = useCallback(async () => {
+    setImageError(null)
+    try {
+      const res = await fetch('/api/sku-images', { cache: 'no-store' })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Gagal memuat data gambar SKU (${res.status})`)
+      const data = await res.json()
+      setImageLookup(data.bySku || {})
+      setImageMeta({ count: data.count ?? 0, savedAt: data.savedAt ?? null, exists: !!data.exists })
+    } catch (err) {
+      setImageError(err.message)
+      setImageLookup({})
+    }
+  }, [])
 
   const handleImageFile = useCallback((file) => {
     setImageUploading(true)
     setImageUploadError(null)
-    const reader = new FileReader()
-    reader.onload = () => {
+    ;(async () => {
       try {
-        const { bySku, count } = parseSkuImageFile(reader.result)
-        setImageLookup(bySku)
-        setImageFileName(file.name)
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await fetch('/api/upload-sku-images', { method: 'POST', body: fd })
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Gagal mengupload file (${res.status})`)
+        await loadSkuImages()
         setShowImages(true) // langsung nyalakan toggle setelah upload berhasil
-        void count
       } catch (err) {
-        setImageUploadError(err.message || 'Gagal membaca file gambar SKU.')
+        setImageUploadError(err.message || 'Gagal mengupload file gambar SKU.')
       } finally {
         setImageUploading(false)
       }
-    }
-    reader.onerror = () => {
-      setImageUploadError('Gagal membaca file.')
-      setImageUploading(false)
-    }
-    reader.readAsArrayBuffer(file)
-  }, [])
+    })()
+  }, [loadSkuImages])
 
   const handleToggleShowImages = useCallback(() => {
     setShowImages(v => !v)
@@ -1466,6 +1483,7 @@ export default function ProdukTerlarisPage() {
         if (!res.ok) return
         setLoggedIn(true)
         loadStock()
+        loadSkuImages()
 
         // Default halaman pertama kali dibuka: "30 hari terakhir" (gabungan semua
         // periode, difilter ke 30 hari terakhir) — bukan cuma periode terbaru.
@@ -1596,12 +1614,13 @@ export default function ProdukTerlarisPage() {
       await loadPeriods()
       await loadData('')
       loadStock()
+      loadSkuImages()
     } catch (err) {
       setLoginError(err.message)
     } finally {
       setLoginLoading(false)
     }
-  }, [password, loadPeriods, loadData, loadStock])
+  }, [password, loadPeriods, loadData, loadStock, loadSkuImages])
 
   // ── Derived data ──────────────────────────────────────────────────────────────
   const analysis = payload?.analysis
@@ -1863,7 +1882,8 @@ export default function ProdukTerlarisPage() {
             groupMode={groupMode}
             onGroupModeChange={handleGroupModeChange}
             imageLookup={imageLookup}
-            imageFileName={imageFileName}
+            imageMeta={imageMeta}
+            imageError={imageError}
             imageUploadError={imageUploadError}
             imageUploading={imageUploading}
             onImageFile={handleImageFile}
