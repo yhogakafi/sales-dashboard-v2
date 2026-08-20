@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom'
 import { formatRupiah, formatDateLabel } from '@/lib/parseBarangTerlaris'
 import { exportBarangTerlaris } from '@/lib/exportExcel'
-import { lookupSkuImage } from '@/lib/parseSkuImage'
+import { lookupSkuImage, buildImageIndex } from '@/lib/parseSkuImage'
 
 // ─── Stock lookup helper ───────────────────────────────────────────────────────
 
@@ -948,6 +948,10 @@ function BestSellerTable({
   const hasImages = imageMeta?.count > 0
   const showImageCol = showImages && hasImages
 
+  // Index dengan key sudah dinormalisasi (uppercase, spasi dirapikan) —
+  // dibangun sekali tiap kali mapping gambar berubah, bukan tiap baris.
+  const imageIndex = useMemo(() => buildImageIndex(imageLookup), [imageLookup])
+
   const colHeaderProps = { sortBy, sortDir, onSortChange, colFilters, onColFilterChange, brandOptions }
 
   const imageInputRef = useRef(null)
@@ -1223,7 +1227,7 @@ function BestSellerTable({
                         </td>
                       )}
                       {showImageCol && (() => {
-                        const imgUrl = lookupSkuImage(row.kodeBarang, imageLookup)
+                        const imgUrl = lookupSkuImage(row, imageIndex)
                         const proxiedUrl = imgUrl ? `/api/image-proxy?url=${encodeURIComponent(imgUrl)}` : null
                         return (
                           <td style={{ textAlign: 'center' }}>
