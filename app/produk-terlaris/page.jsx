@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom'
 import { formatRupiah, formatDateLabel } from '@/lib/parseBarangTerlaris'
 import { exportBarangTerlaris } from '@/lib/exportExcel'
+import { parseSkuImageFile, lookupSkuImage } from '@/lib/parseSkuImage'
 
 // ─── Stock lookup helper ───────────────────────────────────────────────────────
 
@@ -933,6 +934,8 @@ function BestSellerTable({
   colFilters, onColFilterChange,
   stockLookup, brandOptions,
   groupMode, onGroupModeChange,
+  imageLookup, imageFileName, imageUploadError, imageUploading,
+  onImageFile, showImages, onToggleShowImages,
 }) {
   const totalKuantitas = rows.reduce((s, r) => s + r.kuantitas, 0)
   const totalHargaProduk = rows.reduce((s, r) => s + r.hargaProduk, 0)
@@ -942,8 +945,11 @@ function BestSellerTable({
   const ssrGrand = totalKuantitas > 0 ? totalStockPcs / totalKuantitas : null      // Stock PCS / Terjual
   const ssrHppGrand = totalHppTerjual > 0 ? totalHpp / totalHppTerjual : null       // Total HPP / Σ(HPP × Terjual)
   const hasStock = stockLookup !== null
+  const showImageCol = showImages && !!imageLookup
 
   const colHeaderProps = { sortBy, sortDir, onSortChange, colFilters, onColFilterChange, brandOptions }
+
+  const imageInputRef = useRef(null)
 
   // ── Pagination (client-side; slices the already-filtered `rows`) ──
   const [pageSize, setPageSize] = useState(50)
@@ -983,6 +989,48 @@ function BestSellerTable({
           Per SKU Gabungan
         </button>
       </div>
+
+      {/* ── Upload gambar SKU + toggle tampilkan gambar ── */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) onImageFile(file)
+            e.target.value = '' // biar bisa upload file yang sama lagi kalau perlu
+          }}
+        />
+        <button
+          type="button"
+          className="pill-btn"
+          onClick={() => imageInputRef.current?.click()}
+          disabled={imageUploading}
+          title="Upload file .xlsx berisi kolom SKU dan IMAGE (link CDN gambar produk)"
+        >
+          {imageUploading ? 'Mengupload…' : (imageFileName ? '📤 Ganti File Gambar SKU' : '📤 Upload Gambar SKU')}
+        </button>
+        <button
+          type="button"
+          className="pill-btn"
+          onClick={onToggleShowImages}
+          disabled={!imageLookup}
+          title={!imageLookup ? 'Upload file gambar SKU dulu' : (showImages ? 'Sembunyikan kolom gambar' : 'Tampilkan kolom gambar')}
+          style={showImages ? { background: 'var(--primary, #3B3A8C)', color: '#fff', borderColor: 'transparent' } : undefined}
+        >
+          {showImages ? '🖼️ Sembunyikan Gambar' : '🖼️ Tampilkan Gambar'}
+        </button>
+        {imageFileName && (
+          <span className="muted" style={{ fontSize: 12.5 }}>
+            {imageFileName}{imageLookup ? ` · ${Object.keys(imageLookup).length} SKU` : ''}
+          </span>
+        )}
+      </div>
+      {imageUploadError && (
+        <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {imageUploadError}</p>
+      )}
 
       {/* ── Search bar ── */}
       <div style={{ marginBottom: '0.75rem', position: 'relative' }}>
@@ -1113,6 +1161,7 @@ function BestSellerTable({
                   <th style={{ width: 44 }}>#</th>
                   <ColHeader col="kodeBarang" label="Kode Barang" align="left"  {...colHeaderProps} />
                   {groupMode === 'induk' && <ColHeader col="tipe" label="Tipe" align="left" {...colHeaderProps} />}
+                  {showImageCol && <th style={{ width: 60, textAlign: 'center' }}>Gambar</th>}
                   <ColHeader col="namaBarang" label="Nama Barang" align="left"  {...colHeaderProps} />
                   {hasStock && <ColHeader col="brand" label="Brand" align="left"  {...colHeaderProps} />}
                   <ColHeader col="kuantitas" label="Terjual" align="right" {...colHeaderProps} />
@@ -1127,7 +1176,7 @@ function BestSellerTable({
               <tbody>
                 {pageRows.length === 0 && (
                   <tr>
-                    <td colSpan={(hasStock ? 10 : 5) + (groupMode === 'induk' ? 1 : 0)} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                    <td colSpan={(hasStock ? 10 : 5) + (groupMode === 'induk' ? 1 : 0) + (showImageCol ? 1 : 0)} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
                       <p className="upload-title" style={{ margin: '0 0 4px' }}>Tidak ada produk ditemukan</p>
                       <p className="upload-sub" style={{ margin: 0 }}>
                         {searchQuery
@@ -1168,6 +1217,22 @@ function BestSellerTable({
                             : <span className="mono" style={{ fontSize: 12.5 }}>Tunggal</span>}
                         </td>
                       )}
+                      {showImageCol && (() => {
+                        const imgUrl = lookupSkuImage(row.kodeBarang, imageLookup)
+                        return (
+                          <td style={{ textAlign: 'center' }}>
+                            {imgUrl
+                              ? <img
+                                  src={imgUrl}
+                                  alt={row.namaBarang || row.kodeBarang || ''}
+                                  style={{ height: 40, width: 'auto', borderRadius: 4, objectFit: 'cover', verticalAlign: 'middle' }}
+                                  loading="lazy"
+                                  onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
+                                />
+                              : <span className="muted">—</span>}
+                          </td>
+                        )
+                      })()}
                       <td style={{ fontWeight: 500 }}>
                         <HighlightText text={row.namaBarang} query={searchQuery} />
                       </td>
@@ -1303,6 +1368,42 @@ export default function ProdukTerlarisPage() {
   // Stock lookup: { kodeBarang: { brand, stock } } — digabung dari underwear + sport
   const [stockLookup, setStockLookup] = useState(null)
   const [stockError, setStockError] = useState(null)
+
+  // Gambar per SKU — { bySku: { kode: urlGambar } } dari file Excel yang diupload
+  // manual di halaman ini (tidak disimpan ke server, cuma untuk sesi ini).
+  const [imageLookup, setImageLookup] = useState(null)
+  const [imageFileName, setImageFileName] = useState('')
+  const [imageUploadError, setImageUploadError] = useState(null)
+  const [imageUploading, setImageUploading] = useState(false)
+  const [showImages, setShowImages] = useState(false) // default: sembunyi
+
+  const handleImageFile = useCallback((file) => {
+    setImageUploading(true)
+    setImageUploadError(null)
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const { bySku, count } = parseSkuImageFile(reader.result)
+        setImageLookup(bySku)
+        setImageFileName(file.name)
+        setShowImages(true) // langsung nyalakan toggle setelah upload berhasil
+        void count
+      } catch (err) {
+        setImageUploadError(err.message || 'Gagal membaca file gambar SKU.')
+      } finally {
+        setImageUploading(false)
+      }
+    }
+    reader.onerror = () => {
+      setImageUploadError('Gagal membaca file.')
+      setImageUploading(false)
+    }
+    reader.readAsArrayBuffer(file)
+  }, [])
+
+  const handleToggleShowImages = useCallback(() => {
+    setShowImages(v => !v)
+  }, [])
 
   const handleColFilterChange = useCallback((col, f) => {
     setColFilters(prev => ({ ...prev, [col]: f }))
@@ -1761,6 +1862,13 @@ export default function ProdukTerlarisPage() {
             brandOptions={brandOptions}
             groupMode={groupMode}
             onGroupModeChange={handleGroupModeChange}
+            imageLookup={imageLookup}
+            imageFileName={imageFileName}
+            imageUploadError={imageUploadError}
+            imageUploading={imageUploading}
+            onImageFile={handleImageFile}
+            showImages={showImages}
+            onToggleShowImages={handleToggleShowImages}
           />
         </div>
       )}
