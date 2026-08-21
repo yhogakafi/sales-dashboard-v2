@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom'
 import { formatRupiah, formatDateLabel } from '@/lib/parseBarangTerlaris'
 import { exportBarangTerlaris } from '@/lib/exportExcel'
-import { lookupSkuImage, buildImageIndex } from '@/lib/parseSkuImage'
+import { lookupSkuEntry, buildSkuIndex } from '@/lib/parseSkuImage'
 
 // ─── Stock lookup helper ───────────────────────────────────────────────────────
 
@@ -234,6 +234,17 @@ function enrichWithStock(rows, stockLookup, category) {
   })
 }
 
+// ─── MP Stock enrichment (stock marketplace dari file gambar SKU) ─────────────
+// Ditambahkan sebagai field di tiap baris (bukan dihitung ulang tiap render)
+// supaya bisa difilter & diurutkan persis seperti kolom lain.
+function enrichWithMpStock(rows, skuIndex) {
+  if (!skuIndex) return rows.map(r => ({ ...r, mpStock: null, hasMpStockData: false }))
+  return rows.map(r => {
+    const entry = lookupSkuEntry(r, skuIndex)
+    return { ...r, mpStock: entry?.stock ?? null, hasMpStockData: !!entry }
+  })
+}
+
 // ─── Sorting ────────────────────────────────────────────────────────────────
 
 const TEXT_SORT_COLS = ['namaBarang', 'kodeBarang', 'brand', 'tipe']
@@ -263,6 +274,7 @@ function groupByParentSku(rows) {
         variantCount: 0, hasStockData: false,
         bestNama: r.namaBarang, bestKuantitas: -1,
         unit: r.unit || '',
+        mpStock: 0, hasMpStockData: false,
       }
     }
     const g = groups[parent]
@@ -272,6 +284,10 @@ function groupByParentSku(rows) {
     g.totalHpp += r.totalHpp || 0
     g.variantCount += 1
     g.hasStockData = g.hasStockData || r.hasStockData
+    if (r.hasMpStockData) {
+      g.mpStock += r.mpStock || 0
+      g.hasMpStockData = true
+    }
     if (!g.unit && r.unit) g.unit = r.unit
     if (r.kuantitas > g.bestKuantitas) {
       g.bestKuantitas = r.kuantitas
@@ -288,6 +304,7 @@ function groupByParentSku(rows) {
       kuantitas: g.kuantitas, hargaProduk: g.hargaProduk, stock: g.stock,
       unit: g.unit, hpp, totalHpp: g.totalHpp, ssr, hasStockData: g.hasStockData,
       tipe: 'gabungan', variantCount: g.variantCount,
+      mpStock: g.hasMpStockData ? g.mpStock : null, hasMpStockData: g.hasMpStockData,
     }
   })
 
@@ -934,7 +951,7 @@ function BestSellerTable({
   colFilters, onColFilterChange,
   stockLookup, brandOptions,
   groupMode, onGroupModeChange,
-  imageLookup, imageMeta, imageError, imageUploadError, imageUploading,
+  imageIndex, imageMeta, imageError, imageUploadError, imageUploading,
   onImageFile, showImages, onToggleShowImages,
 }) {
   const totalKuantitas = rows.reduce((s, r) => s + r.kuantitas, 0)
@@ -947,10 +964,6 @@ function BestSellerTable({
   const hasStock = stockLookup !== null
   const hasImages = imageMeta?.count > 0
   const showImageCol = showImages && hasImages
-
-  // Index dengan key sudah dinormalisasi (uppercase, spasi dirapikan) —
-  // dibangun sekali tiap kali mapping gambar berubah, bukan tiap baris.
-  const imageIndex = useMemo(() => buildImageIndex(imageLookup), [imageLookup])
 
   const colHeaderProps = { sortBy, sortDir, onSortChange, colFilters, onColFilterChange, brandOptions }
 
@@ -1176,6 +1189,7 @@ function BestSellerTable({
                   <ColHeader col="kuantitas" label="Terjual" align="right" {...colHeaderProps} />
                   <ColHeader col="hargaProduk" label="Harga Produk" align="right" {...colHeaderProps} />
                   {hasStock && <ColHeader col="stock" label="Stock" align="right" {...colHeaderProps} />}
+                  {showImageCol && <ColHeader col="mpStock" label="MP Stock" align="right" {...colHeaderProps} />}
                   {hasStock && <ColHeader col="unit" label="Unit" align="left" {...colHeaderProps} />}
                   {hasStock && <ColHeader col="hpp" label="HPP PCS" align="right" {...colHeaderProps} />}
                   {hasStock && <ColHeader col="totalHpp" label="Total HPP" align="right" {...colHeaderProps} />}
@@ -1185,7 +1199,7 @@ function BestSellerTable({
               <tbody>
                 {pageRows.length === 0 && (
                   <tr>
-                    <td colSpan={(hasStock ? 10 : 5) + (groupMode === 'induk' ? 1 : 0) + (showImageCol ? 1 : 0)} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                    <td colSpan={(hasStock ? 10 : 5) + (groupMode === 'induk' ? 1 : 0) + (showImageCol ? 2 : 0)} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
                       <p className="upload-title" style={{ margin: '0 0 4px' }}>Tidak ada produk ditemukan</p>
                       <p className="upload-sub" style={{ margin: 0 }}>
                         {searchQuery
@@ -1227,8 +1241,8 @@ function BestSellerTable({
                         </td>
                       )}
                       {showImageCol && (() => {
-                        const imgUrl = lookupSkuImage(row, imageIndex)
-                        const proxiedUrl = imgUrl ? `/api/image-proxy?url=${encodeURIComponent(imgUrl)}` : null
+                        const entry = lookupSkuEntry(row, imageIndex)
+                        const proxiedUrl = entry?.image ? `/api/image-proxy?url=${encodeURIComponent(entry.image)}` : null
                         return (
                           <td style={{ textAlign: 'center' }}>
                             {proxiedUrl
@@ -1266,6 +1280,15 @@ function BestSellerTable({
                               {si.stock.toLocaleString('id-ID')}
                             </span>
                             : <span className="muted">0</span>}
+                        </td>
+                      )}
+                      {showImageCol && (
+                        <td className="mono" style={{ textAlign: 'right' }}>
+                          {row.hasMpStockData
+                            ? <span style={{ color: row.mpStock === 0 ? 'var(--accent, #D85A30)' : 'inherit' }}>
+                              {(row.mpStock || 0).toLocaleString('id-ID')}
+                            </span>
+                            : <span className="muted">—</span>}
                         </td>
                       )}
                       {hasStock && (
@@ -1388,6 +1411,11 @@ export default function ProdukTerlarisPage() {
   const [imageUploadError, setImageUploadError] = useState(null) // gagal UPLOAD file baru
   const [imageUploading, setImageUploading] = useState(false)
   const [showImages, setShowImages] = useState(false) // default: sembunyi
+
+  // Index dengan key sudah dinormalisasi (uppercase, spasi dirapikan) — dibangun
+  // sekali tiap kali mapping gambar berubah, dipakai baik buat enrichment
+  // (mpStock, biar bisa difilter/diurutkan) maupun buat render kolom Gambar.
+  const imageIndex = useMemo(() => buildSkuIndex(imageLookup), [imageLookup])
 
   const loadSkuImages = useCallback(async () => {
     setImageError(null)
@@ -1653,8 +1681,12 @@ export default function ProdukTerlarisPage() {
     // 2. merge in brand/stock so they can be filtered & sorted like any other column
     rows = enrichWithStock(rows, stockLookup, filters.category)
 
+    // 3. merge in MP Stock (stock marketplace dari file gambar SKU) — sama
+    //    alasannya, biar bisa difilter & diurutkan seperti kolom lain.
+    rows = enrichWithMpStock(rows, imageIndex)
+
     return rows
-  }, [rawRows, filters, stockLookup])
+  }, [rawRows, filters, stockLookup, imageIndex])
 
   // Semua brand yang ada untuk periode/filter tanggal saat ini — dipakai buat
   // checklist di kolom Brand. Diambil SEBELUM search/kolom-filter lain supaya
@@ -1885,7 +1917,7 @@ export default function ProdukTerlarisPage() {
             brandOptions={brandOptions}
             groupMode={groupMode}
             onGroupModeChange={handleGroupModeChange}
-            imageLookup={imageLookup}
+            imageIndex={imageIndex}
             imageMeta={imageMeta}
             imageError={imageError}
             imageUploadError={imageUploadError}

@@ -45,9 +45,9 @@ export async function GET(request) {
     return NextResponse.json({ error: 'URL tidak valid.' }, { status: 400 })
   }
 
-  // Whitelist: url harus persis salah satu yang ada di mapping tersimpan.
+  // Whitelist: url harus persis salah satu link gambar yang ada di mapping tersimpan.
   const { bySku } = await getSkuImages()
-  const allowed = new Set(Object.values(bySku))
+  const allowed = new Set(Object.values(bySku).map(v => v?.image).filter(Boolean))
   if (!allowed.has(url)) {
     return NextResponse.json({ error: 'URL gambar tidak dikenal.' }, { status: 403 })
   }
