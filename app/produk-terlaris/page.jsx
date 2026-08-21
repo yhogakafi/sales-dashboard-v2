@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom'
 import { formatRupiah, formatDateLabel } from '@/lib/parseBarangTerlaris'
 import { exportBarangTerlaris } from '@/lib/exportExcel'
-import { lookupSkuEntry, buildSkuIndex } from '@/lib/parseSkuImage'
+import { lookupSkuEntry, buildSkuIndex, parseSkuImageFile } from '@/lib/parseSkuImage'
 
 // ─── Stock lookup helper ───────────────────────────────────────────────────────
 
@@ -1436,9 +1436,19 @@ export default function ProdukTerlarisPage() {
     setImageUploadError(null)
     ;(async () => {
       try {
-        const fd = new FormData()
-        fd.append('file', file)
-        const res = await fetch('/api/upload-sku-images', { method: 'POST', body: fd })
+        // File-nya di-PARSE DI BROWSER dulu (bukan dikirim mentah ke server) —
+        // hasil parsing (JSON) jauh lebih kecil daripada file .xlsx aslinya,
+        // supaya tidak kena batas 4.5MB ukuran body request di Vercel Functions
+        // (file dengan belasan-puluhan ribu baris SKU bisa >4MB dalam bentuk
+        // .xlsx mentah dan gagal terkirim tanpa pesan error yang jelas).
+        const arrayBuffer = await file.arrayBuffer()
+        const { bySku, count } = parseSkuImageFile(arrayBuffer)
+
+        const res = await fetch('/api/upload-sku-images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bySku, count }),
+        })
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Gagal mengupload file (${res.status})`)
         await loadSkuImages()
         setShowImages(true) // langsung nyalakan toggle setelah upload berhasil
