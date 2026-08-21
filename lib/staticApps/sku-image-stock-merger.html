@@ -167,9 +167,9 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="eyebrow">Shopee mass-update helper</div>
-    <h1>SKU · Image · Stock Merger</h1>
-    <p>Combines the SKU and stock numbers from your product-info export files with the cover image link from your media-info export, and produces one clean spreadsheet: <b>SKU</b>, <b>IMAGE</b>, <b>STOCK</b>. Everything runs locally in your browser — no file ever leaves this page.</p>
+    <div class="eyebrow">Asisten update massal Shopee</div>
+    <h1>Penggabung SKU · Gambar · Stok</h1>
+    <p>Menggabungkan SKU dan jumlah stok dari file ekspor info produk Anda dengan tautan gambar sampul dari ekspor info media Anda, lalu menghasilkan satu lembar kerja yang rapi: <b>SKU</b>, <b>GAMBAR</b>, <b>STOK</b>. Semuanya berjalan secara lokal di browser Anda — tidak ada file yang keluar dari halaman ini.</p>
   </header>
 
   <div class="flow">
@@ -177,10 +177,10 @@
       <div class="step-head">
         <div class="step-num">1</div>
         <div>
-          <div class="step-title">Product / stock files</div>
+          <div class="step-title">File produk / stok</div>
         </div>
       </div>
-      <div class="step-sub">One or more mass-update export files containing <code>et_title_variation_sku</code> and <code>et_title_variation_stock</code> columns. Select multiple files at once.</div>
+      <div class="step-sub">Satu atau lebih file ekspor update massal yang berisi kolom <code>et_title_variation_sku</code> dan <code>et_title_variation_stock</code>. Pilih beberapa file sekaligus.</div>
       <div class="drop" id="drop1">
         <input type="file" id="file1" accept=".xlsx,.xls" multiple>
         <ul class="filelist" id="list1"></ul>
@@ -191,10 +191,10 @@
       <div class="step-head">
         <div class="step-num">2</div>
         <div>
-          <div class="step-title">Media info file</div>
+          <div class="step-title">File info media</div>
         </div>
       </div>
-      <div class="step-sub">One or more mass-update media exports containing <code>ps_item_cover_image</code>. Matched to the products above by product ID. Select multiple files at once.</div>
+      <div class="step-sub">Satu atau lebih file ekspor media update massal yang berisi <code>ps_item_cover_image</code>. Dicocokkan dengan produk di atas berdasarkan ID produk. Pilih beberapa file sekaligus.</div>
       <div class="drop" id="drop2">
         <input type="file" id="file2" accept=".xlsx,.xls" multiple>
         <ul class="filelist" id="list2"></ul>
@@ -202,8 +202,8 @@
     </div>
 
     <div class="actions">
-      <button id="generate" disabled>Generate spreadsheet</button>
-      <button id="download">Download result.xlsx</button>
+      <button id="generate" disabled>Buat lembar kerja</button>
+      <button id="download">Unduh result.xlsx</button>
       <pre class="log" id="log"></pre>
     </div>
 
@@ -214,7 +214,7 @@
     </div>
   </div>
 
-  <footer>Runs entirely client-side · files are parsed and processed in your browser only</footer>
+  <footer>Berjalan sepenuhnya di sisi klien · file diurai dan diproses hanya di dalam browser Anda</footer>
 </div>
 
 <script>
