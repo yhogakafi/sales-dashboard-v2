@@ -262,7 +262,7 @@ function groupByParentSku(rows) {
     const hasDot = kode.includes('.')
 
     if (!kode || !hasDot) {
-      standalone.push({ ...r, tipe: 'tunggal', variantCount: 1 })
+      standalone.push({ ...r, tipe: 'tunggal', variantCount: 1, variantCodes: kode ? [kode] : [] })
       return
     }
 
@@ -275,6 +275,7 @@ function groupByParentSku(rows) {
         bestNama: r.namaBarang, bestKuantitas: -1,
         unit: r.unit || '',
         mpStock: 0, hasMpStockData: false,
+        variantCodes: [],
       }
     }
     const g = groups[parent]
@@ -284,6 +285,7 @@ function groupByParentSku(rows) {
     g.totalHpp += r.totalHpp || 0
     g.variantCount += 1
     g.hasStockData = g.hasStockData || r.hasStockData
+    g.variantCodes.push(kode)
     if (r.hasMpStockData) {
       g.mpStock += r.mpStock || 0
       g.hasMpStockData = true
@@ -305,6 +307,7 @@ function groupByParentSku(rows) {
       unit: g.unit, hpp, totalHpp: g.totalHpp, ssr, hasStockData: g.hasStockData,
       tipe: 'gabungan', variantCount: g.variantCount,
       mpStock: g.hasMpStockData ? g.mpStock : null, hasMpStockData: g.hasMpStockData,
+      variantCodes: g.variantCodes,
     }
   })
 
@@ -874,22 +877,23 @@ function formatNoteTimestamp(iso) {
   }
 }
 
-function NoteEditorPopover({ initialText, updatedAt, saving, onSave, onDelete, onClose, anchorRef }) {
+function NoteEditorPopover({ initialText, updatedAt, saving, childNotes, onSave, onDelete, onClose, anchorRef }) {
   const [text, setText] = useState(initialText || '')
   const ref = useRef(null)
   const textareaRef = useRef(null)
   const [pos, setPos] = useState(null)
+  const hasChildNotes = childNotes && childNotes.length > 0
 
   useLayoutEffect(() => {
     if (!anchorRef.current) return
     const rect = anchorRef.current.getBoundingClientRect()
     // Coba taruh di kanan tombol; kalau kepotong tepi kanan layar, taruh di kiri.
-    const width = 280
+    const width = 300
     const left = rect.right + width + 8 > window.innerWidth
       ? Math.max(8, rect.left - width - 8)
       : rect.right + 8
-    setPos({ top: Math.min(rect.top, window.innerHeight - 220), left })
-  }, [anchorRef])
+    setPos({ top: Math.min(rect.top, window.innerHeight - (hasChildNotes ? 340 : 220)), left })
+  }, [anchorRef, hasChildNotes])
 
   useEffect(() => {
     textareaRef.current?.focus()
@@ -934,10 +938,37 @@ function NoteEditorPopover({ initialText, updatedAt, saving, onSave, onDelete, o
         position: 'fixed', top: pos.top, left: pos.left, zIndex: 500,
         background: 'var(--surface, #fff)', border: '1px solid var(--border, #ddd)',
         borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.16)',
-        padding: '0.75rem', width: 280, boxSizing: 'border-box',
+        padding: '0.75rem', width: 300, boxSizing: 'border-box',
         display: 'flex', flexDirection: 'column', gap: 8,
+        maxHeight: '70vh', overflowY: 'auto',
       }}
     >
+      {hasChildNotes && (
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 6,
+          paddingBottom: 8, borderBottom: '1px solid var(--border, #ddd)',
+        }}>
+          <p className="muted" style={{ margin: 0, fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+            Catatan dari varian ({childNotes.length})
+          </p>
+          {childNotes.map(cn => (
+            <div key={cn.kodeBarang} style={{
+              background: 'var(--paper, #f6f4ef)', borderRadius: 6, padding: '6px 8px',
+            }}>
+              <p className="mono muted" style={{ margin: '0 0 2px', fontSize: 10.5 }}>{cn.kodeBarang}</p>
+              <p style={{ margin: 0, fontSize: 12.5, whiteSpace: 'pre-wrap' }}>{cn.text}</p>
+              <p className="muted" style={{ margin: '2px 0 0', fontSize: 10.5 }}>{formatNoteTimestamp(cn.updatedAt)}</p>
+            </div>
+          ))}
+          <p className="muted" style={{ margin: 0, fontSize: 11 }}>
+            Catatan varian diedit dari tampilan "Per Varian".
+          </p>
+        </div>
+      )}
+
+      <p className="muted" style={{ margin: 0, fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+        {hasChildNotes ? 'Catatan SKU induk' : 'Catatan'}
+      </p>
       <textarea
         ref={textareaRef}
         value={text}
@@ -1006,18 +1037,26 @@ function NoteEditorPopover({ initialText, updatedAt, saving, onSave, onDelete, o
   ), document.body)
 }
 
-function NoteCell({ kodeBarang, note, saving, onSave, onDelete }) {
+function NoteCell({ kodeBarang, note, childNotes, saving, onSave, onDelete }) {
   const [open, setOpen] = useState(false)
   const btnRef = useRef(null)
-  const hasNote = !!note?.text
+  const hasOwnNote = !!note?.text
+  const hasChildNotes = childNotes && childNotes.length > 0
+  const hasNote = hasOwnNote || hasChildNotes
 
   if (!kodeBarang) {
     return <td style={{ textAlign: 'center' }}><span className="muted">—</span></td>
   }
 
-  const title = hasNote
-    ? `${note.text}\n\nTerakhir diedit: ${formatNoteTimestamp(note.updatedAt)}`
-    : 'Tambah catatan'
+  const titleParts = []
+  if (hasOwnNote) titleParts.push(`${note.text}\n(diedit: ${formatNoteTimestamp(note.updatedAt)})`)
+  if (hasChildNotes) {
+    titleParts.push(
+      `Catatan dari ${childNotes.length} varian:\n` +
+      childNotes.map(cn => `• [${cn.kodeBarang}] ${cn.text}`).join('\n')
+    )
+  }
+  const title = titleParts.length ? titleParts.join('\n\n') : 'Tambah catatan'
 
   return (
     <td style={{ textAlign: 'center', position: 'relative' }}>
@@ -1029,16 +1068,26 @@ function NoteCell({ kodeBarang, note, saving, onSave, onDelete }) {
         style={{
           border: 'none', background: 'transparent', cursor: 'pointer',
           fontSize: 15, lineHeight: 1, padding: 4, borderRadius: 6,
-          opacity: hasNote ? 1 : 0.35,
+          opacity: hasNote ? 1 : 0.35, position: 'relative',
         }}
       >
-        {hasNote ? '📝' : '🗒️'}
+        {hasOwnNote ? '📝' : (hasChildNotes ? '🗂️' : '🗒️')}
+        {hasChildNotes && (
+          <span style={{
+            position: 'absolute', top: -2, right: -2, minWidth: 13, height: 13,
+            borderRadius: 7, background: 'var(--primary, #3B3A8C)', color: '#fff',
+            fontSize: 9, fontWeight: 700, lineHeight: '13px', padding: '0 3px',
+          }}>
+            {childNotes.length}
+          </span>
+        )}
       </button>
       {open && (
         <NoteEditorPopover
           initialText={note?.text || ''}
           updatedAt={note?.updatedAt}
           saving={saving}
+          childNotes={childNotes}
           onSave={(text) => onSave(kodeBarang, text)}
           onDelete={() => onDelete(kodeBarang)}
           onClose={() => setOpen(false)}
@@ -1416,6 +1465,15 @@ function BestSellerTable({
                     : restockSoonSsr
                       ? 'SSR 1–2 — stock menipis, pertimbangkan untuk restock'
                       : undefined
+                  // Di tampilan "Per SKU Gabungan", tarik & tampilkan juga catatan yang
+                  // sebelumnya ditulis per-varian (di tampilan "Per Varian") — supaya
+                  // tidak "hilang"/ketutup di balik baris gabungan.
+                  const childNotes = (groupMode === 'induk' && row.variantCodes && row.variantCodes.length > 0)
+                    ? row.variantCodes
+                      .filter(code => code !== row.kodeBarang)
+                      .map(code => ({ kodeBarang: code, ...notes?.[code] }))
+                      .filter(cn => cn.text)
+                    : []
                   return (
                     <tr
                       key={row.kodeBarang ? `k-${row.kodeBarang}-${row.tipe || 'v'}` : `r-${row.rank}`}
@@ -1425,6 +1483,7 @@ function BestSellerTable({
                       <NoteCell
                         kodeBarang={row.kodeBarang}
                         note={notes?.[row.kodeBarang]}
+                        childNotes={childNotes}
                         saving={savingNoteFor === row.kodeBarang}
                         onSave={onSaveNote}
                         onDelete={onDeleteNote}
