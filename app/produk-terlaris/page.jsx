@@ -861,6 +861,194 @@ function ColHeader({ col, label, align = 'left', sortBy, sortDir, onSortChange, 
   )
 }
 
+// ── Catatan per baris (popover edit, mirip komentar cell Excel) ────────────────
+
+function formatNoteTimestamp(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleString('id-ID', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    })
+  } catch {
+    return ''
+  }
+}
+
+function NoteEditorPopover({ initialText, updatedAt, saving, onSave, onDelete, onClose, anchorRef }) {
+  const [text, setText] = useState(initialText || '')
+  const ref = useRef(null)
+  const textareaRef = useRef(null)
+  const [pos, setPos] = useState(null)
+
+  useLayoutEffect(() => {
+    if (!anchorRef.current) return
+    const rect = anchorRef.current.getBoundingClientRect()
+    // Coba taruh di kanan tombol; kalau kepotong tepi kanan layar, taruh di kiri.
+    const width = 280
+    const left = rect.right + width + 8 > window.innerWidth
+      ? Math.max(8, rect.left - width - 8)
+      : rect.right + 8
+    setPos({ top: Math.min(rect.top, window.innerHeight - 220), left })
+  }, [anchorRef])
+
+  useEffect(() => {
+    textareaRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    function handle(e) {
+      if (ref.current && !ref.current.contains(e.target) &&
+        anchorRef.current && !anchorRef.current.contains(e.target)) {
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [onClose, anchorRef])
+
+  useEffect(() => {
+    const handleScroll = (e) => {
+      if (ref.current && ref.current.contains(e.target)) return
+      onClose()
+    }
+    window.addEventListener('scroll', handleScroll, true)
+    return () => window.removeEventListener('scroll', handleScroll, true)
+  }, [onClose])
+
+  if (!pos) return null
+
+  const handleSave = async () => {
+    const ok = await onSave(text)
+    if (ok) onClose()
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') onClose()
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSave()
+  }
+
+  return createPortal((
+    <div
+      ref={ref}
+      style={{
+        position: 'fixed', top: pos.top, left: pos.left, zIndex: 500,
+        background: 'var(--surface, #fff)', border: '1px solid var(--border, #ddd)',
+        borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.16)',
+        padding: '0.75rem', width: 280, boxSizing: 'border-box',
+        display: 'flex', flexDirection: 'column', gap: 8,
+      }}
+    >
+      <textarea
+        ref={textareaRef}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Tulis catatan untuk produk ini…"
+        maxLength={2000}
+        rows={5}
+        style={{
+          width: '100%', resize: 'vertical', boxSizing: 'border-box',
+          padding: '8px 10px', borderRadius: 6,
+          border: '1px solid var(--border, #ddd)', background: 'var(--surface, #fff)',
+          color: 'var(--ink, #111)', fontSize: 13, fontFamily: 'inherit',
+        }}
+      />
+      {updatedAt && (
+        <p className="muted" style={{ margin: 0, fontSize: 11.5 }}>
+          Terakhir diedit: {formatNoteTimestamp(updatedAt)}
+        </p>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+        {initialText
+          ? (
+            <button
+              type="button"
+              onClick={async () => { const ok = await onDelete(); if (ok) onClose() }}
+              disabled={saving}
+              style={{
+                padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border, #ddd)',
+                background: 'transparent', color: 'var(--accent, #D85A30)',
+                cursor: saving ? 'default' : 'pointer', fontSize: 12,
+              }}
+            >
+              Hapus
+            </button>
+          )
+          : <span />}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            style={{
+              padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border, #ddd)',
+              background: 'transparent', color: 'var(--ink, #111)',
+              cursor: saving ? 'default' : 'pointer', fontSize: 12,
+            }}
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              padding: '5px 12px', borderRadius: 6, border: 'none',
+              background: 'var(--ink, #111)', color: '#fff',
+              cursor: saving ? 'default' : 'pointer', fontSize: 12, fontWeight: 600,
+            }}
+          >
+            {saving ? 'Menyimpan…' : 'Simpan'}
+          </button>
+        </div>
+      </div>
+    </div>
+  ), document.body)
+}
+
+function NoteCell({ kodeBarang, note, saving, onSave, onDelete }) {
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef(null)
+  const hasNote = !!note?.text
+
+  if (!kodeBarang) {
+    return <td style={{ textAlign: 'center' }}><span className="muted">—</span></td>
+  }
+
+  const title = hasNote
+    ? `${note.text}\n\nTerakhir diedit: ${formatNoteTimestamp(note.updatedAt)}`
+    : 'Tambah catatan'
+
+  return (
+    <td style={{ textAlign: 'center', position: 'relative' }}>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        title={title}
+        style={{
+          border: 'none', background: 'transparent', cursor: 'pointer',
+          fontSize: 15, lineHeight: 1, padding: 4, borderRadius: 6,
+          opacity: hasNote ? 1 : 0.35,
+        }}
+      >
+        {hasNote ? '📝' : '🗒️'}
+      </button>
+      {open && (
+        <NoteEditorPopover
+          initialText={note?.text || ''}
+          updatedAt={note?.updatedAt}
+          saving={saving}
+          onSave={(text) => onSave(kodeBarang, text)}
+          onDelete={() => onDelete(kodeBarang)}
+          onClose={() => setOpen(false)}
+          anchorRef={btnRef}
+        />
+      )}
+    </td>
+  )
+}
+
 // ── Main table component ──────────────────────────────────────────────────────
 
 const PAGE_SIZE_OPTIONS = [
@@ -953,6 +1141,7 @@ function BestSellerTable({
   groupMode, onGroupModeChange,
   imageIndex, imageMeta, imageError, imageUploadError, imageUploading,
   onImageFile, showImages, onToggleShowImages,
+  notes, notesError, savingNoteFor, onSaveNote, onDeleteNote,
 }) {
   const totalKuantitas = rows.reduce((s, r) => s + r.kuantitas, 0)
   const totalHargaProduk = rows.reduce((s, r) => s + r.hargaProduk, 0)
@@ -1052,6 +1241,9 @@ function BestSellerTable({
       )}
       {imageUploadError && (
         <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {imageUploadError}</p>
+      )}
+      {notesError && (
+        <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {notesError}</p>
       )}
 
       {/* ── Search bar ── */}
@@ -1180,6 +1372,7 @@ function BestSellerTable({
             <table className="data-table">
               <thead>
                 <tr>
+                  <th style={{ width: 40 }} title="Catatan">📝</th>
                   <th style={{ width: 44 }}>#</th>
                   <ColHeader col="kodeBarang" label="Kode Barang" align="left"  {...colHeaderProps} />
                   {groupMode === 'induk' && <ColHeader col="tipe" label="Tipe" align="left" {...colHeaderProps} />}
@@ -1199,7 +1392,7 @@ function BestSellerTable({
               <tbody>
                 {pageRows.length === 0 && (
                   <tr>
-                    <td colSpan={(hasStock ? 10 : 5) + (groupMode === 'induk' ? 1 : 0) + (showImageCol ? 2 : 0)} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                    <td colSpan={(hasStock ? 10 : 5) + (groupMode === 'induk' ? 1 : 0) + (showImageCol ? 2 : 0) + 1} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
                       <p className="upload-title" style={{ margin: '0 0 4px' }}>Tidak ada produk ditemukan</p>
                       <p className="upload-sub" style={{ margin: 0 }}>
                         {searchQuery
@@ -1229,6 +1422,13 @@ function BestSellerTable({
                       style={rowStyle}
                       title={rowTitle}
                     >
+                      <NoteCell
+                        kodeBarang={row.kodeBarang}
+                        note={notes?.[row.kodeBarang]}
+                        saving={savingNoteFor === row.kodeBarang}
+                        onSave={onSaveNote}
+                        onDelete={onDeleteNote}
+                      />
                       <td className="mono" style={{ textAlign: 'center' }}>{row.rank}</td>
                       <td className="mono" style={{ whiteSpace: 'nowrap' }}>
                         {row.kodeBarang || '—'}
@@ -1417,6 +1617,56 @@ export default function ProdukTerlarisPage() {
   // (mpStock, biar bisa difilter/diurutkan) maupun buat render kolom Gambar.
   const imageIndex = useMemo(() => buildSkuIndex(imageLookup), [imageLookup])
 
+  // Catatan per baris (kodeBarang) — { [kodeBarang]: { text, updatedAt } },
+  // disimpan di server (Vercel Blob) lewat /api/notes, jadi persist & kelihatan
+  // di semua browser/device.
+  const [notes, setNotes] = useState({})
+  const [notesError, setNotesError] = useState(null)
+  const [savingNoteFor, setSavingNoteFor] = useState(null) // kodeBarang yang lagi disimpan
+
+  const loadNotes = useCallback(async () => {
+    setNotesError(null)
+    try {
+      const res = await fetch('/api/notes', { cache: 'no-store' })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Gagal memuat catatan (${res.status})`)
+      const data = await res.json()
+      setNotes(data.notes || {})
+    } catch (err) {
+      setNotesError(err.message)
+    }
+  }, [])
+
+  const saveNote = useCallback(async (kodeBarang, text) => {
+    setSavingNoteFor(kodeBarang)
+    const trimmed = text.trim()
+    try {
+      const res = await fetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kodeBarang, text: trimmed }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Gagal menyimpan catatan (${res.status})`)
+      const result = await res.json()
+      setNotes(prev => {
+        const next = { ...prev }
+        if (result.deleted) {
+          delete next[kodeBarang]
+        } else {
+          next[kodeBarang] = { text: result.text, updatedAt: result.updatedAt }
+        }
+        return next
+      })
+      return true
+    } catch (err) {
+      setNotesError(err.message)
+      return false
+    } finally {
+      setSavingNoteFor(null)
+    }
+  }, [])
+
+  const deleteNote = useCallback((kodeBarang) => saveNote(kodeBarang, ''), [saveNote])
+
   const loadSkuImages = useCallback(async () => {
     setImageError(null)
     try {
@@ -1526,6 +1776,7 @@ export default function ProdukTerlarisPage() {
         setLoggedIn(true)
         loadStock()
         loadSkuImages()
+        loadNotes()
 
         // Default halaman pertama kali dibuka: "30 hari terakhir" (gabungan semua
         // periode, difilter ke 30 hari terakhir) — bukan cuma periode terbaru.
@@ -1657,12 +1908,13 @@ export default function ProdukTerlarisPage() {
       await loadData('')
       loadStock()
       loadSkuImages()
+      loadNotes()
     } catch (err) {
       setLoginError(err.message)
     } finally {
       setLoginLoading(false)
     }
-  }, [password, loadPeriods, loadData, loadStock, loadSkuImages])
+  }, [password, loadPeriods, loadData, loadStock, loadSkuImages, loadNotes])
 
   // ── Derived data ──────────────────────────────────────────────────────────────
   const analysis = payload?.analysis
@@ -1935,6 +2187,11 @@ export default function ProdukTerlarisPage() {
             onImageFile={handleImageFile}
             showImages={showImages}
             onToggleShowImages={handleToggleShowImages}
+            notes={notes}
+            notesError={notesError}
+            savingNoteFor={savingNoteFor}
+            onSaveNote={saveNote}
+            onDeleteNote={deleteNote}
           />
         </div>
       )}
