@@ -1098,6 +1098,61 @@ function NoteCell({ kodeBarang, note, childNotes, saving, onSave, onDelete }) {
   )
 }
 
+// ── Modal preview gambar produk (klik thumbnail di kolom Gambar) ───────────────
+
+function ImagePreviewModal({ url, alt, onClose }) {
+  useEffect(() => {
+    const handleKey = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [onClose])
+
+  return createPortal((
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,.65)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '2rem',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--surface, #fff)', borderRadius: 12, padding: '1rem',
+          maxWidth: 'min(90vw, 640px)', maxHeight: '90vh',
+          display: 'flex', flexDirection: 'column', gap: 10,
+          boxShadow: '0 20px 60px rgba(0,0,0,.35)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>{alt}</p>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              border: 'none', background: 'transparent', cursor: 'pointer',
+              fontSize: 20, lineHeight: 1, padding: 4, color: 'var(--ink, #111)',
+            }}
+            aria-label="Tutup"
+          >
+            ×
+          </button>
+        </div>
+        <img
+          src={url}
+          alt={alt}
+          style={{
+            maxWidth: '100%', maxHeight: '75vh', width: 'auto', height: 'auto',
+            objectFit: 'contain', borderRadius: 8, display: 'block', margin: '0 auto',
+          }}
+        />
+      </div>
+    </div>
+  ), document.body)
+}
+
 // ── Main table component ──────────────────────────────────────────────────────
 
 const PAGE_SIZE_OPTIONS = [
@@ -1206,6 +1261,7 @@ function BestSellerTable({
   const colHeaderProps = { sortBy, sortDir, onSortChange, colFilters, onColFilterChange, brandOptions }
 
   const imageInputRef = useRef(null)
+  const [previewImage, setPreviewImage] = useState(null) // { url, alt } | null
 
   // ── Pagination (client-side; slices the already-filtered `rows`) ──
   const [pageSize, setPageSize] = useState(50)
@@ -1508,8 +1564,10 @@ function BestSellerTable({
                               ? <img
                                   src={proxiedUrl}
                                   alt={row.namaBarang || row.kodeBarang || ''}
-                                  style={{ height: 40, width: 'auto', borderRadius: 4, objectFit: 'cover', verticalAlign: 'middle' }}
+                                  style={{ height: 40, width: 'auto', borderRadius: 4, objectFit: 'cover', verticalAlign: 'middle', cursor: 'pointer' }}
                                   loading="lazy"
+                                  title="Klik untuk memperbesar"
+                                  onClick={() => setPreviewImage({ url: proxiedUrl, alt: row.namaBarang || row.kodeBarang || '' })}
                                   onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
                                 />
                               : <span className="muted">—</span>}
@@ -1588,6 +1646,13 @@ function BestSellerTable({
             totalRows={rows.length}
           />
         </>
+      )}
+      {previewImage && (
+        <ImagePreviewModal
+          url={previewImage.url}
+          alt={previewImage.alt}
+          onClose={() => setPreviewImage(null)}
+        />
       )}
     </>
   )
