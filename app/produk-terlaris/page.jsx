@@ -262,7 +262,7 @@ function groupByParentSku(rows) {
     const hasDot = kode.includes('.')
 
     if (!kode || !hasDot) {
-      standalone.push({ ...r, tipe: 'tunggal', variantCount: 1, variantCodes: kode ? [kode] : [] })
+      standalone.push({ ...r, tipe: 'tunggal', variantCount: 1, variantCodes: kode ? [{ kode, namaBarang: r.namaBarang }] : [] })
       return
     }
 
@@ -285,7 +285,7 @@ function groupByParentSku(rows) {
     g.totalHpp += r.totalHpp || 0
     g.variantCount += 1
     g.hasStockData = g.hasStockData || r.hasStockData
-    g.variantCodes.push(kode)
+    g.variantCodes.push({ kode, namaBarang: r.namaBarang })
     if (r.hasMpStockData) {
       g.mpStock += r.mpStock || 0
       g.hasMpStockData = true
@@ -955,7 +955,7 @@ function NoteEditorPopover({ initialText, updatedAt, saving, childNotes, onSave,
             <div key={cn.kodeBarang} style={{
               background: 'var(--paper, #f6f4ef)', borderRadius: 6, padding: '6px 8px',
             }}>
-              <p className="mono muted" style={{ margin: '0 0 2px', fontSize: 10.5 }}>{cn.kodeBarang}</p>
+              <p className="muted" style={{ margin: '0 0 2px', fontSize: 10.5, fontWeight: 600 }}>{cn.namaBarang || cn.kodeBarang}</p>
               <p style={{ margin: 0, fontSize: 12.5, whiteSpace: 'pre-wrap' }}>{cn.text}</p>
               <p className="muted" style={{ margin: '2px 0 0', fontSize: 10.5 }}>{formatNoteTimestamp(cn.updatedAt)}</p>
             </div>
@@ -1053,7 +1053,7 @@ function NoteCell({ kodeBarang, note, childNotes, saving, onSave, onDelete }) {
   if (hasChildNotes) {
     titleParts.push(
       `Catatan dari ${childNotes.length} varian:\n` +
-      childNotes.map(cn => `• [${cn.kodeBarang}] ${cn.text}`).join('\n')
+      childNotes.map(cn => `• [${cn.namaBarang || cn.kodeBarang}] ${cn.text}`).join('\n')
     )
   }
   const title = titleParts.length ? titleParts.join('\n\n') : 'Tambah catatan'
@@ -1470,8 +1470,8 @@ function BestSellerTable({
                   // tidak "hilang"/ketutup di balik baris gabungan.
                   const childNotes = (groupMode === 'induk' && row.variantCodes && row.variantCodes.length > 0)
                     ? row.variantCodes
-                      .filter(code => code !== row.kodeBarang)
-                      .map(code => ({ kodeBarang: code, ...notes?.[code] }))
+                      .filter(v => v.kode !== row.kodeBarang)
+                      .map(v => ({ kodeBarang: v.kode, namaBarang: v.namaBarang, ...notes?.[v.kode] }))
                       .filter(cn => cn.text)
                     : []
                   return (
