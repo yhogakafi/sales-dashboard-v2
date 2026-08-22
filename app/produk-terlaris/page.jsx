@@ -381,6 +381,11 @@ const NUM_OPS = [
 
 const EMPTY_COL_FILTER = { op: '', value: '', value2: '' }
 
+// Kolom "Tipe" cuma ada 2 kemungkinan nilai (di mode "Per SKU Gabungan"),
+// jadi filternya pakai checklist tetap, bukan pilih kondisi teks segala.
+const TIPE_OPTIONS = ['gabungan', 'tunggal']
+const TIPE_LABELS = { gabungan: 'Gabungan', tunggal: 'Tunggal' }
+
 function applyColFilter(rows, colFilters) {
   return rows.filter(row => {
     for (const [col, f] of Object.entries(colFilters)) {
@@ -402,7 +407,8 @@ function applyColFilter(rows, colFilters) {
       if (col === 'namaBarang' || col === 'brand' || col === 'kodeBarang' || col === 'tipe') {
         const rawCell = col === 'namaBarang' ? row.namaBarang
           : col === 'brand' ? row.brand
-            : row.kodeBarang
+            : col === 'tipe' ? row.tipe
+              : row.kodeBarang
         const cell = (!rawCell || rawCell === '—' ? '' : rawCell).toLowerCase()
         const val = f.value.toLowerCase()
         if (f.op === 'contains' && !cell.includes(val)) return false
@@ -577,7 +583,9 @@ function HighlightText({ text, query }) {
 
 function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }) {
   const isText = col === 'namaBarang' || col === 'brand' || col === 'kodeBarang' || col === 'tipe'
-  const isBrand = col === 'brand'
+  const isChecklist = col === 'brand' || col === 'tipe'
+  const showChecklistSearch = col === 'brand' // daftar brand bisa panjang; tipe cuma 2 opsi, gak perlu cari
+  const optionLabel = col === 'tipe' ? (v => TIPE_LABELS[v] || v) : (v => v)
   const ops = isText ? TEXT_OPS : NUM_OPS
   const ref = useRef(null)
   const [brandSearch, setBrandSearch] = useState('')
@@ -626,17 +634,17 @@ function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }
 
   const basePos = { position: 'fixed', top: pos.top, left: pos.left, zIndex: 500 }
 
-  if (isBrand) {
+  if (isChecklist) {
     const allOptions = options || []
-    // Kalau belum ada filter aktif ('in' belum diset), anggap semua brand ke-checklist
+    // Kalau belum ada filter aktif ('in' belum diset), anggap semua opsi ke-checklist
     const checked = filter.op === 'in' ? (filter.values || []) : allOptions
-    const visibleOptions = brandSearch.trim()
+    const visibleOptions = showChecklistSearch && brandSearch.trim()
       ? allOptions.filter(b => b.toLowerCase().includes(brandSearch.trim().toLowerCase()))
       : allOptions
 
-    const toggleBrand = (brand) => {
+    const toggleOption = (opt) => {
       const current = filter.op === 'in' ? (filter.values || []) : allOptions
-      const next = current.includes(brand) ? current.filter(b => b !== brand) : [...current, brand]
+      const next = current.includes(opt) ? current.filter(b => b !== opt) : [...current, opt]
       if (next.length === allOptions.length) {
         onChange(EMPTY_COL_FILTER) // semua ke-checklist lagi = sama saja dengan tidak difilter
       } else {
@@ -652,18 +660,20 @@ function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }
         padding: '0.75rem', minWidth: 220,
         display: 'flex', flexDirection: 'column',
       }}>
-        <input
-          type="text"
-          placeholder="Cari brand…"
-          value={brandSearch}
-          onChange={e => setBrandSearch(e.target.value)}
-          style={{
-            width: '100%', padding: '6px 10px', borderRadius: 6,
-            border: '1px solid var(--border, #ddd)', background: 'var(--surface, #fff)',
-            color: 'var(--ink, #111)', fontSize: 13, marginBottom: 6, boxSizing: 'border-box',
-          }}
-          autoFocus
-        />
+        {showChecklistSearch && (
+          <input
+            type="text"
+            placeholder="Cari brand…"
+            value={brandSearch}
+            onChange={e => setBrandSearch(e.target.value)}
+            style={{
+              width: '100%', padding: '6px 10px', borderRadius: 6,
+              border: '1px solid var(--border, #ddd)', background: 'var(--surface, #fff)',
+              color: 'var(--ink, #111)', fontSize: 13, marginBottom: 6, boxSizing: 'border-box',
+            }}
+            autoFocus
+          />
+        )}
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
           <button
@@ -682,16 +692,16 @@ function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }
 
         <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3, paddingRight: 2 }}>
           {visibleOptions.length === 0 && (
-            <p style={{ fontSize: 12.5, color: 'var(--muted, #888)', margin: '4px 0' }}>Tidak ada brand yang cocok.</p>
+            <p style={{ fontSize: 12.5, color: 'var(--muted, #888)', margin: '4px 0' }}>Tidak ada opsi yang cocok.</p>
           )}
-          {visibleOptions.map(brand => (
-            <label key={brand} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer', padding: '2px 2px' }}>
+          {visibleOptions.map(opt => (
+            <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer', padding: '2px 2px' }}>
               <input
                 type="checkbox"
-                checked={checked.includes(brand)}
-                onChange={() => toggleBrand(brand)}
+                checked={checked.includes(opt)}
+                onChange={() => toggleOption(opt)}
               />
-              {brand}
+              {optionLabel(opt)}
             </label>
           ))}
         </div>
@@ -854,7 +864,7 @@ function ColHeader({ col, label, align = 'left', sortBy, sortDir, onSortChange, 
         <ColFilterPopover
           col={col}
           filter={filter}
-          options={brandOptions}
+          options={col === 'tipe' ? TIPE_OPTIONS : brandOptions}
           onChange={f => onColFilterChange(col, f)}
           onClose={() => setOpen(false)}
           anchorRef={btnRef}
