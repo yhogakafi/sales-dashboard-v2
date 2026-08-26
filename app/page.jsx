@@ -12,6 +12,8 @@ import CategoryDateDetail from '@/components/CategoryDateDetail'
 import CompareView from '@/components/CompareView'
 import AccountChart from '@/components/AccountChart'
 import { exportToExcel, exportToExcelScreen, exportToExcelCompare } from '@/lib/exportExcel'
+import { filterAnalysisByDateRange } from '@/lib/trimAnalysis'
+import { exportElementToPdf } from '@/lib/exportPdf'
 
 async function fetchData(id) {
   const url = id ? `/api/data?id=${encodeURIComponent(id)}` : '/api/data'
@@ -21,7 +23,7 @@ async function fetchData(id) {
   return body
 }
 
-function ExportDropdown({ analysis, categories, isComparing, payloadA, payloadB, labelA, labelB, alignMode }) {
+function ExportDropdown({ analysis, categories, isComparing, payloadA, payloadB, labelA, labelB, alignMode, onExportPdf, pdfLoading, pdfProgress }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef(null)
 
@@ -33,6 +35,17 @@ function ExportDropdown({ analysis, categories, isComparing, payloadA, payloadB,
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
+
+  const pdfItem = onExportPdf && (
+    <button
+      className="export-dropdown-item"
+      disabled={pdfLoading}
+      onClick={() => { onExportPdf(); setOpen(false) }}
+    >
+      <span className="export-item-label">📄 {pdfLoading ? (pdfProgress || 'Membuat PDF…') : 'Unduh PDF'}</span>
+      <span className="export-item-sub">Semua yang tampil di layar saat ini, termasuk grafik</span>
+    </button>
+  )
 
   if (isComparing) {
     // Compare mode: both options export the compare view, but "screen" is the exact aligned data
@@ -53,6 +66,7 @@ function ExportDropdown({ analysis, categories, isComparing, payloadA, payloadB,
         </button>
         {open && (
           <div className="export-dropdown-menu">
+            {pdfItem}
             <button className="export-dropdown-item" onClick={doExportCompare}>
               <span className="export-item-label">🖥️ Tampilan perbandingan</span>
               <span className="export-item-sub">Perbandingan {labelA} vs {labelB} — metrik, platform, pelanggan</span>
@@ -94,6 +108,7 @@ function ExportDropdown({ analysis, categories, isComparing, payloadA, payloadB,
       </button>
       {open && (
         <div className="export-dropdown-menu">
+          {pdfItem}
           <button
             className="export-dropdown-item"
             onClick={() => { exportToExcel(analysis, categories); setOpen(false) }}
@@ -130,6 +145,15 @@ export default function HomePage() {
   const [comparePayload, setComparePayload] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+
+  // ── Rentang tanggal yang ditampilkan (khusus mode satu periode) ──
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
+  // ── Ekspor PDF dari tampilan layar ──
+  const exportRef = useRef(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const [pdfProgress, setPdfProgress] = useState('')
 
   const loadPeriods = useCallback(async () => {
     const res = await fetch('/api/periods', { cache: 'no-store' })
@@ -210,8 +234,68 @@ export default function HomePage() {
 
   const analysis = payload?.analysis
   const categories = payload?.categories || {}
-  const hasAnyCategory = Object.keys(categories).length > 0
   const isComparing = !!(comparePayload?.analysis)
+
+  // Setiap kali periode (atau data) berganti, reset rentang tanggal ke rentang penuh periode itu.
+  useEffect(() => {
+    if (analysis) {
+      setDateFrom(analysis.firstDateKey)
+      setDateTo(analysis.lastDateKey)
+    } else {
+      setDateFrom('')
+      setDateTo('')
+    }
+  }, [analysis?.firstDateKey, analysis?.lastDateKey, selectedId])
+
+  const displayAnalysis = analysis ? filterAnalysisByDateRange(analysis, dateFrom, dateTo) : null
+  const hasAnyCategory = Object.keys(categories).length > 0
+  const hasDateRange = !!(analysis && analysis.dateKeys && analysis.dateKeys.length > 1)
+  const isRangeFiltered = !!displayAnalysis?.dateFiltered
+  const hasDisplayData = !!(displayAnalysis && displayAnalysis.dateKeys.length > 0)
+
+  const handleDateFromChange = useCallback((value) => {
+    setDateFrom(value)
+    if (dateTo && value > dateTo) setDateTo(value)
+  }, [dateTo])
+
+  const handleDateToChange = useCallback((value) => {
+    setDateTo(value)
+    if (dateFrom && value < dateFrom) setDateFrom(value)
+  }, [dateFrom])
+
+  const resetDateRange = useCallback(() => {
+    if (analysis) {
+      setDateFrom(analysis.firstDateKey)
+      setDateTo(analysis.lastDateKey)
+    }
+  }, [analysis])
+
+  const handleExportPdf = useCallback(async () => {
+    if (!exportRef.current || pdfLoading) return
+    setPdfLoading(true)
+    setPdfProgress('Menyiapkan…')
+    try {
+      const label = isComparing
+        ? `${periods.find(p => p.id === (selectedId || periods[0]?.id))?.label || 'Periode A'} vs ${periods.find(p => p.id === compareId)?.label || 'Periode B'}`
+        : (displayAnalysis?.periodLabel || analysis?.periodLabel || '')
+      const fileSafeLabel = label.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '') || 'periode'
+      await exportElementToPdf(
+        exportRef.current,
+        `dashboard-penjualan-${fileSafeLabel}`,
+        {
+          title: 'Analisa penjualan toko online',
+          subtitle: isComparing ? `Perbandingan: ${label}` : `Periode: ${label}`,
+          onProgress: setPdfProgress,
+        }
+      )
+    } catch (err) {
+      console.error(err)
+      alert('Gagal membuat PDF: ' + (err.message || 'Terjadi kesalahan tak terduga.'))
+    } finally {
+      setPdfLoading(false)
+      setPdfProgress('')
+    }
+  }, [isComparing, periods, selectedId, compareId, displayAnalysis, analysis, pdfLoading])
 
   if (checkingSession) {
     return <div className="app-shell admin-login-shell"><p className="loading-text">Memeriksa sesi…</p></div>
@@ -243,7 +327,7 @@ export default function HomePage() {
         </div>
         {analysis && (
           <ExportDropdown
-            analysis={analysis}
+            analysis={displayAnalysis}
             categories={categories}
             isComparing={isComparing}
             payloadA={payload}
@@ -251,6 +335,9 @@ export default function HomePage() {
             labelA={periods.find(p => p.id === (selectedId || periods[0]?.id))?.label || 'Periode A'}
             labelB={periods.find(p => p.id === compareId)?.label || 'Periode B'}
             alignMode={alignMode}
+            onExportPdf={handleExportPdf}
+            pdfLoading={pdfLoading}
+            pdfProgress={pdfProgress}
           />
         )}
       </header>
@@ -304,6 +391,44 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* ── Pemilih rentang tanggal (khusus mode satu periode) ── */}
+      {!loading && !isComparing && hasDateRange && (
+        <div className="period-picker date-range-picker">
+          <div className="period-picker-group">
+            <label className="period-picker-label">Tampilkan dari tanggal</label>
+            <input
+              type="date"
+              className="category-select"
+              value={dateFrom}
+              min={analysis.firstDateKey}
+              max={analysis.lastDateKey}
+              onChange={(e) => handleDateFromChange(e.target.value)}
+            />
+          </div>
+          <div className="period-picker-group">
+            <label className="period-picker-label">Sampai tanggal</label>
+            <input
+              type="date"
+              className="category-select"
+              value={dateTo}
+              min={analysis.firstDateKey}
+              max={analysis.lastDateKey}
+              onChange={(e) => handleDateToChange(e.target.value)}
+            />
+          </div>
+          {isRangeFiltered && (
+            <button type="button" className="pill-btn" onClick={resetDateRange} title="Kembali ke seluruh rentang periode">
+              ↺ Tampilkan semua ({analysis.dateKeys.length} hari)
+            </button>
+          )}
+          {isRangeFiltered && (
+            <span className="date-range-note">
+              Menampilkan {displayAnalysis.dateKeys.length} hari — {displayAnalysis.dateKeys.length ? displayAnalysis.periodLabel : 'tidak ada transaksi di rentang ini'}
+            </span>
+          )}
+        </div>
+      )}
+
       {loading && <p className="loading-text">Memuat data…</p>}
 
       {!loading && error && (
@@ -313,55 +438,65 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── Mode perbandingan ── */}
-      {!loading && isComparing && (
-        <CompareView
-          payloadA={payload}
-          payloadB={comparePayload}
-          labelA={periods.find(p => p.id === (selectedId || periods[0]?.id))?.label || 'Periode A'}
-          labelB={periods.find(p => p.id === compareId)?.label || 'Periode B'}
-          alignMode={alignMode}
-        />
-      )}
+      <div ref={exportRef}>
+        {/* ── Mode perbandingan ── */}
+        {!loading && isComparing && (
+          <CompareView
+            payloadA={payload}
+            payloadB={comparePayload}
+            labelA={periods.find(p => p.id === (selectedId || periods[0]?.id))?.label || 'Periode A'}
+            labelB={periods.find(p => p.id === compareId)?.label || 'Periode B'}
+            alignMode={alignMode}
+          />
+        )}
 
-      {/* ── Mode normal (satu periode) ── */}
-      {!loading && !isComparing && analysis && (
-        <main className="dashboard">
-          <p className="period-note">
-            Periode data: {analysis.periodLabel} ({analysis.dateKeys.length} hari aktif)
-            {payload.savedAt && (
-              <> &middot; Diperbarui {new Date(payload.savedAt).toLocaleString('id-ID')}</>
+        {/* ── Mode normal (satu periode) ── */}
+        {!loading && !isComparing && displayAnalysis && hasDisplayData && (
+          <main className="dashboard">
+            <p className="period-note">
+              Periode data: {displayAnalysis.periodLabel} ({displayAnalysis.dateKeys.length} hari aktif)
+              {isRangeFiltered && <> &middot; disaring dari periode penuh {analysis.periodLabel}</>}
+              {payload.savedAt && (
+                <> &middot; Diperbarui {new Date(payload.savedAt).toLocaleString('id-ID')}</>
+              )}
+            </p>
+
+            <SummaryCards data={displayAnalysis} />
+
+            <section>
+              <h2 className="section-title">Tren harian</h2>
+              <DailyTrendChart daily={displayAnalysis.daily} />
+            </section>
+
+            <section>
+              <AccountChart mode="single" data={displayAnalysis} />
+            </section>
+
+            <section>
+              <h2 className="section-title">Komposisi omset</h2>
+              <BreakdownCharts platformTotals={displayAnalysis.platformTotals} brandTotals={displayAnalysis.brandTotals} />
+            </section>
+
+            <section><RankingTable data={displayAnalysis} /></section>
+
+            {hasAnyCategory && (
+              <section><CategorySummary data={displayAnalysis} categories={categories} /></section>
             )}
-          </p>
+            {hasAnyCategory && (
+              <section><CategoryDateDetail data={displayAnalysis} categories={categories} /></section>
+            )}
 
-          <SummaryCards data={analysis} />
+            <section><PivotTable data={displayAnalysis} /></section>
+          </main>
+        )}
 
-          <section>
-            <h2 className="section-title">Tren harian</h2>
-            <DailyTrendChart daily={analysis.daily} />
-          </section>
-
-          <section>
-            <AccountChart mode="single" data={analysis} />
-          </section>
-
-          <section>
-            <h2 className="section-title">Komposisi omset</h2>
-            <BreakdownCharts platformTotals={analysis.platformTotals} brandTotals={analysis.brandTotals} />
-          </section>
-
-          <section><RankingTable data={analysis} /></section>
-
-          {hasAnyCategory && (
-            <section><CategorySummary data={analysis} categories={categories} /></section>
-          )}
-          {hasAnyCategory && (
-            <section><CategoryDateDetail data={analysis} categories={categories} /></section>
-          )}
-
-          <section><PivotTable data={analysis} /></section>
-        </main>
-      )}
+        {!loading && !isComparing && displayAnalysis && !hasDisplayData && (
+          <div className="upload-zone">
+            <p className="upload-title">Tidak ada transaksi di rentang tanggal ini</p>
+            <p className="upload-sub">Coba pilih rentang tanggal lain, atau tekan "Tampilkan semua" di atas.</p>
+          </div>
+        )}
+      </div>
 
       <footer className="app-footer">
         <p>Data diperbarui oleh admin toko.</p>

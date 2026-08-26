@@ -592,6 +592,23 @@ section { margin-bottom: 2.5rem; }
   color: var(--ink-muted);
 }
 
+.date-range-picker { margin-top: -0.75rem; }
+.date-range-note {
+  font-size: 12px;
+  color: var(--ink-muted);
+  padding: 6px 2px;
+}
+.period-picker input[type="date"] {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  color: var(--ink);
+  background: var(--surface);
+}
+.export-dropdown-item:disabled { opacity: 0.6; cursor: wait; }
+
 /* --- Period save options (admin) --- */
 .period-list-block { margin-bottom: 1.5rem; }
 .period-save-block { margin-bottom: 0; }
