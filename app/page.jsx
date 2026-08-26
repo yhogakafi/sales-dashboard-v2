@@ -11,7 +11,7 @@ import CategorySummary from '@/components/CategorySummary'
 import CategoryDateDetail from '@/components/CategoryDateDetail'
 import CompareView from '@/components/CompareView'
 import AccountChart from '@/components/AccountChart'
-import { exportToExcel, exportToExcelScreen } from '@/lib/exportExcel'
+import { exportToExcel, exportToExcelScreen, exportToExcelCompare } from '@/lib/exportExcel'
 
 async function fetchData(id) {
   const url = id ? `/api/data?id=${encodeURIComponent(id)}` : '/api/data'
@@ -21,7 +21,7 @@ async function fetchData(id) {
   return body
 }
 
-function ExportDropdown({ analysis, categories }) {
+function ExportDropdown({ analysis, categories, isComparing, payloadA, payloadB, labelA, labelB, alignMode }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef(null)
 
@@ -34,6 +34,48 @@ function ExportDropdown({ analysis, categories }) {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
 
+  if (isComparing) {
+    // Compare mode: both options export the compare view, but "screen" is the exact aligned data
+    const doExportCompare = () => {
+      exportToExcelCompare(
+        payloadA, payloadB, labelA, labelB, alignMode,
+        payloadA?.categories || {}, payloadB?.categories || {}
+      )
+      setOpen(false)
+    }
+    return (
+      <div className="export-split-wrap" ref={wrapRef}>
+        <button className="btn-export-main" onClick={doExportCompare}>
+          ↓ Unduh Excel
+        </button>
+        <button className="btn-export-caret" onClick={() => setOpen(v => !v)} title="Pilih format ekspor" aria-label="Pilih format ekspor">
+          ▾
+        </button>
+        {open && (
+          <div className="export-dropdown-menu">
+            <button className="export-dropdown-item" onClick={doExportCompare}>
+              <span className="export-item-label">🖥️ Tampilan perbandingan</span>
+              <span className="export-item-sub">Perbandingan {labelA} vs {labelB} — metrik, platform, pelanggan</span>
+            </button>
+            <button className="export-dropdown-item" onClick={() => {
+              exportToExcel(payloadA?.analysis, payloadA?.categories || {}); setOpen(false)
+            }}>
+              <span className="export-item-label">📊 Laporan lengkap {labelA}</span>
+              <span className="export-item-sub">Semua sheet detail untuk periode {labelA}</span>
+            </button>
+            <button className="export-dropdown-item" onClick={() => {
+              exportToExcel(payloadB?.analysis, payloadB?.categories || {}); setOpen(false)
+            }}>
+              <span className="export-item-label">📊 Laporan lengkap {labelB}</span>
+              <span className="export-item-sub">Semua sheet detail untuk periode {labelB}</span>
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Normal (single period) mode
   return (
     <div className="export-split-wrap" ref={wrapRef}>
       <button
@@ -200,7 +242,16 @@ export default function HomePage() {
           <h1>Analisa penjualan toko online</h1>
         </div>
         {analysis && (
-          <ExportDropdown analysis={analysis} categories={categories} />
+          <ExportDropdown
+            analysis={analysis}
+            categories={categories}
+            isComparing={isComparing}
+            payloadA={payload}
+            payloadB={comparePayload}
+            labelA={periods.find(p => p.id === (selectedId || periods[0]?.id))?.label || 'Periode A'}
+            labelB={periods.find(p => p.id === compareId)?.label || 'Periode B'}
+            alignMode={alignMode}
+          />
         )}
       </header>
 
