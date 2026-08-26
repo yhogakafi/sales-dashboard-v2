@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import SummaryCards from '@/components/SummaryCards'
 import DailyTrendChart from '@/components/DailyTrendChart'
@@ -11,7 +11,7 @@ import CategorySummary from '@/components/CategorySummary'
 import CategoryDateDetail from '@/components/CategoryDateDetail'
 import CompareView from '@/components/CompareView'
 import AccountChart from '@/components/AccountChart'
-import { exportToExcel } from '@/lib/exportExcel'
+import { exportToExcel, exportToExcelSummary } from '@/lib/exportExcel'
 
 async function fetchData(id) {
   const url = id ? `/api/data?id=${encodeURIComponent(id)}` : '/api/data'
@@ -19,6 +19,57 @@ async function fetchData(id) {
   const body = await res.json()
   if (!res.ok) throw new Error(body.error || 'Gagal memuat data.')
   return body
+}
+
+function ExportDropdown({ analysis, categories }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  return (
+    <div className="export-split-wrap" ref={wrapRef}>
+      <button
+        className="btn-export-main"
+        onClick={() => { exportToExcel(analysis, categories); setOpen(false) }}
+      >
+        ↓ Unduh Excel
+      </button>
+      <button
+        className="btn-export-caret"
+        onClick={() => setOpen(v => !v)}
+        title="Pilih format ekspor"
+        aria-label="Pilih format ekspor"
+      >
+        ▾
+      </button>
+      {open && (
+        <div className="export-dropdown-menu">
+          <button
+            className="export-dropdown-item"
+            onClick={() => { exportToExcel(analysis, categories); setOpen(false) }}
+          >
+            <span className="export-item-label">📊 Laporan lengkap</span>
+            <span className="export-item-sub">Semua sheet: ringkasan, pivot harian, kategori</span>
+          </button>
+          <button
+            className="export-dropdown-item"
+            onClick={() => { exportToExcelSummary(analysis, categories); setOpen(false) }}
+          >
+            <span className="export-item-label">🖥️ Tampilan layar saja</span>
+            <span className="export-item-sub">Hanya tabel ringkasan yang tampil sekarang</span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function HomePage() {
@@ -149,9 +200,7 @@ export default function HomePage() {
           <h1>Analisa penjualan toko online</h1>
         </div>
         {analysis && (
-          <button className="btn-export" onClick={() => exportToExcel(analysis, categories)}>
-            Unduh sebagai Excel
-          </button>
+          <ExportDropdown analysis={analysis} categories={categories} />
         )}
       </header>
 

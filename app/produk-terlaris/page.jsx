@@ -1247,6 +1247,60 @@ function pagerBtnStyle(disabled) {
   }
 }
 
+function ExportSplitBtnSm({ allRows, pageRows, exportOptions }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  return (
+    <div className="export-split-wrap" ref={wrapRef}>
+      <button
+        className="btn-export-main sm"
+        onClick={() => { exportBarangTerlaris(allRows, exportOptions); setOpen(false) }}
+      >
+        ↓ Ekspor Excel
+      </button>
+      <button
+        className="btn-export-caret sm"
+        onClick={() => setOpen(v => !v)}
+        title="Pilih format ekspor"
+        aria-label="Pilih format ekspor"
+      >
+        ▾
+      </button>
+      {open && (
+        <div className="export-dropdown-menu">
+          <button
+            className="export-dropdown-item"
+            onClick={() => { exportBarangTerlaris(allRows, exportOptions); setOpen(false) }}
+          >
+            <span className="export-item-label">📋 Semua hasil filter</span>
+            <span className="export-item-sub">Ekspor seluruh {allRows.length} baris yang difilter</span>
+          </button>
+          <button
+            className="export-dropdown-item"
+            onClick={() => {
+              exportBarangTerlaris(pageRows, { ...exportOptions, filterDesc: (exportOptions.filterDesc ? exportOptions.filterDesc + ' · ' : '') + `Halaman ini (${pageRows.length} baris)` })
+              setOpen(false)
+            }}
+          >
+            <span className="export-item-label">🖥️ Halaman ini saja</span>
+            <span className="export-item-sub">Hanya {pageRows.length} baris yang tampil di layar</span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BestSellerTable({
   rows, loading, sortBy, sortDir, onSortChange,
   searchQuery, onSearchChange,
@@ -1256,6 +1310,8 @@ function BestSellerTable({
   imageIndex, imageMeta, imageError, imageUploadError, imageUploading,
   onImageFile, showImages, onToggleShowImages,
   notes, notesError, savingNoteFor, onSaveNote, onDeleteNote,
+  exportOptions,
+  onPageRowsChange,
 }) {
   const totalKuantitas = rows.reduce((s, r) => s + r.kuantitas, 0)
   const totalHargaProduk = rows.reduce((s, r) => s + r.hargaProduk, 0)
@@ -1287,6 +1343,12 @@ function BestSellerTable({
   const pageRows = pageSize === 'all'
     ? rows
     : rows.slice((safePage - 1) * pageSize, safePage * pageSize)
+
+  // Notify parent of current page rows so the top export button can use them
+  useEffect(() => {
+    if (onPageRowsChange) onPageRowsChange(pageRows)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageRows, onPageRowsChange])
 
   return (
     <>
@@ -1647,14 +1709,23 @@ function BestSellerTable({
             </table>
           </div>
 
-          <Pagination
-            page={safePage}
-            totalPages={totalPages}
-            pageSize={pageSize}
-            onPageChange={setPage}
-            onPageSizeChange={setPageSize}
-            totalRows={rows.length}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <Pagination
+              page={safePage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              totalRows={rows.length}
+            />
+            {exportOptions && rows.length > 0 && (
+              <ExportSplitBtnSm
+                allRows={rows}
+                pageRows={pageRows}
+                exportOptions={exportOptions}
+              />
+            )}
+          </div>
         </>
       )}
       {previewImage && (
@@ -1693,6 +1764,9 @@ export default function ProdukTerlarisPage() {
     dateFrom: '',
     dateTo: '',
   })
+
+  // Ref to track current page rows for "export displayed" option
+  const pageRowsRef = useRef([])
 
   // Sort
   const [sortBy, setSortBy] = useState('kuantitas')
@@ -2265,17 +2339,15 @@ export default function ProdukTerlarisPage() {
                 </button>
               )}
               {filteredRows.length > 0 && (
-                <button
-                  className="btn-export"
-                  style={{ padding: '7px 14px', fontSize: 13 }}
-                  onClick={() => exportBarangTerlaris(filteredRows, {
+                <ExportSplitBtnSm
+                  allRows={filteredRows}
+                  pageRows={pageRowsRef.current}
+                  exportOptions={{
                     periodLabel: analysis?.periodLabel,
                     filterDesc: activeFilterDesc,
                     hasStock,
-                  })}
-                >
-                  ↓ Ekspor Excel
-                </button>
+                  }}
+                />
               )}
             </div>
           </div>
@@ -2326,6 +2398,12 @@ export default function ProdukTerlarisPage() {
             savingNoteFor={savingNoteFor}
             onSaveNote={saveNote}
             onDeleteNote={deleteNote}
+            exportOptions={filteredRows.length > 0 ? {
+              periodLabel: analysis?.periodLabel,
+              filterDesc: activeFilterDesc,
+              hasStock,
+            } : null}
+            onPageRowsChange={(pr) => { pageRowsRef.current = pr }}
           />
         </div>
       )}
