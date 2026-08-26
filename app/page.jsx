@@ -11,7 +11,7 @@ import CategorySummary from '@/components/CategorySummary'
 import CategoryDateDetail from '@/components/CategoryDateDetail'
 import CompareView from '@/components/CompareView'
 import AccountChart from '@/components/AccountChart'
-import { exportToExcel, exportToExcelSummary } from '@/lib/exportExcel'
+import { exportToExcel, exportToExcelScreen } from '@/lib/exportExcel'
 
 async function fetchData(id) {
   const url = id ? `/api/data?id=${encodeURIComponent(id)}` : '/api/data'
@@ -56,15 +56,15 @@ function ExportDropdown({ analysis, categories }) {
             className="export-dropdown-item"
             onClick={() => { exportToExcel(analysis, categories); setOpen(false) }}
           >
-            <span className="export-item-label">📊 Laporan lengkap</span>
-            <span className="export-item-sub">Semua sheet: ringkasan, pivot harian, kategori</span>
+            <span className="export-item-label">📊 Laporan lengkap (default)</span>
+            <span className="export-item-sub">Ringkasan, pivot omset & order harian, kategori</span>
           </button>
           <button
             className="export-dropdown-item"
-            onClick={() => { exportToExcelSummary(analysis, categories); setOpen(false) }}
+            onClick={() => { exportToExcelScreen(analysis, categories); setOpen(false) }}
           >
-            <span className="export-item-label">🖥️ Tampilan layar saja</span>
-            <span className="export-item-sub">Hanya tabel ringkasan yang tampil sekarang</span>
+            <span className="export-item-label">🖥️ Semua yang tampil di layar</span>
+            <span className="export-item-sub">Ringkasan, tren harian, platform & brand, pivot, kategori</span>
           </button>
         </div>
       )}
