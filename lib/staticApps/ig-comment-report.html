@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laporan Komentar Instagram</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --cream:#FBF6EF;
+    --paper:#FFFFFF;
+    --ink:#241F2B;
+    --ink-soft:#756E7E;
+    --line:#E7DFEE;
+    --violet:#5B3B8C;
+    --violet-deep:#3B2560;
+    --coral:#E1495A;
+    --gold:#E0A845;
+    --tint:#F1E9FB;
+    --good:#3E7D5C;
+    --shadow: 0 1px 2px rgba(59,37,96,0.06), 0 10px 26px -14px rgba(59,37,96,0.22);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--cream);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  ::selection{background:var(--tint);}
+
+  header.top{
+    padding:34px 40px 20px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg, var(--paper) 0%, var(--cream) 100%);
+    position:relative;
+    overflow:hidden;
+  }
+  header.top::before{
+    content:'';
+    position:absolute; left:0; right:0; top:0; height:4px;
+    background:linear-gradient(90deg, var(--coral), var(--gold), var(--violet));
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--coral);
+    font-weight:600;
+    margin:0 0 6px;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-optical-sizing:auto;
+    font-weight:500;
+    font-size:clamp(26px,4vw,38px);
+    margin:0 0 4px;
+    color:var(--violet-deep);
+    letter-spacing:-0.01em;
+  }
+  .subhead{
+    color:var(--ink-soft);
+    font-size:14px;
+    margin:0;
+    max-width:760px;
+    line-height:1.5;
+  }
+
+  .wrap{
+    max-width:1500px;
+    margin:0 auto;
+    padding:32px 40px 60px;
+  }
+
+  #dropzone{
+    border:1.5px dashed var(--violet);
+    border-radius:14px;
+    background:var(--paper);
+    padding:44px 24px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .2s, background .2s;
+  }
+  #dropzone:hover, #dropzone.drag{
+    background:var(--tint);
+    border-color:var(--violet-deep);
+  }
+  #dropzone .tag-icon{ width:40px; height:40px; margin:0 auto 14px; display:block; }
+  #dropzone p.main{
+    font-family:'Fraunces',serif;
+    font-size:18px;
+    color:var(--violet-deep);
+    margin:0 0 6px;
+  }
+  #dropzone p.sub{ color:var(--ink-soft); font-size:13px; margin:0; }
+  #fileInput{ display:none; }
+
+  .rule-box{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px 20px;
+    margin-top:18px;
+    font-size:13px;
+    color:var(--ink-soft);
+    line-height:1.6;
+  }
+  .rule-box b{ color:var(--violet-deep); }
+  .rule-box ol{ margin:6px 0 0; padding-left:18px; }
+  .rule-box li{ margin-bottom:2px; }
+
+  #status{
+    margin-top:14px;
+    font-size:13px;
+    color:var(--coral);
+    display:none;
+  }
+
+  #resultArea{ display:none; margin-top:30px; }
+
+  .meta-card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px 20px;
+    margin-bottom:20px;
+    box-shadow:var(--shadow);
+    display:flex;
+    flex-wrap:wrap;
+    gap:22px;
+  }
+  .meta-item .lbl{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 3px;
+  }
+  .meta-item .val{
+    font-size:14px;
+    font-weight:600;
+    color:var(--violet-deep);
+    margin:0;
+  }
+
+  .summary-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+    gap:10px;
+    margin-bottom:22px;
+  }
+  .summary-box{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 16px;
+    box-shadow:var(--shadow);
+  }
+  .summary-box .lbl{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 4px;
+  }
+  .summary-box .val{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:17px;
+    font-weight:600;
+    color:var(--violet-deep);
+    margin:0;
+  }
+
+  .insight-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+    margin-bottom:22px;
+  }
+  @media (max-width:860px){ .insight-grid{ grid-template-columns:1fr; } }
+  .insight-card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px 18px;
+    box-shadow:var(--shadow);
+  }
+  .insight-card h3{
+    font-family:'Fraunces',serif;
+    font-weight:500;
+    font-size:15px;
+    color:var(--violet-deep);
+    margin:0 0 12px;
+  }
+  .bar-row{
+    display:grid;
+    grid-template-columns:120px 1fr 44px;
+    align-items:center;
+    gap:8px;
+    margin-bottom:7px;
+    font-size:12.5px;
+  }
+  .bar-row .bar-label{
+    color:var(--ink);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .bar-track{ background:var(--tint); border-radius:6px; height:10px; overflow:hidden; }
+  .bar-fill{ height:100%; background:linear-gradient(90deg, var(--violet), var(--coral)); border-radius:6px; }
+  .bar-row .bar-count{ text-align:right; font-family:'IBM Plex Mono',monospace; color:var(--ink-soft); }
+  .insight-empty{ color:var(--ink-soft); font-size:12.5px; }
+
+  .toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:flex-end;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:14px 16px;
+    margin-bottom:16px;
+  }
+  .field{ display:flex; flex-direction:column; gap:4px; }
+  .field label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .field input, .field select{
+    padding:7px 10px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--cream);
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    color:var(--ink);
+  }
+  .field.grow{ flex:1; min-width:220px; }
+  .field.grow input{ width:100%; }
+  .pill-btn{
+    padding:7px 14px;
+    border:1px solid var(--line);
+    border-radius:20px;
+    background:var(--cream);
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .pill-btn.active{ background:var(--violet); color:#fff; border-color:var(--violet); }
+  .btn-export{
+    padding:9px 16px;
+    border-radius:8px;
+    border:none;
+    background:var(--violet);
+    color:#fff;
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+  }
+  .btn-export:hover{ background:var(--violet-deep); }
+
+  .table-scroll{
+    overflow-x:auto;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:12px;
+  }
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  thead th{
+    position:sticky; top:0;
+    background:var(--tint);
+    color:var(--violet-deep);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.03em;
+    text-transform:uppercase;
+    padding:10px 12px;
+    text-align:left;
+    white-space:nowrap;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+    user-select:none;
+  }
+  thead th .arrow{ opacity:.3; margin-left:4px; font-size:10px; }
+  thead th.active .arrow{ opacity:1; }
+  tbody td{
+    padding:9px 12px;
+    border-bottom:1px solid var(--line);
+    vertical-align:top;
+  }
+  tbody td.comment-cell{ white-space:normal; max-width:460px; line-height:1.5; }
+  tbody tr:hover{ background:var(--cream); }
+  .mono{ font-family:'IBM Plex Mono',monospace; }
+  .num{ text-align:right; }
+  .nowrap{ white-space:nowrap; }
+  .muted{ color:var(--ink-soft); }
+  .badge{
+    display:inline-block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    padding:2px 8px;
+    border-radius:20px;
+    font-weight:600;
+    white-space:nowrap;
+  }
+  .badge.teks{ background:var(--tint); color:var(--violet); }
+  .badge.gif{ background:#FDEBD3; color:#8A5A16; }
+
+  .pager{
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:8px; margin-top:12px; font-size:13px; color:var(--ink-soft);
+  }
+  .pager select{
+    padding:4px 8px; border-radius:6px; border:1px solid var(--line);
+    background:var(--paper); font-size:13px;
+  }
+  .pager .nav{ display:flex; align-items:center; gap:6px; }
+  .pager button{
+    padding:4px 10px; border-radius:6px; border:1px solid var(--line);
+    background:var(--paper); cursor:pointer; font-size:13px;
+  }
+  .pager button:disabled{ opacity:.4; cursor:default; }
+
+  @media (max-width:720px){
+    header.top, .wrap{ padding-left:18px; padding-right:18px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <p class="eyebrow">Instagram &middot; Laporan Komentar</p>
+  <h1>Laporan Komentar Instagram</h1>
+  <p class="subhead">
+    Upload file HTML hasil unduhan "Post comments" dari Instagram (menu Unduh Informasi Anda /
+    Download Your Information). Tool ini merapikan seluruh komentar jadi tabel yang bisa dicari,
+    difilter, dan diekspor ke Excel &mdash; siap dikirim sebagai laporan.
+  </p>
+</header>
+
+<div class="wrap">
+
+  <div id="dropzone">
+    <svg class="tag-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M27 5 L43 21 V41 A2 2 0 0 1 41 43 H7 A2 2 0 0 1 5 41 V7 A2 2 0 0 1 7 5 Z" stroke="#5B3B8C" stroke-width="1.6" fill="#F1E9FB"/>
+      <circle cx="16" cy="16" r="3.4" stroke="#E0A845" stroke-width="1.6" fill="none"/>
+      <path d="M27 5 V19 A2 2 0 0 0 29 21 H43" stroke="#5B3B8C" stroke-width="1.6" fill="none"/>
+    </svg>
+    <p class="main">Seret file .html hasil ekspor "Post comments" Instagram ke sini, atau klik untuk memilih</p>
+    <p class="sub">Contoh nama file: post_comments_1.html — dari paket "Download Your Information" (format HTML)</p>
+    <input type="file" id="fileInput" accept=".html,.htm">
+  </div>
+
+  <div class="rule-box">
+    <b>Yang dibaca dari file:</b> setiap entri komentar (akun yang dikomentari / "Media Owner",
+    isi komentar, dan waktu). Komentar berupa GIF/stiker tanpa teks tetap dicatat dan ditandai
+    sebagai <span class="badge gif">GIF/Stiker</span>.
+    <ol>
+      <li>Buka permintaan data Anda di Instagram → Unduh Informasi Anda, pilih format <b>HTML</b>.</li>
+      <li>Cari file bernama <span class="mono">post_comments_*.html</span> di dalam hasil unduhan.</li>
+      <li>Upload file itu di sini — semuanya diproses langsung di browser, tidak dikirim ke server manapun.</li>
+    </ol>
+  </div>
+
+  <p id="status"></p>
+
+  <div id="resultArea">
+    <div class="meta-card" id="metaCard"></div>
+
+    <div class="summary-grid" id="summaryGrid"></div>
+
+    <div class="insight-grid">
+      <div class="insight-card">
+        <h3>Akun paling sering dikomentari</h3>
+        <div id="topAccounts"></div>
+      </div>
+      <div class="insight-card">
+        <h3>Komentar per bulan</h3>
+        <div id="monthlyBreakdown"></div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <div class="field grow">
+        <label for="searchInput">Cari akun / isi komentar</label>
+        <input type="text" id="searchInput" placeholder="cth: kirinesia.id, savage...">
+      </div>
+      <div class="field">
+        <label>Jenis</label>
+        <div style="display:flex; gap:6px;">
+          <button class="pill-btn active" data-view="all">Semua</button>
+          <button class="pill-btn" data-view="teks">Teks</button>
+          <button class="pill-btn" data-view="gif">GIF/Stiker</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="dateFrom">Dari tanggal</label>
+        <input type="date" id="dateFrom">
+      </div>
+      <div class="field">
+        <label for="dateTo">Sampai tanggal</label>
+        <input type="date" id="dateTo">
+      </div>
+      <button class="pill-btn" id="resetFilterBtn">Reset Filter</button>
+      <button class="btn-export" id="exportBtn">&darr; Ekspor Excel</button>
+    </div>
+
+    <p class="result-count muted" id="resultCount" style="margin:0 0 10px; font-size:12.5px;"></p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr id="headerRow"></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="pager">
+      <div>
+        <label style="margin-right:6px;">Baris per halaman</label>
+        <select id="pageSize">
+          <option value="25">25</option>
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+          <option value="all">Semua</option>
+        </select>
+        <span class="mono" id="rangeLabel" style="margin-left:10px;"></span>
+      </div>
+      <div class="nav">
+        <button id="firstPage">&laquo;</button>
+        <button id="prevPage">&lsaquo;</button>
+        <span class="mono" id="pageLabel"></span>
+        <button id="nextPage">&rsaquo;</button>
+        <button id="lastPage">&raquo;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var COLS = [
+    { key:'no',       label:'No',             align:'left',  type:'num'  },
+    { key:'waktu',    label:'Waktu',          align:'left',  type:'date' },
+    { key:'akun',     label:'Diposting oleh', align:'left',  type:'text' },
+    { key:'komentar', label:'Komentar',       align:'left',  type:'text' },
+    { key:'jenis',    label:'Jenis',          align:'left',  type:'text' },
+  ];
+
+  var MONTH_MAP = {
+    jan:0, feb:1, mar:2, apr:3, may:4, jun:5,
+    jul:6, aug:7, sep:8, oct:9, nov:10, dec:11
+  };
+  var MONTH_NAMES_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+  var allRows = [];       // seluruh komentar hasil parsing
+  var filtered = [];
+  var sortKey = 'waktu';
+  var sortDir = 'desc';
+  var searchQuery = '';
+  var viewMode = 'all';   // all | teks | gif
+  var dateFrom = '';
+  var dateTo = '';
+  var page = 1;
+  var pageSize = 50;
+  var reportMeta = {};
+
+  var dropzone   = document.getElementById('dropzone');
+  var fileInput  = document.getElementById('fileInput');
+  var statusEl   = document.getElementById('status');
+  var resultArea = document.getElementById('resultArea');
+
+  dropzone.addEventListener('click', function(){ fileInput.click(); });
+  ['dragover','dragenter'].forEach(function(evt){
+    dropzone.addEventListener(evt, function(e){ e.preventDefault(); dropzone.classList.add('drag'); });
+  });
+  ['dragleave','drop'].forEach(function(evt){
+    dropzone.addEventListener(evt, function(e){ e.preventDefault(); dropzone.classList.remove('drag'); });
+  });
+  dropzone.addEventListener('drop', function(e){
+    var f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  fileInput.addEventListener('change', function(e){
+    var f = e.target.files[0];
+    if (f) handleFile(f);
+  });
+
+  function setStatus(msg, isError){
+    statusEl.textContent = msg || '';
+    statusEl.style.display = msg ? 'block' : 'none';
+    statusEl.style.color = isError ? 'var(--coral)' : 'var(--ink-soft)';
+  }
+
+  function handleFile(file){
+    setStatus('Membaca file…');
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try {
+        var htmlText = e.target.result;
+        var doc = new DOMParser().parseFromString(htmlText, 'text/html');
+        reportMeta = parseReportMeta(doc);
+        var rows = parseComments(doc);
+        if (!rows.length) {
+          setStatus('Tidak menemukan entri komentar pada file ini. Pastikan file adalah hasil ekspor "Post comments" dari Instagram (format HTML).', true);
+          return;
+        }
+        allRows = rows;
+        setStatus('');
+        resultArea.style.display = 'block';
+        renderMetaCard();
+        setupDateInputs();
+        page = 1;
+        applyFilters();
+      } catch (err) {
+        console.error(err);
+        setStatus('Gagal membaca file: ' + err.message, true);
+      }
+    };
+    reader.onerror = function(){ setStatus('Gagal membaca file ini.', true); };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  // ── Metadata laporan (akun, tanggal dibuat, rentang data diminta) ───────────
+  function parseReportMeta(doc){
+    var aside = doc.querySelector('aside');
+    var asideText = aside ? aside.textContent.replace(/\s+/g, ' ').trim() : '';
+    var byMatch = asideText.match(/Generated by (.+?) on/);
+    var times = aside ? Array.prototype.slice.call(aside.querySelectorAll('time')) : [];
+    var h1 = doc.querySelector('h1');
+    return {
+      account: byMatch ? byMatch[1].trim() : '',
+      reportTitle: h1 ? h1.textContent.trim() : 'Post comments',
+      generatedOn: times[0] ? times[0].textContent.trim() : '',
+      requestedFrom: times[1] ? times[1].textContent.trim() : '',
+      requestedTo: times[2] ? times[2].textContent.trim() : '',
+    };
+  }
+
+  // ── Parse tiap entri komentar dari tabel-tabel di file export ───────────────
+  // Struktur tiap entri = satu <table> dengan baris berlabel "Comment" (opsional,
+  // kosong kalau komentarnya cuma GIF/stiker), "Media Owner" (akun yang postingannya
+  // dikomentari), dan "Time". Sengaja tidak bergantung pada nama class internal
+  // Meta (bisa berubah antar versi ekspor) — dicari dari isi teksnya saja.
+  function parseComments(doc){
+    var tables = doc.querySelectorAll('table');
+    var out = [];
+    var no = 0;
+
+    tables.forEach(function(table){
+      var rows = table.querySelectorAll('tr');
+      var entry = { comment: '', akun: '', waktuText: '', hasMedia: false };
+      var found = false;
+
+      rows.forEach(function(tr){
+        var tds = tr.querySelectorAll('td');
+        if (!tds.length) return;
+        var rowText = Array.prototype.map.call(tds, function(td){ return td.textContent; }).join('').replace(/\s+/g, ' ').trim();
+
+        if (/^Comment/.test(rowText)) {
+          entry.comment = rowText.replace(/^Comment/, '').trim();
+          found = true;
+        } else if (/^Media Owner/.test(rowText)) {
+          entry.akun = rowText.replace(/^Media Owner/, '').trim();
+          found = true;
+        } else if (/^Time/.test(rowText)) {
+          entry.waktuText = rowText.replace(/^Time/, '').trim();
+          found = true;
+        }
+      });
+
+      if (!found) return; // bukan blok komentar (mis. tabel lain di halaman)
+
+      var img = table.parentElement ? table.parentElement.querySelector('img[src^="http"]') : null;
+      entry.hasMedia = !!img;
+
+      no += 1;
+      var ts = parseExportDate(entry.waktuText);
+      out.push({
+        no: no,
+        akun: entry.akun || '(tidak diketahui)',
+        komentar: entry.comment,
+        jenis: entry.comment ? 'Teks' : 'GIF/Stiker',
+        waktuText: entry.waktuText,
+        waktu: ts,
+      });
+    });
+
+    return out;
+  }
+
+  // Format tanggal ekspor Meta: "Aug 26, 2026 2:48 pm" → Date (parser manual
+  // supaya konsisten di semua browser, tidak bergantung pada Date.parse bawaan).
+  function parseExportDate(str){
+    if (!str) return null;
+    var m = String(str).match(/^([A-Za-z]{3})[a-z]*\s+(\d{1,2}),\s*(\d{4})\s+(\d{1,2}):(\d{2})\s*(am|pm)$/i);
+    if (!m) return null;
+    var mon = MONTH_MAP[m[1].toLowerCase()];
+    if (mon == null) return null;
+    var day = parseInt(m[2], 10);
+    var year = parseInt(m[3], 10);
+    var hour = parseInt(m[4], 10) % 12;
+    if (/pm/i.test(m[6])) hour += 12;
+    var minute = parseInt(m[5], 10);
+    return new Date(year, mon, day, hour, minute);
+  }
+
+  function fmtDateShort(d){
+    if (!d) return '';
+    var dd = String(d.getDate()).padStart(2, '0');
+    var mmm = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][d.getMonth()];
+    var hh = String(d.getHours()).padStart(2, '0');
+    var mi = String(d.getMinutes()).padStart(2, '0');
+    return dd + ' ' + mmm + ' ' + d.getFullYear() + ', ' + hh + ':' + mi;
+  }
+  function fmtDateInput(d){
+    if (!d) return '';
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function renderMetaCard(){
+    var items = [
+      ['Akun', reportMeta.account || '—'],
+      ['Jenis Laporan', reportMeta.reportTitle || 'Post comments'],
+      ['Dibuat Pada', reportMeta.generatedOn || '—'],
+      ['Data Diminta', (reportMeta.requestedFrom && reportMeta.requestedTo) ? (reportMeta.requestedFrom + ' — ' + reportMeta.requestedTo) : '—'],
+      ['Total Baris Terbaca', allRows.length.toLocaleString('id-ID')],
+    ];
+    document.getElementById('metaCard').innerHTML = items.map(function(pair){
+      return '<div class="meta-item"><p class="lbl">' + pair[0] + '</p><p class="val">' + escapeHtml(pair[1]) + '</p></div>';
+    }).join('');
+  }
+
+  function setupDateInputs(){
+    var withDates = allRows.filter(function(r){ return r.waktu; });
+    var minD = withDates.length ? new Date(Math.min.apply(null, withDates.map(function(r){ return r.waktu.getTime(); }))) : null;
+    var maxD = withDates.length ? new Date(Math.max.apply(null, withDates.map(function(r){ return r.waktu.getTime(); }))) : null;
+    var fromEl = document.getElementById('dateFrom');
+    var toEl = document.getElementById('dateTo');
+    fromEl.min = toEl.min = minD ? fmtDateInput(minD) : '';
+    fromEl.max = toEl.max = maxD ? fmtDateInput(maxD) : '';
+    fromEl.value = dateFrom = minD ? fmtDateInput(minD) : '';
+    toEl.value = dateTo = maxD ? fmtDateInput(maxD) : '';
+  }
+
+  // ── Filter, sort, render ─────────────────────────────────────────────────────
+  function applyFilters(){
+    var q = searchQuery.trim().toLowerCase();
+    var fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : null;
+    var toTs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : null;
+
+    filtered = allRows.filter(function(r){
+      if (viewMode === 'teks' && r.jenis !== 'Teks') return false;
+      if (viewMode === 'gif' && r.jenis !== 'GIF/Stiker') return false;
+      if (r.waktu) {
+        var t = r.waktu.getTime();
+        if (fromTs != null && t < fromTs) return false;
+        if (toTs != null && t > toTs) return false;
+      }
+      if (!q) return true;
+      return r.akun.toLowerCase().indexOf(q) !== -1 || r.komentar.toLowerCase().indexOf(q) !== -1;
+    });
+
+    filtered.sort(function(a, b){
+      var mult = sortDir === 'asc' ? 1 : -1;
+      if (sortKey === 'waktu') {
+        var av = a.waktu ? a.waktu.getTime() : -Infinity;
+        var bv = b.waktu ? b.waktu.getTime() : -Infinity;
+        return mult * (av - bv);
+      }
+      if (sortKey === 'no') return mult * (a.no - b.no);
+      return mult * String(a[sortKey] || '').localeCompare(String(b[sortKey] || ''), 'id');
+    });
+
+    document.getElementById('resultCount').textContent = filtered.length.toLocaleString('id-ID') + ' dari ' + allRows.length.toLocaleString('id-ID') + ' komentar cocok dengan filter';
+
+    page = 1;
+    renderSummary();
+    renderInsights();
+    renderHeader();
+    renderPage();
+  }
+
+  function renderSummary(){
+    var total = filtered.length;
+    var teks = filtered.filter(function(r){ return r.jenis === 'Teks'; }).length;
+    var gif = total - teks;
+    var uniqueAccounts = new Set(filtered.map(function(r){ return r.akun; })).size;
+    var withDates = filtered.filter(function(r){ return r.waktu; });
+    var rangeLabel = '—';
+    if (withDates.length) {
+      var minD = new Date(Math.min.apply(null, withDates.map(function(r){ return r.waktu.getTime(); })));
+      var maxD = new Date(Math.max.apply(null, withDates.map(function(r){ return r.waktu.getTime(); })));
+      rangeLabel = fmtDateShort(minD).split(',')[0] + ' – ' + fmtDateShort(maxD).split(',')[0];
+    }
+    var dayCount = withDates.length ? Math.max(1, Math.round((Math.max.apply(null, withDates.map(function(r){return r.waktu.getTime();})) - Math.min.apply(null, withDates.map(function(r){return r.waktu.getTime();}))) / 86400000) + 1) : 1;
+    var avgPerDay = total > 0 ? (total / dayCount).toFixed(1) : '0';
+
+    var boxes = [
+      ['Total Komentar', total.toLocaleString('id-ID')],
+      ['Komentar Teks', teks.toLocaleString('id-ID')],
+      ['Komentar GIF/Stiker', gif.toLocaleString('id-ID')],
+      ['Akun Berbeda Dikomentari', uniqueAccounts.toLocaleString('id-ID')],
+      ['Rata-rata / Hari', avgPerDay],
+      ['Rentang Tanggal', rangeLabel],
+    ];
+    document.getElementById('summaryGrid').innerHTML = boxes.map(function(pair){
+      return '<div class="summary-box"><p class="lbl">' + pair[0] + '</p><p class="val">' + escapeHtml(pair[1]) + '</p></div>';
+    }).join('');
+  }
+
+  function renderInsights(){
+    // Akun paling sering dikomentari
+    var counts = {};
+    filtered.forEach(function(r){ counts[r.akun] = (counts[r.akun] || 0) + 1; });
+    var topAccounts = Object.keys(counts).map(function(k){ return { label: k, count: counts[k] }; })
+      .sort(function(a,b){ return b.count - a.count; }).slice(0, 8);
+    document.getElementById('topAccounts').innerHTML = renderBarList(topAccounts, 'Belum ada data.');
+
+    // Komentar per bulan
+    var monthCounts = {};
+    filtered.forEach(function(r){
+      if (!r.waktu) return;
+      var key = r.waktu.getFullYear() + '-' + String(r.waktu.getMonth()+1).padStart(2,'0');
+      monthCounts[key] = (monthCounts[key] || 0) + 1;
+    });
+    var months = Object.keys(monthCounts).sort().map(function(key){
+      var parts = key.split('-');
+      var label = MONTH_NAMES_ID[parseInt(parts[1],10)-1] + ' ' + parts[0];
+      return { label: label, count: monthCounts[key] };
+    });
+    document.getElementById('monthlyBreakdown').innerHTML = renderBarList(months, 'Belum ada data bertanggal.');
+  }
+
+  function renderBarList(items, emptyMsg){
+    if (!items.length) return '<p class="insight-empty">' + emptyMsg + '</p>';
+    var max = Math.max.apply(null, items.map(function(i){ return i.count; }));
+    return items.map(function(i){
+      var pct = max > 0 ? Math.max(4, Math.round((i.count / max) * 100)) : 0;
+      return '<div class="bar-row">' +
+        '<span class="bar-label" title="' + escapeHtml(i.label) + '">' + escapeHtml(i.label) + '</span>' +
+        '<span class="bar-track"><span class="bar-fill" style="width:' + pct + '%"></span></span>' +
+        '<span class="bar-count">' + i.count.toLocaleString('id-ID') + '</span>' +
+        '</div>';
+    }).join('');
+  }
+
+  function renderHeader(){
+    var headerRow = document.getElementById('headerRow');
+    headerRow.innerHTML = COLS.map(function(c){
+      return '<th class="' + (sortKey === c.key ? 'active' : '') + '" data-key="' + c.key + '" style="text-align:' + c.align + '">' +
+        c.label + '<span class="arrow">' + (sortKey === c.key ? (sortDir === 'asc' ? '↑' : '↓') : '↓') + '</span>' +
+        '</th>';
+    }).join('');
+
+    headerRow.querySelectorAll('th').forEach(function(th){
+      th.addEventListener('click', function(){
+        var key = th.dataset.key;
+        if (sortKey === key) {
+          sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          sortKey = key;
+          sortDir = key === 'waktu' || key === 'no' ? 'desc' : 'asc';
+        }
+        renderHeader();
+        applySortOnly();
+      });
+    });
+  }
+
+  function applySortOnly(){
+    filtered.sort(function(a, b){
+      var mult = sortDir === 'asc' ? 1 : -1;
+      if (sortKey === 'waktu') {
+        var av = a.waktu ? a.waktu.getTime() : -Infinity;
+        var bv = b.waktu ? b.waktu.getTime() : -Infinity;
+        return mult * (av - bv);
+      }
+      if (sortKey === 'no') return mult * (a.no - b.no);
+      return mult * String(a[sortKey] || '').localeCompare(String(b[sortKey] || ''), 'id');
+    });
+    page = 1;
+    renderPage();
+  }
+
+  function renderPage(){
+    var total = filtered.length;
+    var totalPages = pageSize === 'all' ? 1 : Math.max(1, Math.ceil(total / pageSize));
+    page = Math.min(page, totalPages);
+    var pageRows = pageSize === 'all' ? filtered : filtered.slice((page-1)*pageSize, page*pageSize);
+
+    document.getElementById('tbody').innerHTML = pageRows.map(function(r){
+      var badge = r.jenis === 'Teks' ? '<span class="badge teks">Teks</span>' : '<span class="badge gif">GIF/Stiker</span>';
+      var komentarDisplay = r.komentar ? escapeHtml(r.komentar) : '<span class="muted">(komentar GIF/stiker, tanpa teks)</span>';
+      return '<tr>' +
+        '<td class="mono num">' + r.no + '</td>' +
+        '<td class="mono nowrap">' + (r.waktu ? fmtDateShort(r.waktu) : escapeHtml(r.waktuText || '—')) + '</td>' +
+        '<td>' + escapeHtml(r.akun) + '</td>' +
+        '<td class="comment-cell">' + komentarDisplay + '</td>' +
+        '<td>' + badge + '</td>' +
+        '</tr>';
+    }).join('') || ('<tr><td colspan="' + COLS.length + '" class="muted" style="text-align:center; padding:24px;">Tidak ada komentar yang cocok dengan filter.</td></tr>');
+
+    var startRow = total === 0 ? 0 : (page-1)*(pageSize === 'all' ? total : pageSize) + 1;
+    var endRow   = pageSize === 'all' ? total : Math.min(page*pageSize, total);
+    document.getElementById('rangeLabel').textContent = (total === 0 ? '0' : startRow + '–' + endRow) + ' dari ' + total;
+    document.getElementById('pageLabel').textContent = page + ' / ' + totalPages;
+    document.getElementById('firstPage').disabled = page <= 1;
+    document.getElementById('prevPage').disabled  = page <= 1;
+    document.getElementById('nextPage').disabled  = page >= totalPages;
+    document.getElementById('lastPage').disabled  = page >= totalPages;
+  }
+
+  document.getElementById('searchInput').addEventListener('input', function(e){
+    searchQuery = e.target.value;
+    applyFilters();
+  });
+  document.querySelectorAll('[data-view]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      viewMode = btn.dataset.view;
+      document.querySelectorAll('[data-view]').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      applyFilters();
+    });
+  });
+  document.getElementById('dateFrom').addEventListener('change', function(e){
+    dateFrom = e.target.value;
+    if (dateTo && dateFrom > dateTo) { dateTo = dateFrom; document.getElementById('dateTo').value = dateTo; }
+    applyFilters();
+  });
+  document.getElementById('dateTo').addEventListener('change', function(e){
+    dateTo = e.target.value;
+    if (dateFrom && dateTo < dateFrom) { dateFrom = dateTo; document.getElementById('dateFrom').value = dateFrom; }
+    applyFilters();
+  });
+  document.getElementById('resetFilterBtn').addEventListener('click', function(){
+    searchQuery = ''; viewMode = 'all';
+    document.getElementById('searchInput').value = '';
+    document.querySelectorAll('[data-view]').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelector('[data-view="all"]').classList.add('active');
+    setupDateInputs();
+    applyFilters();
+  });
+  document.getElementById('pageSize').addEventListener('change', function(e){
+    pageSize = e.target.value === 'all' ? 'all' : Number(e.target.value);
+    page = 1;
+    renderPage();
+  });
+  document.getElementById('firstPage').addEventListener('click', function(){ page = 1; renderPage(); });
+  document.getElementById('prevPage').addEventListener('click', function(){ page = Math.max(1, page-1); renderPage(); });
+  document.getElementById('nextPage').addEventListener('click', function(){ page = page+1; renderPage(); });
+  document.getElementById('lastPage').addEventListener('click', function(){
+    page = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
+    renderPage();
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', function(){
+    var wb = XLSX.utils.book_new();
+
+    // ── Sheet 1: Ringkasan (buat dibaca cepat oleh atasan) ──
+    var teks = filtered.filter(function(r){ return r.jenis === 'Teks'; }).length;
+    var gif = filtered.length - teks;
+    var uniqueAccounts = new Set(filtered.map(function(r){ return r.akun; })).size;
+
+    var counts = {};
+    filtered.forEach(function(r){ counts[r.akun] = (counts[r.akun] || 0) + 1; });
+    var topAccounts = Object.keys(counts).map(function(k){ return [k, counts[k]]; })
+      .sort(function(a,b){ return b[1]-a[1]; }).slice(0, 10);
+
+    var monthCounts = {};
+    filtered.forEach(function(r){
+      if (!r.waktu) return;
+      var key = r.waktu.getFullYear() + '-' + String(r.waktu.getMonth()+1).padStart(2,'0');
+      monthCounts[key] = (monthCounts[key] || 0) + 1;
+    });
+    var monthRows = Object.keys(monthCounts).sort().map(function(key){
+      var parts = key.split('-');
+      return [MONTH_NAMES_ID[parseInt(parts[1],10)-1] + ' ' + parts[0], monthCounts[key]];
+    });
+
+    var ringkasanAoa = [
+      ['Laporan Komentar Instagram'],
+      ['Akun', reportMeta.account || '—'],
+      ['Jenis Laporan', reportMeta.reportTitle || 'Post comments'],
+      ['Dibuat Pada', reportMeta.generatedOn || '—'],
+      ['Data Diminta', (reportMeta.requestedFrom && reportMeta.requestedTo) ? (reportMeta.requestedFrom + ' s/d ' + reportMeta.requestedTo) : '—'],
+      ['Diekspor Pada', new Date().toLocaleString('id-ID')],
+      [],
+      ['Total Komentar (sesuai filter saat ekspor)', filtered.length],
+      ['Komentar Teks', teks],
+      ['Komentar GIF/Stiker', gif],
+      ['Akun Berbeda Dikomentari', uniqueAccounts],
+      [],
+      ['Akun Paling Sering Dikomentari', 'Jumlah Komentar'],
+    ].concat(topAccounts).concat([[], ['Komentar per Bulan', 'Jumlah Komentar']]).concat(monthRows);
+
+    var wsRingkasan = XLSX.utils.aoa_to_sheet(ringkasanAoa);
+    wsRingkasan['!cols'] = [{wch:38},{wch:20}];
+    XLSX.utils.book_append_sheet(wb, wsRingkasan, 'Ringkasan');
+
+    // ── Sheet 2: Detail komentar ──
+    var detailAoa = [
+      ['No','Waktu','Diposting Oleh','Komentar','Jenis'],
+    ].concat(filtered.map(function(r){
+      return [r.no, r.waktu ? fmtDateShort(r.waktu) : r.waktuText, r.akun, r.komentar, r.jenis];
+    }));
+    var wsDetail = XLSX.utils.aoa_to_sheet(detailAoa);
+    wsDetail['!cols'] = [{wch:6},{wch:18},{wch:24},{wch:70},{wch:12}];
+    XLSX.utils.book_append_sheet(wb, wsDetail, 'Detail Komentar');
+
+    var fileSafe = (reportMeta.account || 'instagram').replace(/[^a-z0-9]+/gi, '_');
+    XLSX.writeFile(wb, 'Laporan_Komentar_IG_' + fileSafe + '.xlsx');
+  });
+
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
