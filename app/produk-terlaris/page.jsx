@@ -1301,6 +1301,24 @@ function ExportSplitBtnSm({ allRows, pageRows, exportOptions }) {
   )
 }
 
+// ── Column visibility definitions ─────────────────────────────────────────────
+const ALL_VISIBLE_COLS = [
+  { key: 'kodeBarang', label: 'Kode Barang' },
+  { key: 'tipe', label: 'Tipe' },
+  { key: 'gambar', label: 'Gambar' },
+  { key: 'namaBarang', label: 'Nama Barang' },
+  { key: 'brand', label: 'Brand' },
+  { key: 'kuantitas', label: 'Terjual' },
+  { key: 'hargaProduk', label: 'Harga Produk' },
+  { key: 'stock', label: 'Stock' },
+  { key: 'mpStock', label: 'MP Stock' },
+  { key: 'unit', label: 'Unit' },
+  { key: 'hpp', label: 'HPP PCS' },
+  { key: 'totalHpp', label: 'Total HPP' },
+  { key: 'ssr', label: 'SSR' },
+]
+const DEFAULT_HIDDEN_COLS = new Set(['gambar', 'mpStock'])
+
 function BestSellerTable({
   rows, loading, sortBy, sortDir, onSortChange,
   searchQuery, onSearchChange,
@@ -1308,7 +1326,7 @@ function BestSellerTable({
   stockLookup, brandOptions,
   groupMode, onGroupModeChange,
   imageIndex, imageMeta, imageError, imageUploadError, imageUploading,
-  onImageFile, showImages, onToggleShowImages,
+  onImageFile,
   notes, notesError, savingNoteFor, onSaveNote, onDeleteNote,
   exportOptions,
   onPageRowsChange,
@@ -1322,7 +1340,27 @@ function BestSellerTable({
   const ssrHppGrand = totalHppTerjual > 0 ? totalHpp / totalHppTerjual : null       // Total HPP / Σ(HPP × Terjual)
   const hasStock = stockLookup !== null
   const hasImages = imageMeta?.count > 0
-  const showImageCol = showImages && hasImages
+
+  // ── Column visibility state ──
+  const [visibleCols, setVisibleCols] = useState(() => {
+    const s = new Set(ALL_VISIBLE_COLS.map(c => c.key))
+    DEFAULT_HIDDEN_COLS.forEach(k => s.delete(k))
+    return s
+  })
+  const [colPickerOpen, setColPickerOpen] = useState(false)
+  const colPickerRef = useRef(null)
+
+  // Close col picker on outside click
+  useEffect(() => {
+    if (!colPickerOpen) return
+    function handle(e) {
+      if (colPickerRef.current && !colPickerRef.current.contains(e.target)) setColPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [colPickerOpen])
+
+  const showImageCol = visibleCols.has('gambar') && hasImages
 
   const colHeaderProps = { sortBy, sortDir, onSortChange, colFilters, onColFilterChange, brandOptions }
 
@@ -1347,7 +1385,7 @@ function BestSellerTable({
   // Notify parent of current page rows so the top export button can use them
   useEffect(() => {
     if (onPageRowsChange) onPageRowsChange(pageRows)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageRows, onPageRowsChange])
 
   return (
@@ -1374,7 +1412,7 @@ function BestSellerTable({
         </button>
       </div>
 
-      {/* ── Upload gambar SKU + toggle tampilkan gambar ── */}
+      {/* ── Upload gambar SKU + column visibility picker ── */}
       <div style={{ display: 'flex', gap: 6, marginBottom: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           ref={imageInputRef}
@@ -1396,22 +1434,78 @@ function BestSellerTable({
         >
           {imageUploading ? 'Mengupload…' : (hasImages ? '📤 Ganti File Gambar SKU' : '📤 Upload Gambar SKU')}
         </button>
-        <button
-          type="button"
-          className="pill-btn"
-          onClick={onToggleShowImages}
-          disabled={!hasImages}
-          title={!hasImages ? 'Upload file gambar SKU dulu' : (showImages ? 'Sembunyikan kolom gambar' : 'Tampilkan kolom gambar')}
-          style={showImages ? { background: 'var(--primary, #3B3A8C)', color: '#fff', borderColor: 'transparent' } : undefined}
-        >
-          {showImages ? '🖼️ Sembunyikan Gambar' : '🖼️ Tampilkan Gambar'}
-        </button>
         {hasImages && (
           <span className="muted" style={{ fontSize: 12.5 }}>
             {imageMeta.count.toLocaleString('id-ID')} SKU tersimpan di server
             {imageMeta.savedAt ? ` · diupdate ${new Date(imageMeta.savedAt).toLocaleString('id-ID')}` : ''}
           </span>
         )}
+
+        {/* ── Column visibility picker ── */}
+        <div ref={colPickerRef} style={{ position: 'relative', marginLeft: 'auto' }}>
+          <button
+            type="button"
+            className="pill-btn"
+            onClick={() => setColPickerOpen(v => !v)}
+            title="Pilih kolom yang ditampilkan"
+            style={colPickerOpen ? { background: 'var(--primary, #3B3A8C)', color: '#fff', borderColor: 'transparent' } : undefined}
+          >
+            ☰ Kolom
+          </button>
+          {colPickerOpen && (
+            <div style={{
+              position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 400,
+              background: 'var(--surface, #fff)', border: '1px solid var(--border, #ddd)',
+              borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.14)',
+              padding: '0.75rem 1rem', minWidth: 200,
+              display: 'flex', flexDirection: 'column', gap: 6,
+            }}>
+              <p style={{ margin: '0 0 6px', fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--muted, #888)' }}>Tampilkan Kolom</p>
+              {ALL_VISIBLE_COLS.map(({ key, label }) => {
+                // "Tipe" hanya relevan di mode Per SKU Gabungan
+                if (key === 'tipe' && groupMode !== 'induk') return null
+                // Kolom stock (brand/stock/unit/hpp/totalHpp/ssr) hanya muncul kalau ada data stock
+                if (['brand', 'stock', 'unit', 'hpp', 'totalHpp', 'ssr'].includes(key) && !hasStock) return null
+                // Kolom gambar & mpStock hanya relevan kalau ada file gambar SKU
+                if (['gambar', 'mpStock'].includes(key) && !hasImages) return null
+                const checked = visibleCols.has(key)
+                return (
+                  <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setVisibleCols(prev => {
+                          const next = new Set(prev)
+                          if (next.has(key)) next.delete(key)
+                          else next.add(key)
+                          return next
+                        })
+                      }}
+                    />
+                    {label}
+                  </label>
+                )
+              })}
+              <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => setVisibleCols(new Set(ALL_VISIBLE_COLS.map(c => c.key)))}
+                  style={{ flex: 1, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border, #ddd)', background: 'none', cursor: 'pointer', fontSize: 11.5, color: 'var(--muted, #888)' }}
+                >Pilih Semua</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const s = new Set(ALL_VISIBLE_COLS.map(c => c.key))
+                    DEFAULT_HIDDEN_COLS.forEach(k => s.delete(k))
+                    setVisibleCols(s)
+                  }}
+                  style={{ flex: 1, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border, #ddd)', background: 'none', cursor: 'pointer', fontSize: 11.5, color: 'var(--muted, #888)' }}
+                >Reset Default</button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       {imageError && (
         <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {imageError}</p>
@@ -1551,19 +1645,19 @@ function BestSellerTable({
                 <tr>
                   <th style={{ width: 40 }} title="Catatan">📝</th>
                   <th style={{ width: 44 }}>#</th>
-                  <ColHeader col="kodeBarang" label="Kode Barang" align="left"  {...colHeaderProps} />
-                  {groupMode === 'induk' && <ColHeader col="tipe" label="Tipe" align="left" {...colHeaderProps} />}
-                  {showImageCol && <th style={{ width: 60, textAlign: 'center' }}>Gambar</th>}
-                  <ColHeader col="namaBarang" label="Nama Barang" align="left"  {...colHeaderProps} />
-                  {hasStock && <ColHeader col="brand" label="Brand" align="left"  {...colHeaderProps} />}
-                  <ColHeader col="kuantitas" label="Terjual" align="right" {...colHeaderProps} />
-                  <ColHeader col="hargaProduk" label="Harga Produk" align="right" {...colHeaderProps} />
-                  {hasStock && <ColHeader col="stock" label="Stock" align="right" {...colHeaderProps} />}
-                  {showImageCol && <ColHeader col="mpStock" label="MP Stock" align="right" {...colHeaderProps} />}
-                  {hasStock && <ColHeader col="unit" label="Unit" align="left" {...colHeaderProps} />}
-                  {hasStock && <ColHeader col="hpp" label="HPP PCS" align="right" {...colHeaderProps} />}
-                  {hasStock && <ColHeader col="totalHpp" label="Total HPP" align="right" {...colHeaderProps} />}
-                  {hasStock && <ColHeader col="ssr" label="SSR" align="right" {...colHeaderProps} />}
+                  {visibleCols.has('kodeBarang') && <ColHeader col="kodeBarang" label="Kode Barang" align="left"  {...colHeaderProps} />}
+                  {groupMode === 'induk' && visibleCols.has('tipe') && <ColHeader col="tipe" label="Tipe" align="left" {...colHeaderProps} />}
+                  {showImageCol && visibleCols.has('gambar') && <th style={{ width: 60, textAlign: 'center' }}>Gambar</th>}
+                  {visibleCols.has('namaBarang') && <ColHeader col="namaBarang" label="Nama Barang" align="left"  {...colHeaderProps} />}
+                  {hasStock && visibleCols.has('brand') && <ColHeader col="brand" label="Brand" align="left"  {...colHeaderProps} />}
+                  {visibleCols.has('kuantitas') && <ColHeader col="kuantitas" label="Terjual" align="right" {...colHeaderProps} />}
+                  {visibleCols.has('hargaProduk') && <ColHeader col="hargaProduk" label="Harga Produk" align="right" {...colHeaderProps} />}
+                  {hasStock && visibleCols.has('stock') && <ColHeader col="stock" label="Stock" align="right" {...colHeaderProps} />}
+                  {showImageCol && visibleCols.has('mpStock') && <ColHeader col="mpStock" label="MP Stock" align="right" {...colHeaderProps} />}
+                  {hasStock && visibleCols.has('unit') && <ColHeader col="unit" label="Unit" align="left" {...colHeaderProps} />}
+                  {hasStock && visibleCols.has('hpp') && <ColHeader col="hpp" label="HPP PCS" align="right" {...colHeaderProps} />}
+                  {hasStock && visibleCols.has('totalHpp') && <ColHeader col="totalHpp" label="Total HPP" align="right" {...colHeaderProps} />}
+                  {hasStock && visibleCols.has('ssr') && <ColHeader col="ssr" label="SSR" align="right" {...colHeaderProps} />}
                 </tr>
               </thead>
               <tbody>
@@ -1617,52 +1711,60 @@ function BestSellerTable({
                         onDelete={onDeleteNote}
                       />
                       <td className="mono" style={{ textAlign: 'center' }}>{row.rank}</td>
-                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                        {row.kodeBarang || '—'}
-                      </td>
-                      {groupMode === 'induk' && (
+                      {visibleCols.has('kodeBarang') && (
+                        <td className="mono" style={{ whiteSpace: 'nowrap' }}>
+                          {row.kodeBarang || '—'}
+                        </td>
+                      )}
+                      {groupMode === 'induk' && visibleCols.has('tipe') && (
                         <td style={{ whiteSpace: 'nowrap' }}>
                           {row.tipe === 'gabungan'
                             ? <span className="badge-brand" style={{ background: 'var(--surface-2, #f0eefc)' }}>Gabungan ({row.variantCount}x)</span>
                             : <span className="mono" style={{ fontSize: 12.5 }}>Tunggal</span>}
                         </td>
                       )}
-                      {showImageCol && (() => {
+                      {showImageCol && visibleCols.has('gambar') && (() => {
                         const entry = lookupSkuEntry(row, imageIndex)
                         const proxiedUrl = entry?.image ? `/api/image-proxy?url=${encodeURIComponent(entry.image)}` : null
                         return (
                           <td style={{ textAlign: 'center' }}>
                             {proxiedUrl
                               ? <img
-                                  src={proxiedUrl}
-                                  alt={row.namaBarang || row.kodeBarang || ''}
-                                  style={{ height: 40, width: 'auto', borderRadius: 4, objectFit: 'cover', verticalAlign: 'middle', cursor: 'pointer' }}
-                                  loading="lazy"
-                                  title="Klik untuk memperbesar"
-                                  onClick={() => setPreviewImage({ url: proxiedUrl, alt: row.namaBarang || row.kodeBarang || '' })}
-                                  onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
-                                />
+                                src={proxiedUrl}
+                                alt={row.namaBarang || row.kodeBarang || ''}
+                                style={{ height: 40, width: 'auto', borderRadius: 4, objectFit: 'cover', verticalAlign: 'middle', cursor: 'pointer' }}
+                                loading="lazy"
+                                title="Klik untuk memperbesar"
+                                onClick={() => setPreviewImage({ url: proxiedUrl, alt: row.namaBarang || row.kodeBarang || '' })}
+                                onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
+                              />
                               : <span className="muted">—</span>}
                           </td>
                         )
                       })()}
-                      <td style={{ fontWeight: 500 }}>
-                        <HighlightText text={row.namaBarang} query={searchQuery} />
-                      </td>
-                      {hasStock && (
+                      {visibleCols.has('namaBarang') && (
+                        <td style={{ fontWeight: 500 }}>
+                          <HighlightText text={row.namaBarang} query={searchQuery} />
+                        </td>
+                      )}
+                      {hasStock && visibleCols.has('brand') && (
                         <td style={{ whiteSpace: 'nowrap' }}>
                           {si.brand !== '—'
                             ? <span className="badge-brand">{si.brand}</span>
                             : <span className="muted">—</span>}
                         </td>
                       )}
-                      <td className="mono" style={{ textAlign: 'right' }}>
-                        {row.kuantitas.toLocaleString('id-ID')}
-                      </td>
-                      <td className="mono" style={{ textAlign: 'right' }}>
-                        {formatRupiah(row.hargaProduk)}
-                      </td>
-                      {hasStock && (
+                      {visibleCols.has('kuantitas') && (
+                        <td className="mono" style={{ textAlign: 'right' }}>
+                          {row.kuantitas.toLocaleString('id-ID')}
+                        </td>
+                      )}
+                      {visibleCols.has('hargaProduk') && (
+                        <td className="mono" style={{ textAlign: 'right' }}>
+                          {formatRupiah(row.hargaProduk)}
+                        </td>
+                      )}
+                      {hasStock && visibleCols.has('stock') && (
                         <td className="mono" style={{ textAlign: 'right' }}>
                           {si.hasData
                             ? <span style={{ color: si.stock === 0 ? 'var(--accent, #D85A30)' : 'inherit' }}>
@@ -1671,7 +1773,7 @@ function BestSellerTable({
                             : <span className="muted">0</span>}
                         </td>
                       )}
-                      {showImageCol && (
+                      {showImageCol && visibleCols.has('mpStock') && (
                         <td className="mono" style={{ textAlign: 'right' }}>
                           {row.hasMpStockData
                             ? <span style={{ color: row.mpStock === 0 ? 'var(--accent, #D85A30)' : 'inherit' }}>
@@ -1680,24 +1782,24 @@ function BestSellerTable({
                             : <span className="muted">—</span>}
                         </td>
                       )}
-                      {hasStock && (
+                      {hasStock && visibleCols.has('unit') && (
                         <td style={{ whiteSpace: 'nowrap' }}>
                           {row.unit
                             ? <span>{row.unit}</span>
                             : <span className="muted">—</span>}
                         </td>
                       )}
-                      {hasStock && (
+                      {hasStock && visibleCols.has('hpp') && (
                         <td className="mono" style={{ textAlign: 'right' }}>
                           {row.hpp ? formatRupiah(row.hpp) : <span className="muted">—</span>}
                         </td>
                       )}
-                      {hasStock && (
+                      {hasStock && visibleCols.has('totalHpp') && (
                         <td className="mono" style={{ textAlign: 'right' }}>
                           {row.totalHpp ? formatRupiah(row.totalHpp) : <span className="muted">—</span>}
                         </td>
                       )}
-                      {hasStock && (
+                      {hasStock && visibleCols.has('ssr') && (
                         <td className="mono" style={{ textAlign: 'right' }}>
                           {row.ssr != null ? row.ssr.toFixed(2) : <span className="muted">—</span>}
                         </td>
@@ -1892,30 +1994,30 @@ export default function ProdukTerlarisPage() {
   const handleImageFile = useCallback((file) => {
     setImageUploading(true)
     setImageUploadError(null)
-    ;(async () => {
-      try {
-        // File-nya di-PARSE DI BROWSER dulu (bukan dikirim mentah ke server) —
-        // hasil parsing (JSON) jauh lebih kecil daripada file .xlsx aslinya,
-        // supaya tidak kena batas 4.5MB ukuran body request di Vercel Functions
-        // (file dengan belasan-puluhan ribu baris SKU bisa >4MB dalam bentuk
-        // .xlsx mentah dan gagal terkirim tanpa pesan error yang jelas).
-        const arrayBuffer = await file.arrayBuffer()
-        const { bySku, count } = parseSkuImageFile(arrayBuffer)
+      ; (async () => {
+        try {
+          // File-nya di-PARSE DI BROWSER dulu (bukan dikirim mentah ke server) —
+          // hasil parsing (JSON) jauh lebih kecil daripada file .xlsx aslinya,
+          // supaya tidak kena batas 4.5MB ukuran body request di Vercel Functions
+          // (file dengan belasan-puluhan ribu baris SKU bisa >4MB dalam bentuk
+          // .xlsx mentah dan gagal terkirim tanpa pesan error yang jelas).
+          const arrayBuffer = await file.arrayBuffer()
+          const { bySku, count } = parseSkuImageFile(arrayBuffer)
 
-        const res = await fetch('/api/upload-sku-images', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bySku, count }),
-        })
-        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Gagal mengupload file (${res.status})`)
-        await loadSkuImages()
-        setShowImages(true) // langsung nyalakan toggle setelah upload berhasil
-      } catch (err) {
-        setImageUploadError(err.message || 'Gagal mengupload file gambar SKU.')
-      } finally {
-        setImageUploading(false)
-      }
-    })()
+          const res = await fetch('/api/upload-sku-images', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bySku, count }),
+          })
+          if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Gagal mengupload file (${res.status})`)
+          await loadSkuImages()
+          setShowImages(true) // langsung nyalakan toggle setelah upload berhasil
+        } catch (err) {
+          setImageUploadError(err.message || 'Gagal mengupload file gambar SKU.')
+        } finally {
+          setImageUploading(false)
+        }
+      })()
   }, [loadSkuImages])
 
   const handleToggleShowImages = useCallback(() => {
@@ -2391,8 +2493,6 @@ export default function ProdukTerlarisPage() {
             imageUploadError={imageUploadError}
             imageUploading={imageUploading}
             onImageFile={handleImageFile}
-            showImages={showImages}
-            onToggleShowImages={handleToggleShowImages}
             notes={notes}
             notesError={notesError}
             savingNoteFor={savingNoteFor}
