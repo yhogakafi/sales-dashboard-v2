@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock &amp; Price Reconciler</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --ink:#1c2422;
+    --ink-soft:#4b5854;
+    --paper:#f6f4ee;
+    --panel:#ffffff;
+    --line:#d8d3c4;
+    --brass:#a9772f;
+    --brass-dark:#8a5e21;
+    --ok:#3c6e4f;
+    --ok-bg:#e7f0e9;
+    --warn:#a13d2c;
+    --warn-bg:#f7e9e4;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, Menlo, monospace;
+    --sans: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html,body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  body{
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px);
+    background-size: 100% 34px;
+    background-position: 0 96px;
+  }
+
+  .wrap{
+    max-width:920px;
+    margin:0 auto;
+    padding:0 24px 80px;
+  }
+
+  header.top{
+    padding:40px 0 28px;
+    border-bottom:2px solid var(--ink);
+    margin-bottom:32px;
+  }
+
+  .kicker{
+    font-family:var(--mono);
+    font-size:12.5px;
+    letter-spacing:0.02em;
+    color:var(--brass-dark);
+    margin:0 0 10px;
+  }
+
+  h1{
+    font-size:clamp(28px, 4vw, 38px);
+    line-height:1.1;
+    margin:0 0 12px;
+    font-weight:650;
+    letter-spacing:-0.01em;
+  }
+
+  header.top p{
+    max-width:60ch;
+    color:var(--ink-soft);
+    font-size:15.5px;
+    line-height:1.55;
+    margin:0;
+  }
+
+  .stage{
+    counter-reset: stage;
+  }
+
+  section.card{
+    counter-increment: stage;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:26px 26px 24px;
+    margin-bottom:22px;
+    position:relative;
+  }
+
+  section.card > .num{
+    position:absolute;
+    top:-13px;
+    left:22px;
+    background:var(--ink);
+    color:var(--paper);
+    font-family:var(--mono);
+    font-size:12px;
+    padding:3px 9px;
+    border-radius:2px;
+  }
+
+  h2{
+    font-size:17px;
+    margin:6px 0 4px;
+    font-weight:650;
+  }
+
+  .sub{
+    color:var(--ink-soft);
+    font-size:13.5px;
+    margin:0 0 18px;
+    line-height:1.5;
+  }
+
+  .col-map{
+    display:flex;
+    gap:22px;
+    flex-wrap:wrap;
+    margin:14px 0 18px;
+    font-family:var(--mono);
+    font-size:12.5px;
+  }
+  .col-map .tag{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:5px 10px;
+    color:var(--ink-soft);
+  }
+  .col-map .tag b{ color:var(--ink); font-weight:650; }
+
+  .dropzone{
+    border:1.5px dashed var(--line);
+    border-radius:3px;
+    padding:26px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition: border-color .15s ease, background .15s ease;
+    background:var(--paper);
+  }
+  .dropzone:hover, .dropzone.drag{
+    border-color:var(--brass);
+    background:#fbf6ec;
+  }
+  .dropzone .dz-label{
+    font-weight:600;
+    font-size:14.5px;
+    margin-bottom:4px;
+  }
+  .dropzone .dz-sub{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    font-family:var(--mono);
+  }
+  .dropzone input{ display:none; }
+
+  .filelist{
+    list-style:none;
+    padding:0;
+    margin:16px 0 0;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .filelist li{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    font-family:var(--mono);
+    font-size:13px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:8px 12px;
+  }
+  .filelist li .meta{ color:var(--ink-soft); }
+  .filelist li button{
+    border:none;
+    background:none;
+    color:var(--warn);
+    cursor:pointer;
+    font-family:var(--mono);
+    font-size:13px;
+    padding:0;
+  }
+  .filelist li button:hover{ text-decoration:underline; }
+
+  .options{
+    display:flex;
+    gap:24px;
+    flex-wrap:wrap;
+    margin-top:18px;
+    padding-top:16px;
+    border-top:1px solid var(--line);
+  }
+  .opt-field label{
+    display:block;
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin-bottom:5px;
+  }
+  .opt-field input{
+    width:64px;
+    font-family:var(--mono);
+    font-size:13.5px;
+    padding:6px 8px;
+    border:1px solid var(--line);
+    border-radius:2px;
+    background:var(--panel);
+    color:var(--ink);
+  }
+  .opt-field input:focus{ outline:2px solid var(--brass); outline-offset:1px; }
+
+  .runbar{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    margin-top:8px;
+  }
+
+  .split-toggle{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:16px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .split-toggle input{ width:16px; height:16px; accent-color:var(--brass); cursor:pointer; }
+  .split-toggle span{ font-size:14.5px; font-weight:600; }
+
+  .split-row{
+    display:flex;
+    align-items:flex-end;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .split-field label{
+    display:block;
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin-bottom:5px;
+  }
+  .split-field input{
+    width:120px;
+    font-family:var(--mono);
+    font-size:15px;
+    padding:8px 10px;
+    border:1px solid var(--line);
+    border-radius:2px;
+    background:var(--panel);
+    color:var(--ink);
+  }
+  .split-field input:disabled{
+    background:var(--paper);
+    color:var(--ink-soft);
+    cursor:not-allowed;
+  }
+  .split-x{
+    font-family:var(--mono);
+    color:var(--ink-soft);
+    padding-bottom:9px;
+    font-size:14px;
+  }
+  .split-note{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--ink-soft);
+    margin:14px 0 0;
+  }
+
+  button.primary{
+    font-family:var(--sans);
+    font-weight:650;
+    font-size:15px;
+    color:#fff;
+    background:var(--ink);
+    border:none;
+    padding:13px 26px;
+    border-radius:3px;
+    cursor:pointer;
+    transition: background .15s ease, transform .05s ease;
+  }
+  button.primary:hover:not(:disabled){ background:#000; }
+  button.primary:active:not(:disabled){ transform:translateY(1px); }
+  button.primary:disabled{
+    background:#c9c4b6;
+    cursor:not-allowed;
+  }
+
+  .status{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+  .status.err{ color:var(--warn); }
+
+  .results{
+    display:none;
+  }
+  .results.show{ display:block; }
+
+  .summary-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:14px;
+    margin-bottom:22px;
+  }
+  .stat{
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:16px 16px;
+    background:var(--panel);
+  }
+  .stat .n{
+    font-family:var(--mono);
+    font-size:28px;
+    font-weight:600;
+    line-height:1;
+    margin-bottom:6px;
+  }
+  .stat.matched .n{ color:var(--ok); }
+  .stat.unmatched .n{ color:var(--warn); }
+  .stat .l{
+    font-size:12px;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+  }
+
+  .downloads{
+    display:flex;
+    gap:14px;
+    flex-wrap:wrap;
+    margin-bottom:10px;
+  }
+
+  .download-group{
+    margin-bottom:22px;
+  }
+  .download-group h4{
+    font-size:12.5px;
+    font-family:var(--mono);
+    color:var(--ink-soft);
+    margin:0 0 10px;
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+  }
+  .zip-btn{
+    margin-bottom:10px;
+  }
+  .part-list{
+    list-style:none;
+    padding:0;
+    margin:0;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .part-list li a{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    text-decoration:none;
+    font-family:var(--mono);
+    font-size:12.5px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    color:var(--ink);
+    padding:7px 11px;
+    border-radius:2px;
+  }
+  .part-list li a:hover{ border-color:var(--brass); color:var(--brass-dark); }
+  a.dl{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    text-decoration:none;
+    background:var(--ink);
+    color:#fff;
+    padding:13px 20px;
+    border-radius:3px;
+    font-weight:600;
+    font-size:14.5px;
+    flex:1 1 260px;
+    justify-content:center;
+  }
+  a.dl:hover{ background:#000; }
+  a.dl.secondary{
+    background:var(--panel);
+    color:var(--ink);
+    border:1.5px solid var(--ink);
+  }
+  a.dl.secondary:hover{ background:var(--paper); }
+  a.dl .arrow{ font-family:var(--mono); }
+
+  table.preview{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12.5px;
+    font-family:var(--mono);
+  }
+  table.preview th, table.preview td{
+    border:1px solid var(--line);
+    padding:6px 8px;
+    text-align:left;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    max-width:180px;
+  }
+  table.preview th{
+    background:var(--paper);
+    font-weight:650;
+    position:sticky;
+    top:0;
+  }
+  .table-scroll{
+    max-height:260px;
+    overflow:auto;
+    border:1px solid var(--line);
+    border-radius:3px;
+    margin-bottom:8px;
+  }
+  .preview-note{
+    font-size:12px;
+    color:var(--ink-soft);
+    margin:0 0 18px;
+  }
+
+  h3.result-h{
+    font-size:14px;
+    margin:22px 0 8px;
+    font-weight:650;
+  }
+
+  footer{
+    margin-top:36px;
+    padding-top:18px;
+    border-top:1px solid var(--line);
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--ink-soft);
+  }
+
+  @media (max-width:600px){
+    .summary-grid{ grid-template-columns:1fr; }
+    .col-map{ gap:10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <p class="kicker">CLIENT-SIDE · NOTHING LEAVES YOUR BROWSER</p>
+    <h1>Stock &amp; Price Reconciler</h1>
+    <p>Pull current price and stock from one or more reference exports and apply them onto a target marketplace sheet by matching SKU. Everything runs locally in the browser — files are never uploaded anywhere.</p>
+  </header>
+
+  <div class="stage">
+
+    <section class="card">
+      <span class="num">01</span>
+      <h2>Reference files</h2>
+      <p class="sub">One or more Excel exports to pull correct prices and stock from. Multiple files are simply combined — duplicate SKUs across files are not checked.</p>
+
+      <div class="col-map">
+        <span class="tag">SKU column <b id="refSkuLabel">F</b></span>
+        <span class="tag">Price column <b id="refPriceLabel">G</b></span>
+        <span class="tag">Stock column <b id="refStockLabel">I</b></span>
+      </div>
+
+      <div class="dropzone" id="refDrop">
+        <div class="dz-label">Drop reference .xlsx files here, or click to browse</div>
+        <div class="dz-sub">multiple files accepted</div>
+        <input type="file" id="refInput" accept=".xlsx,.xls" multiple>
+      </div>
+      <ul class="filelist" id="refList"></ul>
+
+      <div class="options">
+        <div class="opt-field">
+          <label for="refSkuCol">SKU col</label>
+          <input type="text" id="refSkuCol" value="F" maxlength="2">
+        </div>
+        <div class="opt-field">
+          <label for="refPriceCol">Price col</label>
+          <input type="text" id="refPriceCol" value="G" maxlength="2">
+        </div>
+        <div class="opt-field">
+          <label for="refStockCol">Stock col</label>
+          <input type="text" id="refStockCol" value="I" maxlength="2">
+        </div>
+        <div class="opt-field">
+          <label for="refStartRow">First data row</label>
+          <input type="number" id="refStartRow" value="7" min="1">
+        </div>
+        <div class="opt-field">
+          <label for="refSheet">Sheet name</label>
+          <input type="text" id="refSheet" value="" placeholder="1st sheet" style="width:130px;">
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <span class="num">02</span>
+      <h2>Target file</h2>
+      <p class="sub">The marketplace sheet to update. Its price and stock columns get overwritten in place wherever the SKU is found in the reference data; everything else in the file is left untouched.</p>
+
+      <div class="col-map">
+        <span class="tag">SKU column <b id="tgtSkuLabel">H</b></span>
+        <span class="tag">Price column <b id="tgtPriceLabel">F</b></span>
+        <span class="tag">Stock column <b id="tgtStockLabel">G</b></span>
+      </div>
+
+      <div class="dropzone" id="tgtDrop">
+        <div class="dz-label">Drop the target .xlsx file here, or click to browse</div>
+        <div class="dz-sub">single file</div>
+        <input type="file" id="tgtInput" accept=".xlsx,.xls">
+      </div>
+      <ul class="filelist" id="tgtList"></ul>
+
+      <div class="options">
+        <div class="opt-field">
+          <label for="tgtSkuCol">SKU col</label>
+          <input type="text" id="tgtSkuCol" value="H" maxlength="2">
+        </div>
+        <div class="opt-field">
+          <label for="tgtPriceCol">Price col</label>
+          <input type="text" id="tgtPriceCol" value="F" maxlength="2">
+        </div>
+        <div class="opt-field">
+          <label for="tgtStockCol">Stock col</label>
+          <input type="text" id="tgtStockCol" value="G" maxlength="2">
+        </div>
+        <div class="opt-field">
+          <label for="tgtStartRow">First data row</label>
+          <input type="number" id="tgtStartRow" value="6" min="1">
+        </div>
+        <div class="opt-field">
+          <label for="tgtSheet">Sheet name</label>
+          <input type="text" id="tgtSheet" value="Template" placeholder="1st sheet" style="width:130px;">
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <span class="num">03</span>
+      <h2>Output splitting</h2>
+      <p class="sub">Large marketplace uploads often need to be broken into smaller files. Both the updated and not-found downloads are split using this setting once they exceed one file's worth of rows.</p>
+
+      <label class="split-toggle">
+        <input type="checkbox" id="splitEnabled" checked>
+        <span>Split output into multiple files</span>
+      </label>
+
+      <div class="split-row">
+        <div class="split-field">
+          <label for="rowsPerFile">Rows per file</label>
+          <input type="number" id="rowsPerFile" value="1000" min="1">
+        </div>
+        <div class="split-x">or</div>
+        <div class="split-field">
+          <label for="fileCount">Number of files</label>
+          <input type="number" id="fileCount" value="1" min="1">
+        </div>
+      </div>
+      <p class="split-note" id="splitNote">Add a target file to calculate row/file counts.</p>
+    </section>
+
+    <section class="card">
+      <span class="num">04</span>
+      <h2>Run reconciliation</h2>
+      <p class="sub">Matches are compared as trimmed, case-insensitive text.</p>
+      <div class="runbar">
+        <button class="primary" id="runBtn" disabled>Reconcile</button>
+        <span class="status" id="statusMsg">Add reference and target files to begin.</span>
+      </div>
+    </section>
+
+    <section class="results" id="results">
+      <div class="summary-grid">
+        <div class="stat matched">
+          <div class="n" id="statMatched">0</div>
+          <div class="l">Matched &amp; updated</div>
+        </div>
+        <div class="stat unmatched">
+          <div class="n" id="statUnmatched">0</div>
+          <div class="l">Not found</div>
+        </div>
+        <div class="stat">
+          <div class="n" id="statRef">0</div>
+          <div class="l">Reference SKUs loaded</div>
+        </div>
+      </div>
+
+      <div class="download-group" id="matchedDownloads">
+        <h4>Updated target file</h4>
+        <p class="preview-note" id="matchedEmptyNote" style="display:none;">No product rows detected in the target file.</p>
+        <div class="downloads" id="matchedSingle">
+          <a class="dl" id="dlMatched" download="target_updated.xlsx"><span>Download updated target file</span><span class="arrow">↓</span></a>
+        </div>
+        <div id="matchedMulti" style="display:none;">
+          <div class="downloads">
+            <a class="dl zip-btn" id="dlMatchedZip" href="#"><span>Download all as ZIP</span><span class="arrow">↓</span></a>
+          </div>
+          <ul class="part-list" id="matchedPartList"></ul>
+        </div>
+      </div>
+
+      <div class="download-group" id="unmatchedDownloads">
+        <h4>Not-found rows</h4>
+        <p class="preview-note" id="unmatchedEmptyNote" style="display:none;">No rows — every SKU in the target file was matched.</p>
+        <div class="downloads" id="unmatchedSingle">
+          <a class="dl secondary" id="dlUnmatched" download="not_found.xlsx"><span>Download not-found rows</span><span class="arrow">↓</span></a>
+        </div>
+        <div id="unmatchedMulti" style="display:none;">
+          <div class="downloads">
+            <a class="dl secondary zip-btn" id="dlUnmatchedZip" href="#"><span>Download all as ZIP</span><span class="arrow">↓</span></a>
+          </div>
+          <ul class="part-list" id="unmatchedPartList"></ul>
+        </div>
+      </div>
+
+      <h3 class="result-h">Preview — updated rows (first 50)</h3>
+      <div class="table-scroll"><table class="preview" id="previewMatched"></table></div>
+      <p class="preview-note" id="previewMatchedNote"></p>
+
+      <h3 class="result-h">Preview — not found (first 50)</h3>
+      <div class="table-scroll"><table class="preview" id="previewUnmatched"></table></div>
+      <p class="preview-note" id="previewUnmatchedNote"></p>
+    </section>
+
+  </div>
+
+  <footer>
+    xlsx parsing via SheetJS · processed entirely in this browser tab
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- state ----------
+  const refFiles = []; // {name, workbook}
+  let tgtFile = null;  // {name, workbook, arrayBuffer}
+  let targetTotalRows = 0; // product rows (non-blank SKU) detected in the target file, for split calc
+
+  // ---------- helpers ----------
+  function colToIndex(letters){
+    letters = (letters || "").trim().toUpperCase();
+    let n = 0;
+    for (let i = 0; i < letters.length; i++){
+      const c = letters.charCodeAt(i) - 64;
+      if (c < 1 || c > 26) return NaN;
+      n = n * 26 + c;
+    }
+    return n - 1; // zero-based
+  }
+
+  function normSku(v){
+    if (v === null || v === undefined) return "";
+    return String(v).trim().toUpperCase();
+  }
+
+  // Some marketplace export tools (Shopee bulk-export among them) write a wrong/truncated
+  // <dimension> tag in the sheet XML, understating how many rows the sheet actually has.
+  // SheetJS trusts that declared range for "!ref", which silently drops real data past it.
+  // Recompute "!ref" from the cells that are actually present so nothing gets lost.
+  function fixSheetRange(sheet){
+    let maxR = 0, maxC = 0, minR = Infinity, minC = Infinity;
+    for (const addr in sheet){
+      if (addr.charCodeAt(0) === 33 /* '!' */) continue; // skip meta keys like !ref, !cols
+      const dec = XLSX.utils.decode_cell(addr);
+      if (Number.isNaN(dec.r) || Number.isNaN(dec.c)) continue;
+      if (dec.r > maxR) maxR = dec.r;
+      if (dec.c > maxC) maxC = dec.c;
+      if (dec.r < minR) minR = dec.r;
+      if (dec.c < minC) minC = dec.c;
+    }
+    if (minR === Infinity) return; // empty sheet, leave as-is
+    const declared = sheet["!ref"] ? XLSX.utils.decode_range(sheet["!ref"]) : null;
+    const needsFix = !declared || declared.e.r < maxR || declared.e.c < maxC;
+    if (needsFix){
+      sheet["!ref"] = XLSX.utils.encode_range({
+        s: { r: Math.min(minR, declared ? declared.s.r : minR), c: Math.min(minC, declared ? declared.s.c : minC) },
+        e: { r: maxR, c: maxC }
+      });
+    }
+  }
+
+  function fixWorkbookRanges(workbook){
+    workbook.SheetNames.forEach(name => {
+      const sheet = workbook.Sheets[name];
+      if (sheet) fixSheetRange(sheet);
+    });
+  }
+
+  function readWorkbook(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: "array", cellStyles: true, cellDates: true });
+          fixWorkbookRanges(wb);
+          resolve({ workbook: wb, arrayBuffer: e.target.result });
+        } catch (err) { reject(err); }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function pickSheet(workbook, requestedName){
+    if (requestedName && workbook.Sheets[requestedName]) return workbook.Sheets[requestedName];
+    return workbook.Sheets[workbook.SheetNames[0]];
+  }
+
+  function sheetToRows(sheet){
+    // array-of-arrays, keeping blank cells as undefined, using raw values
+    return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+  }
+
+  function setStatus(msg, isErr){
+    const el = document.getElementById("statusMsg");
+    el.textContent = msg;
+    el.className = "status" + (isErr ? " err" : "");
+  }
+
+  function updateRunEnabled(){
+    document.getElementById("runBtn").disabled = !(refFiles.length && tgtFile);
+    if (refFiles.length && tgtFile){
+      setStatus(refFiles.length + " reference file(s) and target file ready.", false);
+    } else if (!refFiles.length && !tgtFile){
+      setStatus("Add reference and target files to begin.", false);
+    } else if (!refFiles.length){
+      setStatus("Add at least one reference file.", false);
+    } else {
+      setStatus("Add a target file.", false);
+    }
+  }
+
+  // ---------- dropzone wiring ----------
+  function wireDropzone(zoneId, inputId, onFiles, multiple){
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(inputId);
+    zone.addEventListener("click", () => input.click());
+    input.addEventListener("change", () => {
+      if (input.files && input.files.length) onFiles(Array.from(input.files));
+      input.value = "";
+    });
+    ["dragenter","dragover"].forEach(ev => zone.addEventListener(ev, (e) => {
+      e.preventDefault(); e.stopPropagation(); zone.classList.add("drag");
+    }));
+    ["dragleave","drop"].forEach(ev => zone.addEventListener(ev, (e) => {
+      e.preventDefault(); e.stopPropagation(); zone.classList.remove("drag");
+    }));
+    zone.addEventListener("drop", (e) => {
+      const files = Array.from(e.dataTransfer.files || []).filter(f => /\.xlsx?$/i.test(f.name));
+      if (!multiple && files.length > 1) files.length = 1;
+      if (files.length) onFiles(files);
+    });
+  }
+
+  function renderRefList(){
+    const ul = document.getElementById("refList");
+    ul.innerHTML = "";
+    refFiles.forEach((f, idx) => {
+      const li = document.createElement("li");
+      const rowCount = XLSX.utils.sheet_to_json(pickSheet(f.workbook, null), {header:1}).length;
+      li.innerHTML = `<span>${f.name}</span><span class="meta">${rowCount} rows</span>`;
+      const btn = document.createElement("button");
+      btn.textContent = "remove";
+      btn.addEventListener("click", () => { refFiles.splice(idx,1); renderRefList(); updateRunEnabled(); });
+      li.appendChild(btn);
+      ul.appendChild(li);
+    });
+  }
+
+  function renderTgtList(){
+    const ul = document.getElementById("tgtList");
+    ul.innerHTML = "";
+    if (!tgtFile) return;
+    const li = document.createElement("li");
+    li.innerHTML = `<span>${tgtFile.name}</span><span class="meta"></span>`;
+    const btn = document.createElement("button");
+    btn.textContent = "remove";
+    btn.addEventListener("click", () => { tgtFile = null; renderTgtList(); updateRunEnabled(); refreshSplitState(); });
+    li.appendChild(btn);
+    ul.appendChild(li);
+  }
+
+  wireDropzone("refDrop", "refInput", async (files) => {
+    for (const f of files){
+      try {
+        const { workbook } = await readWorkbook(f);
+        refFiles.push({ name: f.name, workbook });
+      } catch (e){
+        setStatus("Could not read " + f.name + ": " + e.message, true);
+      }
+    }
+    renderRefList();
+    updateRunEnabled();
+  }, true);
+
+  wireDropzone("tgtDrop", "tgtInput", async (files) => {
+    const f = files[0];
+    try {
+      const { workbook, arrayBuffer } = await readWorkbook(f);
+      tgtFile = { name: f.name, workbook, arrayBuffer };
+    } catch (e){
+      setStatus("Could not read " + f.name + ": " + e.message, true);
+    }
+    renderTgtList();
+    updateRunEnabled();
+    refreshSplitState();
+  }, false);
+
+  // keep column-letter tags in sync with inputs
+  function syncLabel(inputId, labelId){
+    const input = document.getElementById(inputId);
+    const label = document.getElementById(labelId);
+    const update = () => { label.textContent = (input.value || "?").toUpperCase(); };
+    input.addEventListener("input", update);
+    update();
+  }
+  syncLabel("refSkuCol","refSkuLabel");
+  syncLabel("refPriceCol","refPriceLabel");
+  syncLabel("refStockCol","refStockLabel");
+  syncLabel("tgtSkuCol","tgtSkuLabel");
+  syncLabel("tgtPriceCol","tgtPriceLabel");
+  syncLabel("tgtStockCol","tgtStockLabel");
+
+  // ---------- output splitting: rows-per-file <-> file-count linkage ----------
+  const rowsPerFileInput = document.getElementById("rowsPerFile");
+  const fileCountInput = document.getElementById("fileCount");
+  const splitEnabledInput = document.getElementById("splitEnabled");
+  const splitNote = document.getElementById("splitNote");
+
+  function countTargetProductRows(){
+    if (!tgtFile) { targetTotalRows = 0; return; }
+    try {
+      const tgtSkuCol = colToIndex(document.getElementById("tgtSkuCol").value);
+      const tgtStartRow = parseInt(document.getElementById("tgtStartRow").value, 10) || 1;
+      const tgtSheetName = document.getElementById("tgtSheet").value.trim();
+      if (isNaN(tgtSkuCol)) { targetTotalRows = 0; return; }
+      const sheet = pickSheet(tgtFile.workbook, tgtSheetName);
+      const rows = sheetToRows(sheet);
+      let count = 0;
+      for (let r = tgtStartRow - 1; r < rows.length; r++){
+        const row = rows[r];
+        if (row && normSku(row[tgtSkuCol])) count++;
+      }
+      targetTotalRows = count;
+    } catch (e){
+      targetTotalRows = 0;
+    }
+  }
+
+  function updateSplitNote(){
+    if (!tgtFile || targetTotalRows === 0){
+      splitNote.textContent = "Add a target file to calculate row/file counts.";
+      return;
+    }
+    const rpf = parseInt(rowsPerFileInput.value, 10) || 1;
+    const fc = Math.max(1, Math.ceil(targetTotalRows / rpf));
+    splitNote.textContent = targetTotalRows.toLocaleString() + " product row(s) detected in target → " +
+      fc + " file(s) of up to " + rpf.toLocaleString() + " rows each.";
+  }
+
+  // rowsPerFile drives fileCount by default (e.g. right after loading a file or changing columns)
+  function recalcFromRowsPerFile(){
+    if (targetTotalRows <= 0) { updateSplitNote(); return; }
+    const rpf = Math.max(1, parseInt(rowsPerFileInput.value, 10) || 1);
+    const fc = Math.max(1, Math.ceil(targetTotalRows / rpf));
+    fileCountInput.value = fc;
+    updateSplitNote();
+  }
+
+  // fileCount, when the user edits it directly, drives rowsPerFile
+  function recalcFromFileCount(){
+    if (targetTotalRows <= 0) { updateSplitNote(); return; }
+    const fc = Math.max(1, parseInt(fileCountInput.value, 10) || 1);
+    const rpf = Math.max(1, Math.ceil(targetTotalRows / fc));
+    rowsPerFileInput.value = rpf;
+    updateSplitNote();
+  }
+
+  function refreshSplitState(){
+    countTargetProductRows();
+    recalcFromRowsPerFile();
+  }
+
+  rowsPerFileInput.addEventListener("input", recalcFromRowsPerFile);
+  fileCountInput.addEventListener("input", recalcFromFileCount);
+
+  function setSplitFieldsEnabled(){
+    const on = splitEnabledInput.checked;
+    rowsPerFileInput.disabled = !on;
+    fileCountInput.disabled = !on;
+  }
+  splitEnabledInput.addEventListener("change", setSplitFieldsEnabled);
+  setSplitFieldsEnabled();
+
+  ["tgtSkuCol","tgtStartRow","tgtSheet"].forEach(id => {
+    document.getElementById(id).addEventListener("input", refreshSplitState);
+  });
+
+  // ---------- reconciliation ----------
+  function buildReferenceMap(){
+    const skuCol = colToIndex(document.getElementById("refSkuCol").value);
+    const priceCol = colToIndex(document.getElementById("refPriceCol").value);
+    const stockCol = colToIndex(document.getElementById("refStockCol").value);
+    const startRow = parseInt(document.getElementById("refStartRow").value, 10) || 1;
+    const sheetName = document.getElementById("refSheet").value.trim();
+
+    if ([skuCol, priceCol, stockCol].some(isNaN)){
+      throw new Error("Reference column letters are invalid.");
+    }
+
+    const map = new Map(); // normSku -> {price, stock, rawSku}
+    refFiles.forEach(f => {
+      const sheet = pickSheet(f.workbook, sheetName);
+      const rows = sheetToRows(sheet);
+      for (let r = startRow - 1; r < rows.length; r++){
+        const row = rows[r] || [];
+        const rawSku = row[skuCol];
+        const sku = normSku(rawSku);
+        if (!sku) continue;
+        map.set(sku, {
+          price: row[priceCol] !== undefined ? row[priceCol] : null,
+          stock: row[stockCol] !== undefined ? row[stockCol] : null,
+          rawSku
+        });
+      }
+    });
+    return map;
+  }
+
+  // ---------- splitting helpers ----------
+  function chunkArray(arr, size){
+    if (!arr.length) return [];
+    if (!isFinite(size) || size <= 0) return [arr];
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  }
+
+  // Builds a brand-new sheet containing only the given original row indices (header rows + a
+  // data chunk), renumbered to start at row 0, carrying over each cell's value/type/style.
+  // Row-spanning merges aren't preserved across the cut, since they wouldn't stay valid.
+  function sliceSheetRows(sourceSheet, colRange, rowIndices){
+    const newSheet = {};
+    let newR = 0;
+    rowIndices.forEach(r => {
+      for (let c = colRange.s.c; c <= colRange.e.c; c++){
+        const addr = XLSX.utils.encode_cell({ r, c });
+        const cell = sourceSheet[addr];
+        if (cell) newSheet[XLSX.utils.encode_cell({ r: newR, c })] = Object.assign({}, cell);
+      }
+      newR++;
+    });
+    newSheet["!ref"] = newR > 0
+      ? XLSX.utils.encode_range({ s: { r: 0, c: colRange.s.c }, e: { r: newR - 1, c: colRange.e.c } })
+      : "A1";
+    if (sourceSheet["!cols"]) newSheet["!cols"] = sourceSheet["!cols"];
+    return newSheet;
+  }
+
+  // Splits one logical output (matched or unmatched) into one workbook per chunk of rowsPerFile
+  // data rows, each carrying the header rows and — for the matched output — every other sheet
+  // from the original target workbook (Instructions, config sheets, etc).
+  function buildPartFiles(kind, dataRowIndices, headerRowIndices, sourceSheet, colRange, sheetOrder, actualSheetName, baseName, rowsPerFile){
+    const chunks = chunkArray(dataRowIndices, rowsPerFile);
+    const totalParts = chunks.length;
+    return chunks.map((chunk, idx) => {
+      const rowIndices = headerRowIndices.concat(chunk);
+      const slicedSheet = sliceSheetRows(sourceSheet, colRange, rowIndices);
+      const wb = XLSX.utils.book_new();
+      if (kind === "matched"){
+        sheetOrder.forEach(({ name, sheet: s }) => {
+          XLSX.utils.book_append_sheet(wb, name === actualSheetName ? slicedSheet : s, name);
+        });
+      } else {
+        XLSX.utils.book_append_sheet(wb, slicedSheet, actualSheetName);
+      }
+      const suffix = totalParts > 1 ? ("_part" + (idx + 1) + "of" + totalParts) : "";
+      const filename = baseName + (kind === "matched" ? "_updated" : "_not_found") + suffix + ".xlsx";
+      const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      return { filename, blob: new Blob([out], { type: "application/octet-stream" }) };
+    });
+  }
+
+  function renderDownloadGroup(cfg){
+    const container = document.getElementById(cfg.containerId);
+    const emptyNote = document.getElementById(cfg.emptyNoteId);
+    const singleWrap = document.getElementById(cfg.singleWrapId);
+    const multiWrap = document.getElementById(cfg.multiWrapId);
+
+    if (cfg.parts.length === 0){
+      emptyNote.style.display = "";
+      singleWrap.style.display = "none";
+      multiWrap.style.display = "none";
+      return;
+    }
+    emptyNote.style.display = "none";
+
+    if (cfg.parts.length === 1){
+      singleWrap.style.display = "";
+      multiWrap.style.display = "none";
+      const link = document.getElementById(cfg.singleLinkId);
+      link.href = URL.createObjectURL(cfg.parts[0].blob);
+      link.setAttribute("download", cfg.parts[0].filename);
+    } else {
+      singleWrap.style.display = "none";
+      multiWrap.style.display = "";
+      const partList = document.getElementById(cfg.partListId);
+      partList.innerHTML = "";
+      cfg.parts.forEach(p => {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(p.blob);
+        a.setAttribute("download", p.filename);
+        a.innerHTML = `<span>${p.filename}</span><span class="arrow">↓</span>`;
+        li.appendChild(a);
+        partList.appendChild(li);
+      });
+      const zipBtn = document.getElementById(cfg.zipBtnId);
+      zipBtn.onclick = async (e) => {
+        e.preventDefault();
+        const zip = new JSZip();
+        cfg.parts.forEach(p => zip.file(p.filename, p.blob));
+        const content = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(content);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = cfg.zipFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+      };
+    }
+  }
+
+  function runReconciliation(){
+    try {
+      setStatus("Processing…", false);
+      const refMap = buildReferenceMap();
+
+      const tgtSkuCol = colToIndex(document.getElementById("tgtSkuCol").value);
+      const tgtPriceCol = colToIndex(document.getElementById("tgtPriceCol").value);
+      const tgtStockCol = colToIndex(document.getElementById("tgtStockCol").value);
+      const tgtStartRow = parseInt(document.getElementById("tgtStartRow").value, 10) || 1;
+      const tgtSheetName = document.getElementById("tgtSheet").value.trim();
+
+      if ([tgtSkuCol, tgtPriceCol, tgtStockCol].some(isNaN)){
+        throw new Error("Target column letters are invalid.");
+      }
+
+      // Work on a fresh copy of the workbook so the original in-memory state stays clean
+      const wbCopy = XLSX.utils.book_new();
+      const sheetOrder = tgtFile.workbook.SheetNames.map(name => {
+        const cloned = JSON.parse(JSON.stringify(tgtFile.workbook.Sheets[name]));
+        XLSX.utils.book_append_sheet(wbCopy, cloned, name);
+        return { name, sheet: cloned };
+      });
+      const actualSheetName = (tgtSheetName && wbCopy.Sheets[tgtSheetName]) ? tgtSheetName : wbCopy.SheetNames[0];
+      const sheet = wbCopy.Sheets[actualSheetName];
+      const ref = XLSX.utils.decode_range(sheet["!ref"]);
+
+      const rows = sheetToRows(tgtFile.workbook.Sheets[actualSheetName]); // original, for iterating values/headers
+      const headerRows = rows.slice(0, tgtStartRow - 1);
+      const headerRowIndices = [];
+      for (let r = 0; r < tgtStartRow - 1; r++) headerRowIndices.push(r);
+
+      let matchedCount = 0;
+      const matchedPreviewRows = [];
+      const unmatchedDataRows = [];
+      const matchedRowIndices = [];
+      const unmatchedRowIndices = [];
+
+      for (let r = tgtStartRow - 1; r <= ref.e.r; r++){
+        const row = rows[r];
+        if (!row) continue;
+        const rawSku = row[tgtSkuCol];
+        const sku = normSku(rawSku);
+        if (!sku) continue;
+
+        const match = refMap.get(sku);
+        if (match){
+          matchedCount++;
+          matchedRowIndices.push(r);
+          // write updated price/stock into the cloned sheet
+          const priceAddr = XLSX.utils.encode_cell({ r, c: tgtPriceCol });
+          const stockAddr = XLSX.utils.encode_cell({ r, c: tgtStockCol });
+          const priceVal = match.price;
+          const stockVal = match.stock;
+
+          if (!sheet[priceAddr]) sheet[priceAddr] = { t: "n" };
+          sheet[priceAddr].v = (typeof priceVal === "number") ? priceVal : (priceVal !== null && priceVal !== "" && !isNaN(priceVal) ? Number(priceVal) : priceVal);
+          sheet[priceAddr].t = (typeof sheet[priceAddr].v === "number") ? "n" : "s";
+          delete sheet[priceAddr].f;
+
+          if (!sheet[stockAddr]) sheet[stockAddr] = { t: "n" };
+          sheet[stockAddr].v = (typeof stockVal === "number") ? stockVal : (stockVal !== null && stockVal !== "" && !isNaN(stockVal) ? Number(stockVal) : stockVal);
+          sheet[stockAddr].t = (typeof sheet[stockAddr].v === "number") ? "n" : "s";
+          delete sheet[stockAddr].f;
+
+          if (matchedPreviewRows.length < 50){
+            const preview = row.slice();
+            preview[tgtPriceCol] = sheet[priceAddr].v;
+            preview[tgtStockCol] = sheet[stockAddr].v;
+            matchedPreviewRows.push(preview);
+          }
+        } else {
+          unmatchedDataRows.push(row);
+          unmatchedRowIndices.push(r);
+        }
+      }
+
+      // Extend sheet range if needed (safety no-op here since we didn't add rows) and refresh !ref
+      sheet["!ref"] = XLSX.utils.encode_range(ref);
+
+      // ---------- resolve split size and build output parts ----------
+      const splitEnabled = splitEnabledInput.checked;
+      const rowsPerFile = splitEnabled
+        ? Math.max(1, parseInt(rowsPerFileInput.value, 10) || 1)
+        : Infinity;
+      const baseName = tgtFile.name.replace(/\.xlsx?$/i, "");
+
+      const matchedParts = buildPartFiles(
+        "matched", matchedRowIndices, headerRowIndices, sheet, ref, sheetOrder, actualSheetName, baseName, rowsPerFile
+      );
+      const unmatchedParts = buildPartFiles(
+        "unmatched", unmatchedRowIndices, headerRowIndices, sheet, ref, sheetOrder, actualSheetName, baseName, rowsPerFile
+      );
+
+      renderDownloadGroup({
+        containerId: "matchedDownloads", emptyNoteId: "matchedEmptyNote",
+        singleWrapId: "matchedSingle", singleLinkId: "dlMatched",
+        multiWrapId: "matchedMulti", partListId: "matchedPartList", zipBtnId: "dlMatchedZip",
+        parts: matchedParts, zipFilename: baseName + "_updated_all.zip"
+      });
+      renderDownloadGroup({
+        containerId: "unmatchedDownloads", emptyNoteId: "unmatchedEmptyNote",
+        singleWrapId: "unmatchedSingle", singleLinkId: "dlUnmatched",
+        multiWrapId: "unmatchedMulti", partListId: "unmatchedPartList", zipBtnId: "dlUnmatchedZip",
+        parts: unmatchedParts, zipFilename: baseName + "_not_found_all.zip"
+      });
+
+      // ---------- stats ----------
+      document.getElementById("statMatched").textContent = matchedCount;
+      document.getElementById("statUnmatched").textContent = unmatchedDataRows.length;
+      document.getElementById("statRef").textContent = refMap.size;
+
+      // ---------- previews ----------
+      renderPreview("previewMatched", headerRows, matchedPreviewRows, tgtStartRow - headerRows.length);
+      document.getElementById("previewMatchedNote").textContent =
+        matchedCount === 0 ? "No matched rows." :
+        (matchedCount > 50 ? `Showing 50 of ${matchedCount} matched rows.` : `Showing all ${matchedCount} matched rows.`) +
+        (matchedParts.length > 1 ? ` Split into ${matchedParts.length} files.` : "");
+
+      renderPreview("previewUnmatched", headerRows, unmatchedDataRows.slice(0,50), tgtStartRow - headerRows.length);
+      document.getElementById("previewUnmatchedNote").textContent =
+        unmatchedDataRows.length === 0 ? "No unmatched rows — every target SKU was found." :
+        (unmatchedDataRows.length > 50 ? `Showing 50 of ${unmatchedDataRows.length} unmatched rows.` : `Showing all ${unmatchedDataRows.length} unmatched rows.`) +
+        (unmatchedParts.length > 1 ? ` Split into ${unmatchedParts.length} files.` : "");
+
+      document.getElementById("results").classList.add("show");
+      setStatus("Done — " + matchedCount + " matched, " + unmatchedDataRows.length + " not found.", false);
+
+    } catch (err){
+      console.error(err);
+      setStatus("Error: " + err.message, true);
+    }
+  }
+
+  function renderPreview(tableId, headerRows, dataRows, headerRowIdxOffset){
+    const table = document.getElementById(tableId);
+    table.innerHTML = "";
+    const headerRow = headerRows.length ? headerRows[headerRows.length - 1] : null;
+    const width = Math.max(
+      headerRow ? headerRow.length : 0,
+      ...dataRows.map(r => r.length), 1
+    );
+
+    const thead = document.createElement("thead");
+    const trh = document.createElement("tr");
+    for (let c = 0; c < width; c++){
+      const th = document.createElement("th");
+      th.textContent = headerRow && headerRow[c] !== null && headerRow[c] !== undefined ? headerRow[c] : XLSX.utils.encode_col(c);
+      trh.appendChild(th);
+    }
+    thead.appendChild(trh);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    dataRows.forEach(row => {
+      const tr = document.createElement("tr");
+      for (let c = 0; c < width; c++){
+        const td = document.createElement("td");
+        const v = row[c];
+        td.textContent = (v === null || v === undefined) ? "" : v;
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+  }
+
+  document.getElementById("runBtn").addEventListener("click", runReconciliation);
+
+})();
+</script>
+</body>
+</html>
