@@ -1362,6 +1362,15 @@ function BestSellerTable({
 
   const showImageCol = visibleCols.has('gambar') && hasImages
 
+  // Kolom yang relevan untuk mode dan data saat ini
+  const availableCols = ALL_VISIBLE_COLS.filter(({ key }) => {
+    if (key === 'tipe' && groupMode !== 'induk') return false
+    if (['brand', 'stock', 'unit', 'hpp', 'totalHpp', 'ssr'].includes(key) && !hasStock) return false
+    if (['gambar', 'mpStock'].includes(key) && !hasImages) return false
+    return true
+  })
+  const activeColCount = availableCols.filter(c => visibleCols.has(c.key)).length
+
   const colHeaderProps = { sortBy, sortDir, onSortChange, colFilters, onColFilterChange, brandOptions }
 
   const imageInputRef = useRef(null)
@@ -1445,53 +1454,86 @@ function BestSellerTable({
         <div ref={colPickerRef} style={{ position: 'relative', marginLeft: 'auto' }}>
           <button
             type="button"
-            className="pill-btn"
+            className={`btn-col-picker ${colPickerOpen ? 'is-open' : ''}`}
             onClick={() => setColPickerOpen(v => !v)}
-            title="Pilih kolom yang ditampilkan"
-            style={colPickerOpen ? { background: 'var(--primary, #3B3A8C)', color: '#fff', borderColor: 'transparent' } : undefined}
+            title={`${activeColCount} dari ${availableCols.length} kolom ditampilkan · Klik untuk pilih kolom`}
           >
-            ☰ Kolom
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M9 3v18" />
+              <path d="M15 3v18" />
+            </svg>
+            <span>Kolom</span>
+            <span className="col-count-badge">
+              {activeColCount}
+            </span>
+            <svg
+              width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{
+                transform: colPickerOpen ? 'rotate(180deg)' : 'none',
+                transition: 'transform 0.16s ease',
+                opacity: 0.65,
+                marginLeft: -1,
+              }}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
           </button>
           {colPickerOpen && (
             <div style={{
               position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 400,
               background: 'var(--surface, #fff)', border: '1px solid var(--border, #ddd)',
-              borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.14)',
-              padding: '0.75rem 1rem', minWidth: 200,
-              display: 'flex', flexDirection: 'column', gap: 6,
+              borderRadius: 10, boxShadow: '0 10px 28px -4px rgba(0,0,0,.12), 0 4px 10px -2px rgba(0,0,0,.06)',
+              padding: '0.75rem 0.85rem', minWidth: 215,
+              display: 'flex', flexDirection: 'column', gap: 4,
             }}>
-              <p style={{ margin: '0 0 6px', fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--muted, #888)' }}>Tampilkan Kolom</p>
-              {ALL_VISIBLE_COLS.map(({ key, label }) => {
-                // "Tipe" hanya relevan di mode Per SKU Gabungan
-                if (key === 'tipe' && groupMode !== 'induk') return null
-                // Kolom stock (brand/stock/unit/hpp/totalHpp/ssr) hanya muncul kalau ada data stock
-                if (['brand', 'stock', 'unit', 'hpp', 'totalHpp', 'ssr'].includes(key) && !hasStock) return null
-                // Kolom gambar & mpStock hanya relevan kalau ada file gambar SKU
-                if (['gambar', 'mpStock'].includes(key) && !hasImages) return null
-                const checked = visibleCols.has(key)
-                return (
-                  <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => {
-                        setVisibleCols(prev => {
-                          const next = new Set(prev)
-                          if (next.has(key)) next.delete(key)
-                          else next.add(key)
-                          return next
-                        })
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 2px 6px' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--ink-muted, #6B6A66)' }}>Tampilkan Kolom</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--primary, #3B3A8C)' }}>{activeColCount}/{availableCols.length}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 310, overflowY: 'auto' }}>
+                {availableCols.map(({ key, label }) => {
+                  const checked = visibleCols.has(key)
+                  return (
+                    <label
+                      key={key}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        fontSize: 12.5, cursor: 'pointer', userSelect: 'none',
+                        padding: '4px 6px', borderRadius: 6,
+                        color: checked ? 'var(--ink, #1C1B19)' : 'var(--ink-faint, #A3A19A)',
+                        fontWeight: checked ? 500 : 400,
+                        transition: 'background 0.1s ease',
                       }}
-                    />
-                    {label}
-                  </label>
-                )
-              })}
-              <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        style={{ accentColor: 'var(--primary, #3B3A8C)', cursor: 'pointer' }}
+                        onChange={() => {
+                          setVisibleCols(prev => {
+                            const next = new Set(prev)
+                            if (next.has(key)) next.delete(key)
+                            else next.add(key)
+                            return next
+                          })
+                        }}
+                      />
+                      {label}
+                    </label>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border, #eee)' }}>
                 <button
                   type="button"
                   onClick={() => setVisibleCols(new Set(ALL_VISIBLE_COLS.map(c => c.key)))}
-                  style={{ flex: 1, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border, #ddd)', background: 'none', cursor: 'pointer', fontSize: 11.5, color: 'var(--muted, #888)' }}
+                  style={{
+                    flex: 1, padding: '5px 8px', borderRadius: 6,
+                    border: '1px solid var(--border, #ddd)', background: 'var(--surface, #fff)',
+                    cursor: 'pointer', fontSize: 11.5, fontWeight: 500, color: 'var(--ink-muted, #666)',
+                    transition: 'all 0.12s ease',
+                  }}
                 >Pilih Semua</button>
                 <button
                   type="button"
@@ -1500,7 +1542,12 @@ function BestSellerTable({
                     DEFAULT_HIDDEN_COLS.forEach(k => s.delete(k))
                     setVisibleCols(s)
                   }}
-                  style={{ flex: 1, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border, #ddd)', background: 'none', cursor: 'pointer', fontSize: 11.5, color: 'var(--muted, #888)' }}
+                  style={{
+                    flex: 1, padding: '5px 8px', borderRadius: 6,
+                    border: '1px solid var(--border, #ddd)', background: 'var(--surface, #fff)',
+                    cursor: 'pointer', fontSize: 11.5, fontWeight: 500, color: 'var(--ink-muted, #666)',
+                    transition: 'all 0.12s ease',
+                  }}
                 >Reset Default</button>
               </div>
             </div>
