@@ -1,587 +1,1996 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Affiliate Dashboard — Shopee &amp; TikTok</title>
-<meta name="description" content="Unified Shopee and TikTok Affiliate Analytics Dashboard." />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Affiliate Dashboard — Shopee &amp; TikTok</title>
+  <meta name="description" content="Unified Shopee and TikTok Affiliate Analytics Dashboard." />
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
 
-:root{
-  --font:'Inter',system-ui,sans-serif;
-  --mono:'JetBrains Mono',monospace;
-  --bg:#f1f5f9;--surface:#fff;--surface2:#f8fafc;
-  --border:#e2e8f0;--border-strong:#CBD5E1;
-  --text:#0f172a;--text-dim:#475569;--text-muted:#64748b;--text-3:#94A3B8;
-  --radius:10px;--radius-lg:16px;--radius-sm:6px;
-  --shadow-sm:0 1px 3px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.04);
-  --shadow:0 4px 12px rgba(15,23,42,.08),0 1px 3px rgba(15,23,42,.05);
-  --shadow-lg:0 10px 30px rgba(15,23,42,.12),0 2px 6px rgba(15,23,42,.06);
-}
+    :root {
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+      --bg: #f1f5f9;
+      --surface: #fff;
+      --surface2: #f8fafc;
+      --border: #e2e8f0;
+      --border-strong: #CBD5E1;
+      --text: #0f172a;
+      --text-dim: #475569;
+      --text-muted: #64748b;
+      --text-3: #94A3B8;
+      --radius: 10px;
+      --radius-lg: 16px;
+      --radius-sm: 6px;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, .06), 0 1px 2px rgba(15, 23, 42, .04);
+      --shadow: 0 4px 12px rgba(15, 23, 42, .08), 0 1px 3px rgba(15, 23, 42, .05);
+      --shadow-lg: 0 10px 30px rgba(15, 23, 42, .12), 0 2px 6px rgba(15, 23, 42, .06);
+    }
 
-html{font-size:15px}
-body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.5}
+    html {
+      font-size: 15px
+    }
 
-/* ── Global Topbar ── */
-.g-topbar{
-  position:sticky;top:0;z-index:200;
-  background:rgba(255,255,255,.96);backdrop-filter:blur(14px);
-  border-bottom:1px solid var(--border);padding:0 1.5rem;height:56px;
-  display:flex;align-items:center;gap:1rem;box-shadow:var(--shadow-sm);
-}
-.g-logo{font-weight:800;font-size:1rem;color:var(--text);letter-spacing:-.02em;display:flex;align-items:center;gap:.5rem}
-.g-tabs{display:flex;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;background:var(--surface2)}
-.g-tab{
-  padding:6px 20px;font-size:.82rem;font-weight:600;border:none;background:transparent;
-  cursor:pointer;color:var(--text-muted);transition:background .15s,color .15s;
-  display:flex;align-items:center;gap:6px;white-space:nowrap;font-family:var(--font);
-}
-.g-tab .td{width:8px;height:8px;border-radius:50%}
-.g-tab.active{background:var(--text);color:#fff}
-.g-spacer{flex:1}
-.g-badge{font-size:.75rem;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);padding:.25rem .7rem;border-radius:20px}
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.5
+    }
 
-/* ── Panels ── */
-.panel{display:none}.panel.active{display:block}
+    /* ── Global Topbar ── */
+    .g-topbar {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      background: rgba(255, 255, 255, .96);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      box-shadow: var(--shadow-sm);
+    }
 
-/* ── Global Loading ── */
-#g-loading{display:none;position:fixed;inset:0;z-index:9999;background:rgba(241,245,249,.92);backdrop-filter:blur(4px);place-items:center}
-#g-loading.show{display:grid}
-.loading-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:40px 56px;text-align:center;box-shadow:var(--shadow-lg)}
-.spinner{width:40px;height:40px;border:3px solid var(--border);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
-@keyframes spin{to{transform:rotate(360deg)}}
-.loading-text{font-weight:600;color:var(--text)}
-.loading-sub{font-size:.82rem;color:var(--text-muted);margin-top:6px}
+    .g-logo {
+      font-weight: 800;
+      font-size: 1rem;
+      color: var(--text);
+      letter-spacing: -.02em;
+      display: flex;
+      align-items: center;
+      gap: .5rem
+    }
 
-/* ════════════════════════════
+    .g-tabs {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      background: var(--surface2)
+    }
+
+    .g-tab {
+      padding: 6px 20px;
+      font-size: .82rem;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: background .15s, color .15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      font-family: var(--font);
+    }
+
+    .g-tab .td {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%
+    }
+
+    .g-tab.active {
+      background: var(--text);
+      color: #fff
+    }
+
+    .g-spacer {
+      flex: 1
+    }
+
+    .g-badge {
+      font-size: .75rem;
+      color: var(--text-muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: .25rem .7rem;
+      border-radius: 20px
+    }
+
+    /* ── Panels ── */
+    .panel {
+      display: none
+    }
+
+    .panel.active {
+      display: block
+    }
+
+    /* ── Global Loading ── */
+    #g-loading {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(241, 245, 249, .92);
+      backdrop-filter: blur(4px);
+      place-items: center
+    }
+
+    #g-loading.show {
+      display: grid
+    }
+
+    .loading-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px 56px;
+      text-align: center;
+      box-shadow: var(--shadow-lg)
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      margin: 0 auto 16px
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .loading-text {
+      font-weight: 600;
+      color: var(--text)
+    }
+
+    .loading-sub {
+      font-size: .82rem;
+      color: var(--text-muted);
+      margin-top: 6px
+    }
+
+    /* ════════════════════════════
    SHOPEE STYLES  (sh- prefix)
 ════════════════════════════ */
-#sh-upload{
-  min-height:calc(100vh - 56px);display:flex;flex-direction:column;
-  align-items:center;justify-content:center;padding:2rem;
-  background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(234,88,12,.06) 0%,transparent 70%);
-}
-.sh-logo-mark{width:64px;height:64px;background:#ea580c;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:1.5rem;box-shadow:0 0 40px rgba(249,115,22,.3)}
-#sh-upload h1{font-size:2rem;font-weight:700;margin-bottom:.5rem;background:linear-gradient(135deg,#0f172a 30%,#ea580c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center}
-#sh-upload > p{color:var(--text-dim);margin-bottom:2.5rem;text-align:center;max-width:400px}
-.sh-dz{width:100%;max-width:520px;border:2px dashed var(--border);border-radius:var(--radius-lg);padding:3rem 2rem;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;background:var(--surface)}
-.sh-dz:hover,.sh-dz.dragover{border-color:#ea580c;background:rgba(234,88,12,.08)}
-.sh-dz .icon{font-size:3rem;margin-bottom:1rem}
-.sh-dz h3{font-weight:600;margin-bottom:.4rem}
-.sh-dz p{color:var(--text-dim);font-size:.85rem}
-.sh-btn-up{margin-top:1.5rem;display:inline-block;padding:.65rem 1.5rem;background:#ea580c;color:#fff;border:none;border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;transition:opacity .15s;font-family:var(--font)}
-.sh-btn-up:hover{opacity:.88}
-#sh-status{margin-top:1rem;color:var(--text-dim);font-size:.85rem}
-#sh-dash{display:none}
-.sh-topbar{position:sticky;top:56px;z-index:100;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
-.sh-tb-left{display:flex;align-items:center;gap:.75rem}
-.sh-tb-logo{font-size:1.1rem;font-weight:700}.sh-tb-logo span{color:#ea580c}
-.sh-tb-file{font-size:.75rem;color:var(--text-muted);background:var(--surface2);padding:.25rem .7rem;border-radius:20px;border:1px solid var(--border)}
-.sh-btn-rst{padding:.4rem .9rem;background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:7px;cursor:pointer;font-size:.8rem;font-family:var(--font);transition:border-color .15s,color .15s}
-.sh-btn-rst:hover{border-color:#ea580c;color:#ea580c}
-.sh-main{padding:1.5rem;max-width:1600px;margin:0 auto}
-.sh-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
-.sh-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;position:relative;overflow:hidden}
-.sh-kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--kc,#ea580c)}
-.sh-kpi .kl{font-size:.75rem;color:var(--text-muted);margin-bottom:.5rem;font-weight:500;letter-spacing:.02em}
-.sh-kpi .kv{font-size:1.15rem;font-weight:700;font-family:var(--mono);color:var(--text);line-height:1.2;word-break:break-all}
-.sh-kpi .ks{font-size:.75rem;color:var(--text-muted);margin-top:.35rem}
-.sh-cg{display:grid;grid-template-columns:repeat(12,1fr);gap:1rem;margin-bottom:1.5rem}
-.sh-cc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;min-width:0}
-.sh-cc.s12{grid-column:span 12}.sh-cc.s8{grid-column:span 8}.sh-cc.s6{grid-column:span 6}.sh-cc.s4{grid-column:span 4}.sh-cc.s5{grid-column:span 5}.sh-cc.s7{grid-column:span 7}
-.sh-ct{font-size:.8rem;font-weight:600;color:var(--text-dim);margin-bottom:1rem;letter-spacing:.03em;display:flex;align-items:center;gap:.5rem}
-.sh-ct .dot{width:8px;height:8px;border-radius:50%;background:#ea580c;flex-shrink:0}
-.sh-cw{position:relative}
-.sh-pt-wrap{overflow-x:auto}
-.sh-pt{width:100%;border-collapse:collapse;font-size:.82rem}
-.sh-pt thead th{text-align:left;padding:.6rem .75rem;background:var(--surface2);color:var(--text-muted);font-weight:600;font-size:.72rem;letter-spacing:.04em;border-bottom:1px solid var(--border)}
-.sh-pt tbody td{padding:.6rem .75rem;border-bottom:1px solid var(--border);color:var(--text)}
-.sh-pt tbody tr:hover td{background:var(--surface2)}
-.sh-pb{display:inline-block;padding:.18rem .55rem;border-radius:20px;font-size:.72rem;font-weight:600;background:rgba(234,88,12,.08);color:#ea580c;border:1px solid rgba(234,88,12,.2)}
-.sh-ts{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:1.5rem}
-.sh-th{padding:1.1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem}
-.sh-tt{font-weight:700;font-size:.9rem}
-.sh-tc{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
-.sh-si{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:.45rem .85rem;border-radius:7px;font-size:.82rem;font-family:var(--font);width:220px;transition:border-color .15s}
-.sh-si:focus{outline:none;border-color:#ea580c}
-.sh-si::placeholder{color:var(--text-muted)}
-.sh-sel{background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:.45rem .7rem;border-radius:7px;font-size:.82rem;font-family:var(--font);cursor:pointer}
-.sh-sel:focus{outline:none;border-color:#ea580c}
-.sh-dtw{overflow-x:auto}
-.sh-dt{width:100%;border-collapse:collapse;font-size:.78rem;white-space:nowrap}
-.sh-dt thead th{padding:.65rem .8rem;background:var(--surface2);color:var(--text-muted);font-weight:600;font-size:.7rem;letter-spacing:.04em;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;position:sticky;top:0;white-space:nowrap}
-.sh-dt thead th:hover{color:var(--text)}
-.sh-dt thead th .sa{display:inline-block;margin-left:.3rem;opacity:.4}
-.sh-dt thead th.sa-asc .sa,.sh-dt thead th.sa-desc .sa{opacity:1;color:#ea580c}
-.sh-dt tbody td{padding:.6rem .8rem;border-bottom:1px solid var(--border);color:var(--text-dim);max-width:200px;overflow:hidden;text-overflow:ellipsis}
-.sh-dt tbody tr:hover td{background:var(--surface2);color:var(--text)}
-.sh-badge{display:inline-block;padding:.15rem .5rem;border-radius:20px;font-size:.68rem;font-weight:600}
-.sh-bg{background:rgba(22,163,74,.1);color:#16a34a;border:1px solid rgba(34,197,94,.2)}
-.sh-br{background:rgba(220,38,38,.1);color:#dc2626;border:1px solid rgba(239,68,68,.2)}
-.sh-bb{background:rgba(37,99,235,.1);color:#2563eb;border:1px solid rgba(59,130,246,.2)}
-.sh-by{background:rgba(234,179,8,.12);color:#b45309;border:1px solid rgba(234,179,8,.2)}
-.sh-pg{padding:.85rem 1.25rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap}
-.sh-pg-info{color:var(--text-muted);font-size:.8rem}
-.sh-pg-btns{display:flex;gap:.4rem}
-.sh-pb2{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:.8rem;color:var(--text-dim);transition:all .15s;font-family:var(--font)}
-.sh-pb2:hover{border-color:#ea580c;color:#ea580c}
-.sh-pb2.active{background:#ea580c;border-color:#ea580c;color:#fff}
-.sh-pb2:disabled{opacity:.3;cursor:not-allowed}
-@media(max-width:900px){.sh-cc.s8,.sh-cc.s7,.sh-cc.s5,.sh-cc.s6,.sh-cc.s4{grid-column:span 12}}
-@media(max-width:600px){.sh-si{width:100%}.sh-main{padding:1rem .75rem}.sh-kpi .kv{font-size:1rem}}
+    #sh-upload {
+      min-height: calc(100vh - 56px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(234, 88, 12, .06) 0%, transparent 70%);
+    }
 
-/* ════════════════════════════
+    .sh-logo-mark {
+      width: 64px;
+      height: 64px;
+      background: #ea580c;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 0 40px rgba(249, 115, 22, .3)
+    }
+
+    #sh-upload h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: .5rem;
+      background: linear-gradient(135deg, #0f172a 30%, #ea580c);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-align: center
+    }
+
+    #sh-upload>p {
+      color: var(--text-dim);
+      margin-bottom: 2.5rem;
+      text-align: center;
+      max-width: 400px
+    }
+
+    .sh-dz {
+      width: 100%;
+      max-width: 520px;
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-lg);
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      background: var(--surface)
+    }
+
+    .sh-dz:hover,
+    .sh-dz.dragover {
+      border-color: #ea580c;
+      background: rgba(234, 88, 12, .08)
+    }
+
+    .sh-dz .icon {
+      font-size: 3rem;
+      margin-bottom: 1rem
+    }
+
+    .sh-dz h3 {
+      font-weight: 600;
+      margin-bottom: .4rem
+    }
+
+    .sh-dz p {
+      color: var(--text-dim);
+      font-size: .85rem
+    }
+
+    .sh-btn-up {
+      margin-top: 1.5rem;
+      display: inline-block;
+      padding: .65rem 1.5rem;
+      background: #ea580c;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+      font-family: var(--font)
+    }
+
+    .sh-btn-up:hover {
+      opacity: .88
+    }
+
+    #sh-status {
+      margin-top: 1rem;
+      color: var(--text-dim);
+      font-size: .85rem
+    }
+
+    #sh-dash {
+      display: none
+    }
+
+    .sh-topbar {
+      position: sticky;
+      top: 56px;
+      z-index: 100;
+      background: rgba(255, 255, 255, .92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: .9rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap
+    }
+
+    .sh-tb-left {
+      display: flex;
+      align-items: center;
+      gap: .75rem
+    }
+
+    .sh-tb-logo {
+      font-size: 1.1rem;
+      font-weight: 700
+    }
+
+    .sh-tb-logo span {
+      color: #ea580c
+    }
+
+    .sh-tb-file {
+      font-size: .75rem;
+      color: var(--text-muted);
+      background: var(--surface2);
+      padding: .25rem .7rem;
+      border-radius: 20px;
+      border: 1px solid var(--border)
+    }
+
+    .sh-btn-rst {
+      padding: .4rem .9rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: .8rem;
+      font-family: var(--font);
+      transition: border-color .15s, color .15s
+    }
+
+    .sh-btn-rst:hover {
+      border-color: #ea580c;
+      color: #ea580c
+    }
+
+    .sh-main {
+      padding: 1.5rem;
+      max-width: 1600px;
+      margin: 0 auto
+    }
+
+    .sh-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem
+    }
+
+    .sh-kpi {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      position: relative;
+      overflow: hidden
+    }
+
+    .sh-kpi::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--kc, #ea580c)
+    }
+
+    .sh-kpi .kl {
+      font-size: .75rem;
+      color: var(--text-muted);
+      margin-bottom: .5rem;
+      font-weight: 500;
+      letter-spacing: .02em
+    }
+
+    .sh-kpi .kv {
+      font-size: 1.15rem;
+      font-weight: 700;
+      font-family: var(--mono);
+      color: var(--text);
+      line-height: 1.2;
+      word-break: break-all
+    }
+
+    .sh-kpi .ks {
+      font-size: .75rem;
+      color: var(--text-muted);
+      margin-top: .35rem
+    }
+
+    .sh-cg {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem
+    }
+
+    .sh-cc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      min-width: 0
+    }
+
+    .sh-cc.s12 {
+      grid-column: span 12
+    }
+
+    .sh-cc.s8 {
+      grid-column: span 8
+    }
+
+    .sh-cc.s6 {
+      grid-column: span 6
+    }
+
+    .sh-cc.s4 {
+      grid-column: span 4
+    }
+
+    .sh-cc.s5 {
+      grid-column: span 5
+    }
+
+    .sh-cc.s7 {
+      grid-column: span 7
+    }
+
+    .sh-ct {
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+      letter-spacing: .03em;
+      display: flex;
+      align-items: center;
+      gap: .5rem
+    }
+
+    .sh-ct .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ea580c;
+      flex-shrink: 0
+    }
+
+    .sh-cw {
+      position: relative
+    }
+
+    .sh-pt-wrap {
+      overflow-x: auto
+    }
+
+    .sh-pt {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .82rem
+    }
+
+    .sh-pt thead th {
+      text-align: left;
+      padding: .6rem .75rem;
+      background: var(--surface2);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: .72rem;
+      letter-spacing: .04em;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .sh-pt tbody td {
+      padding: .6rem .75rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text)
+    }
+
+    .sh-pt tbody tr:hover td {
+      background: var(--surface2)
+    }
+
+    .sh-pb {
+      display: inline-block;
+      padding: .18rem .55rem;
+      border-radius: 20px;
+      font-size: .72rem;
+      font-weight: 600;
+      background: rgba(234, 88, 12, .08);
+      color: #ea580c;
+      border: 1px solid rgba(234, 88, 12, .2)
+    }
+
+    .sh-ts {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 1.5rem
+    }
+
+    .sh-th {
+      padding: 1.1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: .75rem
+    }
+
+    .sh-tt {
+      font-weight: 700;
+      font-size: .9rem
+    }
+
+    .sh-tc {
+      display: flex;
+      gap: .6rem;
+      flex-wrap: wrap;
+      align-items: center
+    }
+
+    .sh-si {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: .45rem .85rem;
+      border-radius: 7px;
+      font-size: .82rem;
+      font-family: var(--font);
+      width: 220px;
+      transition: border-color .15s
+    }
+
+    .sh-si:focus {
+      outline: none;
+      border-color: #ea580c
+    }
+
+    .sh-si::placeholder {
+      color: var(--text-muted)
+    }
+
+    .sh-sel {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: .45rem .7rem;
+      border-radius: 7px;
+      font-size: .82rem;
+      font-family: var(--font);
+      cursor: pointer
+    }
+
+    .sh-sel:focus {
+      outline: none;
+      border-color: #ea580c
+    }
+
+    .sh-dtw {
+      overflow-x: auto
+    }
+
+    .sh-dt {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .78rem;
+      white-space: nowrap
+    }
+
+    .sh-dt thead th {
+      padding: .65rem .8rem;
+      background: var(--surface2);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: .7rem;
+      letter-spacing: .04em;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+      position: sticky;
+      top: 0;
+      white-space: nowrap
+    }
+
+    .sh-dt thead th:hover {
+      color: var(--text)
+    }
+
+    .sh-dt thead th .sa {
+      display: inline-block;
+      margin-left: .3rem;
+      opacity: .4
+    }
+
+    .sh-dt thead th.sa-asc .sa,
+    .sh-dt thead th.sa-desc .sa {
+      opacity: 1;
+      color: #ea580c
+    }
+
+    .sh-dt tbody td {
+      padding: .6rem .8rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-dim);
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .sh-dt tbody tr:hover td {
+      background: var(--surface2);
+      color: var(--text)
+    }
+
+    .sh-badge {
+      display: inline-block;
+      padding: .15rem .5rem;
+      border-radius: 20px;
+      font-size: .68rem;
+      font-weight: 600
+    }
+
+    .sh-bg {
+      background: rgba(22, 163, 74, .1);
+      color: #16a34a;
+      border: 1px solid rgba(34, 197, 94, .2)
+    }
+
+    .sh-br {
+      background: rgba(220, 38, 38, .1);
+      color: #dc2626;
+      border: 1px solid rgba(239, 68, 68, .2)
+    }
+
+    .sh-bb {
+      background: rgba(37, 99, 235, .1);
+      color: #2563eb;
+      border: 1px solid rgba(59, 130, 246, .2)
+    }
+
+    .sh-by {
+      background: rgba(234, 179, 8, .12);
+      color: #b45309;
+      border: 1px solid rgba(234, 179, 8, .2)
+    }
+
+    .sh-pg {
+      padding: .85rem 1.25rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      flex-wrap: wrap
+    }
+
+    .sh-pg-info {
+      color: var(--text-muted);
+      font-size: .8rem
+    }
+
+    .sh-pg-btns {
+      display: flex;
+      gap: .4rem
+    }
+
+    .sh-pb2 {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: .8rem;
+      color: var(--text-dim);
+      transition: all .15s;
+      font-family: var(--font)
+    }
+
+    .sh-pb2:hover {
+      border-color: #ea580c;
+      color: #ea580c
+    }
+
+    .sh-pb2.active {
+      background: #ea580c;
+      border-color: #ea580c;
+      color: #fff
+    }
+
+    .sh-pb2:disabled {
+      opacity: .3;
+      cursor: not-allowed
+    }
+
+    @media(max-width:900px) {
+
+      .sh-cc.s8,
+      .sh-cc.s7,
+      .sh-cc.s5,
+      .sh-cc.s6,
+      .sh-cc.s4 {
+        grid-column: span 12
+      }
+    }
+
+    @media(max-width:600px) {
+      .sh-si {
+        width: 100%
+      }
+
+      .sh-main {
+        padding: 1rem .75rem
+      }
+
+      .sh-kpi .kv {
+        font-size: 1rem
+      }
+    }
+
+    /* ════════════════════════════
    TIKTOK STYLES  (tt- prefix)
 ════════════════════════════ */
-.tt-shell{max-width:1440px;margin:0 auto;padding:24px 24px 48px}
-.tt-dz{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  min-height:calc(100vh - 56px - 80px);border:2px dashed var(--border-strong);
-  border-radius:var(--radius-lg);background:var(--surface);text-align:center;
-  padding:48px 24px;transition:border-color .2s,background .2s;cursor:pointer;
-}
-.tt-dz.drag-over{border-color:#3B5BDB;background:#EEF2FF}
-.tt-di{width:64px;height:64px;border-radius:50%;background:#EEF2FF;display:grid;place-items:center;margin-bottom:20px}
-.tt-dz h2{font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:8px}
-.tt-dz p{color:var(--text-dim);font-size:.88rem;max-width:340px;line-height:1.6}
-.tt-fmts{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
-.tt-fmt{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:.75rem;font-weight:600;color:var(--text-dim)}
-.tt-fbtn{margin-top:20px;display:inline-flex;align-items:center;gap:7px;background:#3B5BDB;color:#fff;border:none;border-radius:var(--radius-sm);padding:9px 20px;font-size:.88rem;font-weight:600;cursor:pointer;transition:background .15s;font-family:var(--font)}
-.tt-fbtn:hover{background:#2F4AC5}
-#tt-dash{display:none}
-.tt-filter{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px;box-shadow:var(--shadow-sm)}
-.tt-fl{font-size:.8rem;font-weight:600;color:var(--text-dim);white-space:nowrap}
-.tt-fbg{display:flex;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
-.tt-fb{padding:6px 14px;font-size:.8rem;font-weight:600;border:none;background:transparent;cursor:pointer;color:var(--text-dim);transition:background .15s,color .15s;white-space:nowrap;font-family:var(--font)}
-.tt-fb.active{background:#3B5BDB;color:#fff}
-.tt-fb:hover:not(.active){background:var(--bg)}
-.tt-dpw{display:none;align-items:center;gap:8px}
-.tt-dpw.vis{display:flex}
-.tt-di2{border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:.8rem;color:var(--text);background:var(--bg);outline:none}
-.tt-di2:focus{border-color:#3B5BDB;background:#fff}
-.tt-ms{border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:.8rem;color:var(--text);background:var(--bg);outline:none;cursor:pointer;display:none;font-family:var(--font)}
-.tt-ms.vis{display:block}
-.tt-fbs{flex:1}
-.tt-dm{font-size:.78rem;color:var(--text-3);font-weight:500}
-.tt-kg{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
-.tt-kc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
-.tt-kc::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--kc2,#3B5BDB)}
-.tt-kl{font-size:.77rem;font-weight:600;color:var(--text-dim);margin-bottom:10px;letter-spacing:.02em}
-.tt-kv{font-size:1.2rem;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.2}
-.tt-ks{font-size:.75rem;color:var(--text-3);margin-top:4px}
-.tt-ki{position:absolute;top:16px;right:16px;opacity:.12}
-.tt-cg{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:20px}
-.tt-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-sm)}
-.tt-card.full{grid-column:1/-1}
-.tt-ctitle{font-size:.9rem;font-weight:700;color:var(--text);margin-bottom:4px}
-.tt-csub{font-size:.75rem;color:var(--text-3);margin-bottom:16px}
-.tt-cw{position:relative}.tt-cw canvas{max-height:280px}
-.tt-toggle{display:flex;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;width:fit-content;margin-bottom:14px}
-.tt-tgb{padding:4px 12px;font-size:.75rem;font-weight:600;border:none;background:transparent;cursor:pointer;color:var(--text-dim);transition:background .15s,color .15s;font-family:var(--font)}
-.tt-tgb.active{background:#3B5BDB;color:#fff}
-.tt-tgb:hover:not(.active){background:var(--bg)}
-.tt-mt{width:100%;border-collapse:collapse;font-size:.82rem}
-.tt-mt th{text-align:left;font-weight:600;color:var(--text-dim);font-size:.74rem;padding:8px 10px;border-bottom:2px solid var(--border);white-space:nowrap}
-.tt-mt th:not(:first-child){text-align:right}
-.tt-mt td{padding:9px 10px;border-bottom:1px solid var(--border);color:var(--text)}
-.tt-mt td:not(:first-child){text-align:right}
-.tt-mt tr:last-child td{border-bottom:none}
-.tt-mt tr:hover td{background:var(--bg)}
-.tt-rp{display:inline-block;padding:2px 7px;border-radius:4px;font-size:.73rem;font-weight:700}
-.tt-rp.low{background:#EBFBEE;color:#2F9E44}.tt-rp.mid{background:#FFF9DB;color:#B45309}.tt-rp.high{background:#FFF5F5;color:#F03E3E}
-.tt-bg2{display:grid;gap:8px}
-.tt-br{display:flex;align-items:center;gap:10px}
-.tt-brl{font-size:.8rem;font-weight:500;color:var(--text);width:160px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tt-brw{flex:1;background:var(--bg);border-radius:4px;height:8px;overflow:hidden}
-.tt-brb{height:100%;border-radius:4px;background:#3B5BDB;transition:width .6s cubic-bezier(.4,0,.2,1)}
-.tt-brv{font-size:.78rem;font-weight:600;color:var(--text-dim);width:100px;text-align:right;flex-shrink:0}
-.tt-brp{font-size:.75rem;color:var(--text-3);width:42px;text-align:right;flex-shrink:0}
-.tt-tbl-sec{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)}
-.tt-tbl-hdr{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.tt-tbl-title{font-size:.9rem;font-weight:700;color:var(--text)}
-.tt-tbl-cnt{font-size:.78rem;color:var(--text-3)}
-.tt-tbl-sp{flex:1}
-.tt-si2{
-  border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:7px 12px 7px 34px;font-size:.82rem;color:var(--text);
-  background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 10px center;
-  outline:none;min-width:220px;font-family:var(--font);
-}
-.tt-si2:focus{border-color:#3B5BDB;background-color:#fff}
-.tt-pss{border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:.82rem;color:var(--text);background:var(--bg);outline:none;cursor:pointer;font-family:var(--font)}
-.tt-tw{overflow-x:auto}
-table.tt-dt{width:100%;border-collapse:collapse;font-size:.78rem;white-space:nowrap}
-table.tt-dt th{position:sticky;top:0;z-index:1;padding:10px 12px;text-align:left;font-weight:600;font-size:.72rem;color:var(--text-dim);background:var(--bg);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap}
-table.tt-dt th:hover{color:#3B5BDB}
-table.tt-dt th .si{color:var(--text-3);font-size:.7rem}
-table.tt-dt th.sort-asc .si::after{content:' ▲';color:#3B5BDB}
-table.tt-dt th.sort-desc .si::after{content:' ▼';color:#3B5BDB}
-table.tt-dt th:not(.sort-asc):not(.sort-desc) .si::after{content:' ⇅'}
-table.tt-dt td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text);max-width:200px;overflow:hidden;text-overflow:ellipsis}
-table.tt-dt tr:last-child td{border-bottom:none}
-table.tt-dt tr:hover td{background:#EEF2FF}
-.tt-sb{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:600;white-space:nowrap}
-.tt-sb.paid{background:#EBFBEE;color:#2F9E44}.tt-sb.process{background:#EFF6FF;color:#2563EB}.tt-sb.ineligible{background:#FFF7ED;color:#C2410C}.tt-sb.unpaid{background:var(--bg);color:var(--text-3);border:1px solid var(--border)}
-.tt-tf{padding:14px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.tt-pi{font-size:.78rem;color:var(--text-dim);flex:1}
-.tt-pb{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-sm);padding:5px 10px;font-size:.78rem;color:var(--text);cursor:pointer;transition:border-color .15s,background .15s;font-weight:500;font-family:var(--font)}
-.tt-pb:hover:not(:disabled){border-color:#3B5BDB;color:#3B5BDB;background:#EEF2FF}
-.tt-pb:disabled{opacity:.4;cursor:not-allowed}
-.tt-pb.cur{background:#3B5BDB;color:#fff;border-color:#3B5BDB}
-.tt-pns{display:flex;gap:4px;flex-wrap:wrap}
-@media(max-width:1024px){.tt-kg{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:768px){.tt-shell{padding:16px 14px 40px}.tt-kg{grid-template-columns:repeat(2,1fr);gap:12px}.tt-cg{grid-template-columns:1fr}.tt-card.full{grid-column:auto}.tt-filter{gap:10px}.tt-kv{font-size:1.05rem}.tt-brl{width:110px}.tt-brv{width:80px}}
-@media(max-width:480px){.tt-kg{grid-template-columns:1fr 1fr}.tt-si2{min-width:140px}}
+    .tt-shell {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 24px 24px 48px
+    }
 
-/* ── KPI Copy Button & Toast ── */
-.kpi-copy-btn{
-  position:absolute;top:10px;right:10px;width:28px;height:28px;
-  border-radius:6px;border:1px solid var(--border);background:var(--surface);
-  color:var(--text-muted);display:flex;align-items:center;justify-content:center;
-  cursor:pointer;padding:0;transition:all .15s ease;z-index:5;
-}
-.kpi-copy-btn:hover{
-  background:var(--surface2);color:var(--text);border-color:var(--border-strong);
-  transform:translateY(-1px);box-shadow:0 2px 6px rgba(15,23,42,.08);
-}
-.kpi-copy-btn:active{transform:translateY(0)}
-.kpi-copy-btn.copied{
-  color:#16a34a;border-color:rgba(22,163,74,.4);background:rgba(22,163,74,.08);
-}
-.sh-kpi .kl,.tt-kl{padding-right:32px}
-.tt-ki{pointer-events:none;z-index:1}
+    .tt-dz {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 56px - 80px);
+      border: 2px dashed var(--border-strong);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      text-align: center;
+      padding: 48px 24px;
+      transition: border-color .2s, background .2s;
+      cursor: pointer;
+    }
 
-#kpi-toast{
-  position:fixed;bottom:24px;right:24px;background:#0f172a;color:#f8fafc;
-  padding:10px 16px;border-radius:8px;font-size:.82rem;font-weight:500;
-  display:flex;align-items:center;gap:8px;box-shadow:0 10px 25px rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.1);
-  z-index:10000;opacity:0;transform:translateY(12px) scale(.96);pointer-events:none;
-  transition:opacity .2s cubic-bezier(.16,1,.3,1),transform .2s cubic-bezier(.16,1,.3,1);font-family:var(--font);
-}
-#kpi-toast.show{opacity:1;transform:translateY(0) scale(1)}
-</style>
+    .tt-dz.drag-over {
+      border-color: #3B5BDB;
+      background: #EEF2FF
+    }
+
+    .tt-di {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: #EEF2FF;
+      display: grid;
+      place-items: center;
+      margin-bottom: 20px
+    }
+
+    .tt-dz h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px
+    }
+
+    .tt-dz p {
+      color: var(--text-dim);
+      font-size: .88rem;
+      max-width: 340px;
+      line-height: 1.6
+    }
+
+    .tt-fmts {
+      margin-top: 16px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center
+    }
+
+    .tt-fmt {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: .75rem;
+      font-weight: 600;
+      color: var(--text-dim)
+    }
+
+    .tt-fbtn {
+      margin-top: 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: #3B5BDB;
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 9px 20px;
+      font-size: .88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+      font-family: var(--font)
+    }
+
+    .tt-fbtn:hover {
+      background: #2F4AC5
+    }
+
+    #tt-dash {
+      display: none
+    }
+
+    .tt-filter {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm)
+    }
+
+    .tt-fl {
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      white-space: nowrap
+    }
+
+    .tt-fbg {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden
+    }
+
+    .tt-fb {
+      padding: 6px 14px;
+      font-size: .8rem;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      color: var(--text-dim);
+      transition: background .15s, color .15s;
+      white-space: nowrap;
+      font-family: var(--font)
+    }
+
+    .tt-fb.active {
+      background: #3B5BDB;
+      color: #fff
+    }
+
+    .tt-fb:hover:not(.active) {
+      background: var(--bg)
+    }
+
+    .tt-dpw {
+      display: none;
+      align-items: center;
+      gap: 8px
+    }
+
+    .tt-dpw.vis {
+      display: flex
+    }
+
+    .tt-di2 {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 6px 10px;
+      font-size: .8rem;
+      color: var(--text);
+      background: var(--bg);
+      outline: none
+    }
+
+    .tt-di2:focus {
+      border-color: #3B5BDB;
+      background: #fff
+    }
+
+    .tt-ms {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 6px 10px;
+      font-size: .8rem;
+      color: var(--text);
+      background: var(--bg);
+      outline: none;
+      cursor: pointer;
+      display: none;
+      font-family: var(--font)
+    }
+
+    .tt-ms.vis {
+      display: block
+    }
+
+    .tt-fbs {
+      flex: 1
+    }
+
+    .tt-dm {
+      font-size: .78rem;
+      color: var(--text-3);
+      font-weight: 500
+    }
+
+    .tt-kg {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 20px
+    }
+
+    .tt-kc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden
+    }
+
+    .tt-kc::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--kc2, #3B5BDB)
+    }
+
+    .tt-kl {
+      font-size: .77rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+      letter-spacing: .02em
+    }
+
+    .tt-kv {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -.02em;
+      line-height: 1.2
+    }
+
+    .tt-ks {
+      font-size: .75rem;
+      color: var(--text-3);
+      margin-top: 4px
+    }
+
+    .tt-ki {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      opacity: .12
+    }
+
+    .tt-cg {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-bottom: 20px
+    }
+
+    .tt-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow-sm)
+    }
+
+    .tt-card.full {
+      grid-column: 1/-1
+    }
+
+    .tt-ctitle {
+      font-size: .9rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px
+    }
+
+    .tt-csub {
+      font-size: .75rem;
+      color: var(--text-3);
+      margin-bottom: 16px
+    }
+
+    .tt-cw {
+      position: relative
+    }
+
+    .tt-cw canvas {
+      max-height: 280px
+    }
+
+    .tt-toggle {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      width: fit-content;
+      margin-bottom: 14px
+    }
+
+    .tt-tgb {
+      padding: 4px 12px;
+      font-size: .75rem;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      color: var(--text-dim);
+      transition: background .15s, color .15s;
+      font-family: var(--font)
+    }
+
+    .tt-tgb.active {
+      background: #3B5BDB;
+      color: #fff
+    }
+
+    .tt-tgb:hover:not(.active) {
+      background: var(--bg)
+    }
+
+    .tt-mt {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .82rem
+    }
+
+    .tt-mt th {
+      text-align: left;
+      font-weight: 600;
+      color: var(--text-dim);
+      font-size: .74rem;
+      padding: 8px 10px;
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap
+    }
+
+    .tt-mt th:not(:first-child) {
+      text-align: right
+    }
+
+    .tt-mt td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text)
+    }
+
+    .tt-mt td:not(:first-child) {
+      text-align: right
+    }
+
+    .tt-mt tr:last-child td {
+      border-bottom: none
+    }
+
+    .tt-mt tr:hover td {
+      background: var(--bg)
+    }
+
+    .tt-rp {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: .73rem;
+      font-weight: 700
+    }
+
+    .tt-rp.low {
+      background: #EBFBEE;
+      color: #2F9E44
+    }
+
+    .tt-rp.mid {
+      background: #FFF9DB;
+      color: #B45309
+    }
+
+    .tt-rp.high {
+      background: #FFF5F5;
+      color: #F03E3E
+    }
+
+    .tt-bg2 {
+      display: grid;
+      gap: 8px
+    }
+
+    .tt-br {
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .tt-brl {
+      font-size: .8rem;
+      font-weight: 500;
+      color: var(--text);
+      width: 160px;
+      flex-shrink: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .tt-brw {
+      flex: 1;
+      background: var(--bg);
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden
+    }
+
+    .tt-brb {
+      height: 100%;
+      border-radius: 4px;
+      background: #3B5BDB;
+      transition: width .6s cubic-bezier(.4, 0, .2, 1)
+    }
+
+    .tt-brv {
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      width: 100px;
+      text-align: right;
+      flex-shrink: 0
+    }
+
+    .tt-brp {
+      font-size: .75rem;
+      color: var(--text-3);
+      width: 42px;
+      text-align: right;
+      flex-shrink: 0
+    }
+
+    .tt-tbl-sec {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm)
+    }
+
+    .tt-tbl-hdr {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap
+    }
+
+    .tt-tbl-title {
+      font-size: .9rem;
+      font-weight: 700;
+      color: var(--text)
+    }
+
+    .tt-tbl-cnt {
+      font-size: .78rem;
+      color: var(--text-3)
+    }
+
+    .tt-tbl-sp {
+      flex: 1
+    }
+
+    .tt-si2 {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 7px 12px 7px 34px;
+      font-size: .82rem;
+      color: var(--text);
+      background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 10px center;
+      outline: none;
+      min-width: 220px;
+      font-family: var(--font);
+    }
+
+    .tt-si2:focus {
+      border-color: #3B5BDB;
+      background-color: #fff
+    }
+
+    .tt-pss {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 7px 10px;
+      font-size: .82rem;
+      color: var(--text);
+      background: var(--bg);
+      outline: none;
+      cursor: pointer;
+      font-family: var(--font)
+    }
+
+    .tt-tw {
+      overflow-x: auto
+    }
+
+    table.tt-dt {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .78rem;
+      white-space: nowrap
+    }
+
+    table.tt-dt th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: 10px 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: .72rem;
+      color: var(--text-dim);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap
+    }
+
+    table.tt-dt th:hover {
+      color: #3B5BDB
+    }
+
+    table.tt-dt th .si {
+      color: var(--text-3);
+      font-size: .7rem
+    }
+
+    table.tt-dt th.sort-asc .si::after {
+      content: ' ▲';
+      color: #3B5BDB
+    }
+
+    table.tt-dt th.sort-desc .si::after {
+      content: ' ▼';
+      color: #3B5BDB
+    }
+
+    table.tt-dt th:not(.sort-asc):not(.sort-desc) .si::after {
+      content: ' ⇅'
+    }
+
+    table.tt-dt td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    table.tt-dt tr:last-child td {
+      border-bottom: none
+    }
+
+    table.tt-dt tr:hover td {
+      background: #EEF2FF
+    }
+
+    .tt-sb {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: .7rem;
+      font-weight: 600;
+      white-space: nowrap
+    }
+
+    .tt-sb.paid {
+      background: #EBFBEE;
+      color: #2F9E44
+    }
+
+    .tt-sb.process {
+      background: #EFF6FF;
+      color: #2563EB
+    }
+
+    .tt-sb.ineligible {
+      background: #FFF7ED;
+      color: #C2410C
+    }
+
+    .tt-sb.unpaid {
+      background: var(--bg);
+      color: var(--text-3);
+      border: 1px solid var(--border)
+    }
+
+    .tt-tf {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap
+    }
+
+    .tt-pi {
+      font-size: .78rem;
+      color: var(--text-dim);
+      flex: 1
+    }
+
+    .tt-pb {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: 5px 10px;
+      font-size: .78rem;
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      font-weight: 500;
+      font-family: var(--font)
+    }
+
+    .tt-pb:hover:not(:disabled) {
+      border-color: #3B5BDB;
+      color: #3B5BDB;
+      background: #EEF2FF
+    }
+
+    .tt-pb:disabled {
+      opacity: .4;
+      cursor: not-allowed
+    }
+
+    .tt-pb.cur {
+      background: #3B5BDB;
+      color: #fff;
+      border-color: #3B5BDB
+    }
+
+    .tt-pns {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap
+    }
+
+    @media(max-width:1024px) {
+      .tt-kg {
+        grid-template-columns: repeat(2, 1fr)
+      }
+    }
+
+    @media(max-width:768px) {
+      .tt-shell {
+        padding: 16px 14px 40px
+      }
+
+      .tt-kg {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px
+      }
+
+      .tt-cg {
+        grid-template-columns: 1fr
+      }
+
+      .tt-card.full {
+        grid-column: auto
+      }
+
+      .tt-filter {
+        gap: 10px
+      }
+
+      .tt-kv {
+        font-size: 1.05rem
+      }
+
+      .tt-brl {
+        width: 110px
+      }
+
+      .tt-brv {
+        width: 80px
+      }
+    }
+
+    @media(max-width:480px) {
+      .tt-kg {
+        grid-template-columns: 1fr 1fr
+      }
+
+      .tt-si2 {
+        min-width: 140px
+      }
+    }
+
+    /* ── KPI Copy Button & Toast ── */
+    .kpi-copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      transition: all .15s ease;
+      z-index: 5;
+    }
+
+    .kpi-copy-btn:hover {
+      background: var(--surface2);
+      color: var(--text);
+      border-color: var(--border-strong);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(15, 23, 42, .08);
+    }
+
+    .kpi-copy-btn:active {
+      transform: translateY(0)
+    }
+
+    .kpi-copy-btn.copied {
+      color: #16a34a;
+      border-color: rgba(22, 163, 74, .4);
+      background: rgba(22, 163, 74, .08);
+    }
+
+    .sh-kpi .kl,
+    .tt-kl {
+      padding-right: 32px
+    }
+
+    .tt-ki {
+      pointer-events: none;
+      z-index: 1
+    }
+
+    #kpi-toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: .82rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, .18), 0 2px 6px rgba(0, 0, 0, .1);
+      z-index: 10000;
+      opacity: 0;
+      transform: translateY(12px) scale(.96);
+      pointer-events: none;
+      transition: opacity .2s cubic-bezier(.16, 1, .3, 1), transform .2s cubic-bezier(.16, 1, .3, 1);
+      font-family: var(--font);
+    }
+
+    #kpi-toast.show {
+      opacity: 1;
+      transform: translateY(0) scale(1)
+    }
+  </style>
 </head>
+
 <body>
 
-<!-- GLOBAL TOPBAR -->
-<header class="g-topbar">
-  <div class="g-logo">
-    <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" fill="#0f172a"/><path d="M7 20l5-10 4 7 2-3 3 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    Affiliate Analytics
-  </div>
-  <div class="g-tabs" role="tablist">
-    <button id="tab-sh" class="g-tab active" role="tab" aria-selected="true" onclick="switchTab('sh')">
-      <span class="td" style="background:#ea580c"></span>Shopee
-    </button>
-    <button id="tab-tt" class="g-tab" role="tab" aria-selected="false" onclick="switchTab('tt')">
-      <span class="td" style="background:#3B5BDB"></span>TikTok Shop
-    </button>
-  </div>
-  <div class="g-spacer"></div>
-  <span class="g-badge" id="g-badge">Shopee Affiliate</span>
-</header>
-
-<!-- GLOBAL LOADING -->
-<div id="g-loading">
-  <div class="loading-box">
-    <div class="spinner" id="g-spinner" style="border-top-color:#ea580c"></div>
-    <div class="loading-text">Memproses data…</div>
-    <div class="loading-sub">Mohon tunggu sebentar</div>
-  </div>
-</div>
-
-<!-- ════════════════ SHOPEE PANEL ════════════════ -->
-<div id="sh-panel" class="panel active" role="tabpanel">
-
-  <!-- Upload -->
-  <div id="sh-upload">
-    <div class="sh-logo-mark">🛒</div>
-    <h1>Shopee Affiliate Dashboard</h1>
-    <p>Upload laporan Shopee Affiliate untuk visualisasi performa data secara instan — tanpa server.</p>
-    <div class="sh-dz" id="sh-dz">
-      <div class="icon">📊</div>
-      <h3>Drop your report here</h3>
-      <p>Supports .csv, .xls, .xlsx files</p>
-      <input type="file" id="sh-fi" accept=".csv,.xls,.xlsx" style="display:none">
-      <button class="sh-btn-up" onclick="document.getElementById('sh-fi').click()">Choose File</button>
+  <!-- GLOBAL TOPBAR -->
+  <header class="g-topbar">
+    <div class="g-logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="8" fill="#0f172a" />
+        <path d="M7 20l5-10 4 7 2-3 3 6" stroke="#fff" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round" />
+      </svg>
+      Affiliate Analytics
     </div>
-    <div id="sh-status"></div>
+    <div class="g-tabs" role="tablist">
+      <button id="tab-sh" class="g-tab active" role="tab" aria-selected="true" onclick="switchTab('sh')">
+        <span class="td" style="background:#ea580c"></span>Shopee
+      </button>
+      <button id="tab-tt" class="g-tab" role="tab" aria-selected="false" onclick="switchTab('tt')">
+        <span class="td" style="background:#3B5BDB"></span>TikTok Shop
+      </button>
+    </div>
+    <div class="g-spacer"></div>
+    <span class="g-badge" id="g-badge">Shopee Affiliate</span>
+  </header>
+
+  <!-- GLOBAL LOADING -->
+  <div id="g-loading">
+    <div class="loading-box">
+      <div class="spinner" id="g-spinner" style="border-top-color:#ea580c"></div>
+      <div class="loading-text">Memproses data…</div>
+      <div class="loading-sub">Mohon tunggu sebentar</div>
+    </div>
   </div>
 
-  <!-- Dashboard -->
-  <div id="sh-dash">
-    <div class="sh-topbar">
-      <div class="sh-tb-left">
-        <span class="sh-tb-logo">Shopee <span>Affiliate</span></span>
-        <span class="sh-tb-file" id="sh-fname">—</span>
+  <!-- ════════════════ SHOPEE PANEL ════════════════ -->
+  <div id="sh-panel" class="panel active" role="tabpanel">
+
+    <!-- Upload -->
+    <div id="sh-upload">
+      <div class="sh-logo-mark">🛒</div>
+      <h1>Shopee Affiliate Dashboard</h1>
+      <p>Upload laporan Shopee Affiliate untuk visualisasi performa data secara instan — tanpa server.</p>
+      <div class="sh-dz" id="sh-dz">
+        <div class="icon">📊</div>
+        <h3>Drop your report here</h3>
+        <p>Supports .csv, .xls, .xlsx files</p>
+        <input type="file" id="sh-fi" accept=".csv,.xls,.xlsx" style="display:none">
+        <button class="sh-btn-up" onclick="document.getElementById('sh-fi').click()">Choose File</button>
       </div>
-      <button class="sh-btn-rst" onclick="shReset()">↩ Upload New File</button>
+      <div id="sh-status"></div>
     </div>
-    <div class="sh-main">
-      <div class="sh-kpi-grid" id="sh-kpi"></div>
-      <div class="sh-cg">
-        <div class="sh-cc s8"><div class="sh-ct"><span class="dot"></span>Daily GMV Trend</div><div class="sh-cw" style="height:240px"><canvas id="sh-c-daily"></canvas></div></div>
-        <div class="sh-cc s4"><div class="sh-ct"><span class="dot" style="background:#2563eb"></span>Order Status</div><div class="sh-cw" style="height:240px"><canvas id="sh-c-status"></canvas></div></div>
-        <div class="sh-cc s12">
-          <div class="sh-ct"><span class="dot" style="background:#dc2626"></span>Promo Type Breakdown</div>
-          <div class="sh-pt-wrap">
-            <table class="sh-pt">
-              <thead><tr><th>Jenis Promo</th><th>Orders</th><th>GMV (Rp)</th><th>Total Expense (Rp)</th><th>Expense Ratio</th><th>Avg GMV (Rp)</th><th>% of GMV</th></tr></thead>
-              <tbody id="sh-pt-body"></tbody>
+
+    <!-- Dashboard -->
+    <div id="sh-dash">
+      <div class="sh-topbar">
+        <div class="sh-tb-left">
+          <span class="sh-tb-logo">Shopee <span>Affiliate</span></span>
+          <span class="sh-tb-file" id="sh-fname">—</span>
+        </div>
+        <button class="sh-btn-rst" onclick="shReset()">↩ Upload New File</button>
+      </div>
+      <div class="sh-main">
+        <div class="sh-kpi-grid" id="sh-kpi"></div>
+        <div class="sh-cg">
+          <div class="sh-cc s8">
+            <div class="sh-ct"><span class="dot"></span>Daily GMV Trend</div>
+            <div class="sh-cw" style="height:240px"><canvas id="sh-c-daily"></canvas></div>
+          </div>
+          <div class="sh-cc s4">
+            <div class="sh-ct"><span class="dot" style="background:#2563eb"></span>Order Status</div>
+            <div class="sh-cw" style="height:240px"><canvas id="sh-c-status"></canvas></div>
+          </div>
+          <div class="sh-cc s12">
+            <div class="sh-ct"><span class="dot" style="background:#dc2626"></span>Promo Type Breakdown</div>
+            <div class="sh-pt-wrap">
+              <table class="sh-pt">
+                <thead>
+                  <tr>
+                    <th>Jenis Promo</th>
+                    <th>Orders</th>
+                    <th>GMV (Rp)</th>
+                    <th>Total Expense (Rp)</th>
+                    <th>Expense Ratio</th>
+                    <th>Avg GMV (Rp)</th>
+                    <th>% of GMV</th>
+                  </tr>
+                </thead>
+                <tbody id="sh-pt-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="sh-cc s6">
+            <div class="sh-ct"><span class="dot" style="background:#16a34a"></span>Top 10 Affiliates by GMV</div>
+            <div class="sh-cw" style="height:280px"><canvas id="sh-c-aff"></canvas></div>
+          </div>
+          <div class="sh-cc s6">
+            <div class="sh-ct"><span class="dot" style="background:#7c3aed"></span>Top 10 Products by GMV</div>
+            <div class="sh-cw" style="height:280px"><canvas id="sh-c-prod"></canvas></div>
+          </div>
+          <div class="sh-cc s5">
+            <div class="sh-ct"><span class="dot" style="background:#b45309"></span>Direct vs Indirect Orders</div>
+            <div class="sh-cw" style="height:240px"><canvas id="sh-c-type"></canvas></div>
+          </div>
+          <div class="sh-cc s7">
+            <div class="sh-ct"><span class="dot" style="background:#ea580c"></span>Platform Breakdown by GMV</div>
+            <div class="sh-cw" style="height:240px"><canvas id="sh-c-plat"></canvas></div>
+          </div>
+        </div>
+        <div class="sh-ts">
+          <div class="sh-th">
+            <span class="sh-tt">Transaction Records</span>
+            <div class="sh-tc">
+              <input type="text" class="sh-si" id="sh-srch" placeholder="Search orders, products, affiliates…">
+              <select class="sh-sel" id="sh-sf-status">
+                <option value="">All Status</option>
+              </select>
+              <select class="sh-sel" id="sh-sf-tipe">
+                <option value="">All Tipe</option>
+              </select>
+              <select class="sh-sel" id="sh-sf-plat">
+                <option value="">All Platform</option>
+              </select>
+              <select class="sh-sel" id="sh-rpp">
+                <option value="10">10 rows</option>
+                <option value="25">25 rows</option>
+                <option value="50">50 rows</option>
+              </select>
+            </div>
+          </div>
+          <div class="sh-dtw">
+            <table class="sh-dt">
+              <thead id="sh-dt-head"></thead>
+              <tbody id="sh-dt-body"></tbody>
             </table>
           </div>
-        </div>
-        <div class="sh-cc s6"><div class="sh-ct"><span class="dot" style="background:#16a34a"></span>Top 10 Affiliates by GMV</div><div class="sh-cw" style="height:280px"><canvas id="sh-c-aff"></canvas></div></div>
-        <div class="sh-cc s6"><div class="sh-ct"><span class="dot" style="background:#7c3aed"></span>Top 10 Products by GMV</div><div class="sh-cw" style="height:280px"><canvas id="sh-c-prod"></canvas></div></div>
-        <div class="sh-cc s5"><div class="sh-ct"><span class="dot" style="background:#b45309"></span>Direct vs Indirect Orders</div><div class="sh-cw" style="height:240px"><canvas id="sh-c-type"></canvas></div></div>
-        <div class="sh-cc s7"><div class="sh-ct"><span class="dot" style="background:#ea580c"></span>Platform Breakdown by GMV</div><div class="sh-cw" style="height:240px"><canvas id="sh-c-plat"></canvas></div></div>
-      </div>
-      <div class="sh-ts">
-        <div class="sh-th">
-          <span class="sh-tt">Transaction Records</span>
-          <div class="sh-tc">
-            <input type="text" class="sh-si" id="sh-srch" placeholder="Search orders, products, affiliates…">
-            <select class="sh-sel" id="sh-sf-status"><option value="">All Status</option></select>
-            <select class="sh-sel" id="sh-sf-tipe"><option value="">All Tipe</option></select>
-            <select class="sh-sel" id="sh-sf-plat"><option value="">All Platform</option></select>
-            <select class="sh-sel" id="sh-rpp"><option value="10">10 rows</option><option value="25">25 rows</option><option value="50">50 rows</option></select>
+          <div class="sh-pg"><span class="sh-pg-info" id="sh-pg-info"></span>
+            <div class="sh-pg-btns" id="sh-pg-btns"></div>
           </div>
         </div>
-        <div class="sh-dtw"><table class="sh-dt"><thead id="sh-dt-head"></thead><tbody id="sh-dt-body"></tbody></table></div>
-        <div class="sh-pg"><span class="sh-pg-info" id="sh-pg-info"></span><div class="sh-pg-btns" id="sh-pg-btns"></div></div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- ════════════════ TIKTOK PANEL ════════════════ -->
-<div id="tt-panel" class="panel" role="tabpanel">
-  <div class="tt-shell">
-    <div class="tt-dz" id="tt-dz">
-      <div class="tt-di">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3B5BDB" stroke-width="1.8" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-      </div>
-      <h2>Upload Laporan Afiliasi TikTok Shop</h2>
-      <p>Seret dan lepas file laporan TikTok Shop, atau klik untuk memilih file.</p>
-      <div class="tt-fmts"><span class="tt-fmt">.xlsx</span><span class="tt-fmt">.xls</span><span class="tt-fmt">.csv</span></div>
-      <button class="tt-fbtn" onclick="document.getElementById('tt-fi').click()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Upload File
-      </button>
-      <input type="file" id="tt-fi" accept=".csv,.xls,.xlsx" style="display:none">
-    </div>
-
-    <div id="tt-dash">
-      <div class="tt-filter">
-        <span class="tt-fl">Waktu Komisi Dibayar:</span>
-        <div class="tt-fbg">
-          <button class="tt-fb active" data-mode="month" onclick="ttSetMode('month')">Per Bulan</button>
-          <button class="tt-fb" data-mode="date" onclick="ttSetMode('date')">Pilih Tanggal</button>
-          <button class="tt-fb" data-mode="all" onclick="ttSetMode('all')">Semua</button>
+  <!-- ════════════════ TIKTOK PANEL ════════════════ -->
+  <div id="tt-panel" class="panel" role="tabpanel">
+    <div class="tt-shell">
+      <div class="tt-dz" id="tt-dz">
+        <div class="tt-di">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3B5BDB" stroke-width="1.8"
+            stroke-linecap="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="12" y1="18" x2="12" y2="12" />
+            <line x1="9" y1="15" x2="15" y2="15" />
+          </svg>
         </div>
-        <select class="tt-ms vis" id="tt-ms" onchange="ttFilter()"></select>
-        <div class="tt-dpw" id="tt-dp">
-          <input type="date" class="tt-di2" id="tt-df" onchange="ttFilter()">
-          <span style="color:var(--text-3);font-size:.8rem">—</span>
-          <input type="date" class="tt-di2" id="tt-dt" onchange="ttFilter()">
-        </div>
-        <div class="tt-fbs"></div>
-        <span class="tt-dm" id="tt-meta"></span>
+        <h2>Upload Laporan Afiliasi TikTok Shop</h2>
+        <p>Seret dan lepas file laporan TikTok Shop, atau klik untuk memilih file.</p>
+        <div class="tt-fmts"><span class="tt-fmt">.xlsx</span><span class="tt-fmt">.xls</span><span
+            class="tt-fmt">.csv</span></div>
+        <button class="tt-fbtn" onclick="document.getElementById('tt-fi').click()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          Upload File
+        </button>
+        <input type="file" id="tt-fi" accept=".csv,.xls,.xlsx" style="display:none">
       </div>
 
-      <div class="tt-kg">
-        <div class="tt-kc" style="--kc2:#3B5BDB">
-          <button class="kpi-copy-btn" id="tt-btn-copy-ord" title="Salin nilai tanpa pemisah ribuan atau mata uang" onclick="copyKpi(this)">
-            <svg class="cp-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-          </button>
-          <div class="tt-kl">Total Orders</div><div class="tt-kv" id="tt-k-ord">—</div><div class="tt-ks">Pesanan unik</div>
-          <svg class="tt-ki" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3B5BDB" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+      <div id="tt-dash">
+        <div class="tt-filter">
+          <span class="tt-fl">Waktu Komisi Dibayar:</span>
+          <div class="tt-fbg">
+            <button class="tt-fb active" data-mode="month" onclick="ttSetMode('month')">Per Bulan</button>
+            <button class="tt-fb" data-mode="date" onclick="ttSetMode('date')">Pilih Tanggal</button>
+            <button class="tt-fb" data-mode="all" onclick="ttSetMode('all')">Semua</button>
+          </div>
+          <select class="tt-ms vis" id="tt-ms" onchange="ttFilter()"></select>
+          <div class="tt-dpw" id="tt-dp">
+            <input type="date" class="tt-di2" id="tt-df" onchange="ttFilter()">
+            <span style="color:var(--text-3);font-size:.8rem">—</span>
+            <input type="date" class="tt-di2" id="tt-dt" onchange="ttFilter()">
+          </div>
+          <div class="tt-fbs"></div>
+          <span class="tt-dm" id="tt-meta"></span>
         </div>
-        <div class="tt-kc" style="--kc2:#2F9E44">
-          <button class="kpi-copy-btn" id="tt-btn-copy-gmv" title="Salin nilai tanpa pemisah ribuan atau mata uang" onclick="copyKpi(this)">
-            <svg class="cp-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-          </button>
-          <div class="tt-kl">GMV</div><div class="tt-kv" id="tt-k-gmv">—</div><div class="tt-ks">Acuan Komisi Aktual</div>
-          <svg class="tt-ki" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2F9E44" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-        </div>
-        <div class="tt-kc" style="--kc2:#E8590C">
-          <button class="kpi-copy-btn" id="tt-btn-copy-exp" title="Salin nilai tanpa pemisah ribuan atau mata uang" onclick="copyKpi(this)">
-            <svg class="cp-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-          </button>
-          <div class="tt-kl">Total Expenses</div><div class="tt-kv" id="tt-k-exp">—</div><div class="tt-ks">Pembayaran Komisi Aktual</div>
-          <svg class="tt-ki" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#E8590C" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-        </div>
-        <div class="tt-kc" style="--kc2:#9B59B6">
-          <button class="kpi-copy-btn" id="tt-btn-copy-rat" title="Salin nilai tanpa pemisah ribuan atau mata uang" onclick="copyKpi(this)">
-            <svg class="cp-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-          </button>
-          <div class="tt-kl">Expense Ratio</div><div class="tt-kv" id="tt-k-rat">—</div><div class="tt-ks">Expenses / GMV</div>
-          <svg class="tt-ki" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9B59B6" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-        </div>
-      </div>
 
-      <div class="tt-cg"><div class="tt-card full"><div class="tt-ctitle">Daily Performance Trend</div><div class="tt-csub">GMV harian dari Waktu Komisi Dibayar</div><div class="tt-cw"><canvas id="tt-c-trend"></canvas></div></div></div>
-      <div class="tt-cg">
-        <div class="tt-card"><div class="tt-ctitle">Top 10 Afiliasi</div><div class="tt-toggle" id="tt-aff-tog"><button class="tt-tgb active" onclick="ttSetAff('gmv',this)">By GMV</button><button class="tt-tgb" onclick="ttSetAff('commission',this)">By Komisi</button></div><div class="tt-cw"><canvas id="tt-c-aff"></canvas></div></div>
-        <div class="tt-card"><div class="tt-ctitle">Top 10 Produk</div><div class="tt-csub">Berdasarkan GMV — hover untuk nama lengkap</div><div class="tt-cw"><canvas id="tt-c-prod"></canvas></div></div>
-      </div>
-      <div class="tt-cg">
-        <div class="tt-card"><div class="tt-ctitle">Commission Model</div><div class="tt-csub">Breakdown berdasarkan GMV dan Expense Ratio</div><div class="tt-tw" style="margin-top:4px"><table class="tt-mt" id="tt-promo-t"><thead><tr><th>Model</th><th>Orders</th><th>GMV</th><th>Expenses</th><th>Expense Ratio</th></tr></thead><tbody></tbody></table></div></div>
-        <div class="tt-card"><div class="tt-ctitle">Order Status</div><div class="tt-csub">Distribusi Status Pesanan berdasarkan GMV</div><div class="tt-cw"><canvas id="tt-c-status"></canvas></div></div>
-      </div>
-      <div class="tt-cg">
-        <div class="tt-card"><div class="tt-ctitle">Content Type</div><div class="tt-csub">Breakdown Jenis Konten berdasarkan GMV</div><div class="tt-bg2" id="tt-ct-bd" style="margin-top:8px"></div></div>
-        <div class="tt-card"><div class="tt-ctitle">Platform</div><div class="tt-csub">Breakdown Platform berdasarkan GMV</div><div class="tt-bg2" id="tt-pl-bd" style="margin-top:8px"></div></div>
-      </div>
+        <div class="tt-kg">
+          <div class="tt-kc" style="--kc2:#3B5BDB">
+            <button class="kpi-copy-btn" id="tt-btn-copy-ord" title="Salin nilai tanpa pemisah ribuan atau mata uang"
+              onclick="copyKpi(this)">
+              <svg class="cp-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+            <div class="tt-kl">Total Orders</div>
+            <div class="tt-kv" id="tt-k-ord">—</div>
+            <div class="tt-ks">Pesanan unik</div>
+            <svg class="tt-ki" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3B5BDB"
+              stroke-width="1.5">
+              <rect x="2" y="7" width="20" height="14" rx="2" />
+              <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+            </svg>
+          </div>
+          <div class="tt-kc" style="--kc2:#2F9E44">
+            <button class="kpi-copy-btn" id="tt-btn-copy-gmv" title="Salin nilai tanpa pemisah ribuan atau mata uang"
+              onclick="copyKpi(this)">
+              <svg class="cp-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+            <div class="tt-kl">GMV</div>
+            <div class="tt-kv" id="tt-k-gmv">—</div>
+            <div class="tt-ks">Acuan Komisi Aktual</div>
+            <svg class="tt-ki" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2F9E44"
+              stroke-width="1.5">
+              <line x1="12" y1="1" x2="12" y2="23" />
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+          </div>
+          <div class="tt-kc" style="--kc2:#E8590C">
+            <button class="kpi-copy-btn" id="tt-btn-copy-exp" title="Salin nilai tanpa pemisah ribuan atau mata uang"
+              onclick="copyKpi(this)">
+              <svg class="cp-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+            <div class="tt-kl">Total Expenses</div>
+            <div class="tt-kv" id="tt-k-exp">—</div>
+            <div class="tt-ks">Pembayaran Komisi Aktual</div>
+            <svg class="tt-ki" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#E8590C"
+              stroke-width="1.5">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg>
+          </div>
+          <div class="tt-kc" style="--kc2:#9B59B6">
+            <button class="kpi-copy-btn" id="tt-btn-copy-rat" title="Salin nilai tanpa pemisah ribuan atau mata uang"
+              onclick="copyKpi(this)">
+              <svg class="cp-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+            <div class="tt-kl">Expense Ratio</div>
+            <div class="tt-kv" id="tt-k-rat">—</div>
+            <div class="tt-ks">Expenses / GMV</div>
+            <svg class="tt-ki" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9B59B6"
+              stroke-width="1.5">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+              <line x1="9" y1="9" x2="9.01" y2="9" />
+              <line x1="15" y1="9" x2="15.01" y2="9" />
+            </svg>
+          </div>
+        </div>
 
-      <div class="tt-tbl-sec" style="margin-top:4px">
-        <div class="tt-tbl-hdr">
-          <div><div class="tt-tbl-title">Detail Transaksi</div><div class="tt-tbl-cnt" id="tt-tbl-cnt"></div></div>
-          <div class="tt-tbl-sp"></div>
-          <input type="text" class="tt-si2" id="tt-srch" placeholder="Cari pesanan, produk, kreator..." oninput="ttSearch()">
-          <select class="tt-pss" id="tt-pss" onchange="ttPageSzChg()"><option value="10">10 / hal</option><option value="25">25 / hal</option><option value="50">50 / hal</option></select>
+        <div class="tt-cg">
+          <div class="tt-card full">
+            <div class="tt-ctitle">Daily Performance Trend</div>
+            <div class="tt-csub">GMV harian dari Waktu Komisi Dibayar</div>
+            <div class="tt-cw"><canvas id="tt-c-trend"></canvas></div>
+          </div>
         </div>
-        <div class="tt-tw">
-          <table class="tt-dt">
-            <thead><tr>
-              <th onclick="ttSort(0)" data-col="0"><span>ID Pesanan</span><span class="si"></span></th>
-              <th onclick="ttSort(1)" data-col="1"><span>Produk</span><span class="si"></span></th>
-              <th onclick="ttSort(2)" data-col="2"><span>ID SKU</span><span class="si"></span></th>
-              <th onclick="ttSort(3)" data-col="3"><span>Status</span><span class="si"></span></th>
-              <th onclick="ttSort(4)" data-col="4"><span>Kreator</span><span class="si"></span></th>
-              <th onclick="ttSort(5)" data-col="5"><span>Jenis Konten</span><span class="si"></span></th>
-              <th onclick="ttSort(6)" data-col="6"><span>Model Komisi</span><span class="si"></span></th>
-              <th onclick="ttSort(7)" data-col="7"><span>% Komisi</span><span class="si"></span></th>
-              <th onclick="ttSort(8)" data-col="8"><span>GMV</span><span class="si"></span></th>
-              <th onclick="ttSort(9)" data-col="9"><span>Komisi</span><span class="si"></span></th>
-              <th onclick="ttSort(10)" data-col="10"><span>Waktu Bayar</span><span class="si"></span></th>
-              <th onclick="ttSort(11)" data-col="11"><span>Waktu Komisi Dibayar</span><span class="si"></span></th>
-              <th onclick="ttSort(12)" data-col="12"><span>Platform</span><span class="si"></span></th>
-            </tr></thead>
-            <tbody id="tt-tbody"></tbody>
-          </table>
+        <div class="tt-cg">
+          <div class="tt-card">
+            <div class="tt-ctitle">Top 10 Afiliasi</div>
+            <div class="tt-toggle" id="tt-aff-tog"><button class="tt-tgb active" onclick="ttSetAff('gmv',this)">By
+                GMV</button><button class="tt-tgb" onclick="ttSetAff('commission',this)">By Komisi</button></div>
+            <div class="tt-cw"><canvas id="tt-c-aff"></canvas></div>
+          </div>
+          <div class="tt-card">
+            <div class="tt-ctitle">Top 10 Produk</div>
+            <div class="tt-csub">Berdasarkan GMV — hover untuk nama lengkap</div>
+            <div class="tt-cw"><canvas id="tt-c-prod"></canvas></div>
+          </div>
         </div>
-        <div class="tt-tf">
-          <div class="tt-pi" id="tt-pi"></div>
-          <div class="tt-pns" id="tt-pns"></div>
-          <button class="tt-pb" id="tt-prev" onclick="ttChgPage(-1)" disabled>‹ Prev</button>
-          <button class="tt-pb" id="tt-next" onclick="ttChgPage(1)">Next ›</button>
+        <div class="tt-cg">
+          <div class="tt-card">
+            <div class="tt-ctitle">Commission Model</div>
+            <div class="tt-csub">Breakdown berdasarkan GMV dan Expense Ratio</div>
+            <div class="tt-tw" style="margin-top:4px">
+              <table class="tt-mt" id="tt-promo-t">
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th>Orders</th>
+                    <th>GMV</th>
+                    <th>Expenses</th>
+                    <th>Expense Ratio</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="tt-card">
+            <div class="tt-ctitle">Order Status</div>
+            <div class="tt-csub">Distribusi Status Pesanan berdasarkan GMV</div>
+            <div class="tt-cw"><canvas id="tt-c-status"></canvas></div>
+          </div>
+        </div>
+        <div class="tt-cg">
+          <div class="tt-card">
+            <div class="tt-ctitle">Content Type</div>
+            <div class="tt-csub">Breakdown Jenis Konten berdasarkan GMV</div>
+            <div class="tt-bg2" id="tt-ct-bd" style="margin-top:8px"></div>
+          </div>
+          <div class="tt-card">
+            <div class="tt-ctitle">Platform</div>
+            <div class="tt-csub">Breakdown Platform berdasarkan GMV</div>
+            <div class="tt-bg2" id="tt-pl-bd" style="margin-top:8px"></div>
+          </div>
+        </div>
+
+        <div class="tt-tbl-sec" style="margin-top:4px">
+          <div class="tt-tbl-hdr">
+            <div>
+              <div class="tt-tbl-title">Detail Transaksi</div>
+              <div class="tt-tbl-cnt" id="tt-tbl-cnt"></div>
+            </div>
+            <div class="tt-tbl-sp"></div>
+            <input type="text" class="tt-si2" id="tt-srch" placeholder="Cari pesanan, produk, kreator..."
+              oninput="ttSearch()">
+            <select class="tt-pss" id="tt-pss" onchange="ttPageSzChg()">
+              <option value="10">10 / hal</option>
+              <option value="25">25 / hal</option>
+              <option value="50">50 / hal</option>
+            </select>
+          </div>
+          <div class="tt-tw">
+            <table class="tt-dt">
+              <thead>
+                <tr>
+                  <th onclick="ttSort(0)" data-col="0"><span>ID Pesanan</span><span class="si"></span></th>
+                  <th onclick="ttSort(1)" data-col="1"><span>Produk</span><span class="si"></span></th>
+                  <th onclick="ttSort(2)" data-col="2"><span>ID SKU</span><span class="si"></span></th>
+                  <th onclick="ttSort(3)" data-col="3"><span>Status</span><span class="si"></span></th>
+                  <th onclick="ttSort(4)" data-col="4"><span>Kreator</span><span class="si"></span></th>
+                  <th onclick="ttSort(5)" data-col="5"><span>Jenis Konten</span><span class="si"></span></th>
+                  <th onclick="ttSort(6)" data-col="6"><span>Model Komisi</span><span class="si"></span></th>
+                  <th onclick="ttSort(7)" data-col="7"><span>% Komisi</span><span class="si"></span></th>
+                  <th onclick="ttSort(8)" data-col="8"><span>GMV</span><span class="si"></span></th>
+                  <th onclick="ttSort(9)" data-col="9"><span>Komisi</span><span class="si"></span></th>
+                  <th onclick="ttSort(10)" data-col="10"><span>Waktu Bayar</span><span class="si"></span></th>
+                  <th onclick="ttSort(11)" data-col="11"><span>Waktu Komisi Dibayar</span><span class="si"></span></th>
+                  <th onclick="ttSort(12)" data-col="12"><span>Platform</span><span class="si"></span></th>
+                </tr>
+              </thead>
+              <tbody id="tt-tbody"></tbody>
+            </table>
+          </div>
+          <div class="tt-tf">
+            <div class="tt-pi" id="tt-pi"></div>
+            <div class="tt-pns" id="tt-pns"></div>
+            <button class="tt-pb" id="tt-prev" onclick="ttChgPage(-1)" disabled>‹ Prev</button>
+            <button class="tt-pb" id="tt-next" onclick="ttChgPage(1)">Next ›</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<script>
-/* ════ TAB SWITCHER ════ */
-function switchTab(t){
-  ['sh','tt'].forEach(id=>{
-    document.getElementById(id+'-panel').classList.toggle('active',id===t);
-    const btn=document.getElementById('tab-'+id);
-    btn.classList.toggle('active',id===t);
-    btn.setAttribute('aria-selected',id===t);
-  });
-  document.getElementById('g-badge').textContent=t==='sh'?'Shopee Affiliate':'TikTok Shop Affiliate';
-  document.getElementById('g-spinner').style.borderTopColor=t==='sh'?'#ea580c':'#3B5BDB';
-}
-function showLoad(v){document.getElementById('g-loading').classList.toggle('show',v)}
+  <script>
+    /* ════ TAB SWITCHER ════ */
+    function switchTab(t) {
+      ['sh', 'tt'].forEach(id => {
+        document.getElementById(id + '-panel').classList.toggle('active', id === t);
+        const btn = document.getElementById('tab-' + id);
+        btn.classList.toggle('active', id === t);
+        btn.setAttribute('aria-selected', id === t);
+      });
+      document.getElementById('g-badge').textContent = t === 'sh' ? 'Shopee Affiliate' : 'TikTok Shop Affiliate';
+      document.getElementById('g-spinner').style.borderTopColor = t === 'sh' ? '#ea580c' : '#3B5BDB';
+    }
+    function showLoad(v) { document.getElementById('g-loading').classList.toggle('show', v) }
 
-/* ════════════════════════════════════════
-   SHOPEE LOGIC
-════════════════════════════════════════ */
-let shRaw=[],shFilt=[],shSortCol=null,shSortDir=1,shPage=1,shRpp=10,shCharts={};
-const SH_COLS=[
-  {key:'Kode Pesanan',label:'Kode Pesanan'},{key:'Status Pesanan',label:'Status'},
-  {key:'Waktu Pesanan',label:'Waktu Pesanan'},{key:'Waktu Pesanan Terverifikasi',label:'Terverifikasi'},
-  {key:'ID Model',label:'ID Model'},{key:'Nama Produk',label:'Nama Produk'},
-  {key:'Nama Affiliate',label:'Affiliate'},{key:'Jenis Promo',label:'Jenis Promo'},
-  {key:'Nilai Pembelian(Rp)',label:'GMV (Rp)'},{key:'Tipe Pesanan',label:'Tipe'},
-  {key:'Platform',label:'Platform'},{key:'Pengeluaran(Rp)',label:'Expense (Rp)'},
-  {key:'Waktu Pemotongan',label:'Waktu Pemotongan'}
-];
+    /* ════════════════════════════════════════
+       SHOPEE LOGIC
+    ════════════════════════════════════════ */
+    let shRaw = [], shFilt = [], shSortCol = null, shSortDir = 1, shPage = 1, shRpp = 10, shCharts = {};
+    const SH_COLS = [
+      { key: 'Kode Pesanan', label: 'Kode Pesanan' }, { key: 'Status Pesanan', label: 'Status' },
+      { key: 'Waktu Pesanan', label: 'Waktu Pesanan' }, { key: 'Waktu Pesanan Terverifikasi', label: 'Terverifikasi' },
+      { key: 'ID Model', label: 'ID Model' }, { key: 'Nama Produk', label: 'Nama Produk' },
+      { key: 'Nama Affiliate', label: 'Affiliate' }, { key: 'Jenis Promo', label: 'Jenis Promo' },
+      { key: 'Nilai Pembelian(Rp)', label: 'GMV (Rp)' }, { key: 'Tipe Pesanan', label: 'Tipe' },
+      { key: 'Platform', label: 'Platform' }, { key: 'Pengeluaran(Rp)', label: 'Expense (Rp)' },
+      { key: 'Waktu Pemotongan', label: 'Waktu Pemotongan' }
+    ];
 
-const shDz=document.getElementById('sh-dz'),shFi=document.getElementById('sh-fi');
-shDz.addEventListener('dragover',e=>{e.preventDefault();shDz.classList.add('dragover')});
-shDz.addEventListener('dragleave',()=>shDz.classList.remove('dragover'));
-shDz.addEventListener('drop',e=>{e.preventDefault();shDz.classList.remove('dragover');shHandleFile(e.dataTransfer.files[0])});
-shFi.addEventListener('change',e=>shHandleFile(e.target.files[0]));
+    const shDz = document.getElementById('sh-dz'), shFi = document.getElementById('sh-fi');
+    shDz.addEventListener('dragover', e => { e.preventDefault(); shDz.classList.add('dragover') });
+    shDz.addEventListener('dragleave', () => shDz.classList.remove('dragover'));
+    shDz.addEventListener('drop', e => { e.preventDefault(); shDz.classList.remove('dragover'); shHandleFile(e.dataTransfer.files[0]) });
+    shFi.addEventListener('change', e => shHandleFile(e.target.files[0]));
 
-function shHandleFile(file){
-  if(!file)return;
-  const ext=file.name.split('.').pop().toLowerCase();
-  document.getElementById('sh-status').textContent='Loading '+file.name+'…';
-  showLoad(true);
-  if(ext==='csv'){
-    Papa.parse(file,{header:true,skipEmptyLines:true,
-      complete:r=>{showLoad(false);if(r.errors.length&&!r.data.length){alert('CSV error: '+r.errors[0].message);return}shInit(r.data,file.name)},
-      error:e=>{showLoad(false);alert('Error: '+e.message)}
-    });
-  } else {
-    const rd=new FileReader();
-    rd.onload=e=>{
-      try{const wb=XLSX.read(e.target.result,{type:'binary'});const data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});showLoad(false);shInit(data,file.name)}
-      catch(err){showLoad(false);alert('Error: '+err.message)}
-    };
-    rd.readAsBinaryString(file);
-  }
-}
+    function shHandleFile(file) {
+      if (!file) return;
+      const ext = file.name.split('.').pop().toLowerCase();
+      document.getElementById('sh-status').textContent = 'Loading ' + file.name + '…';
+      showLoad(true);
+      if (ext === 'csv') {
+        Papa.parse(file, {
+          header: true, skipEmptyLines: true,
+          complete: r => { showLoad(false); if (r.errors.length && !r.data.length) { alert('CSV error: ' + r.errors[0].message); return } shInit(r.data, file.name) },
+          error: e => { showLoad(false); alert('Error: ' + e.message) }
+        });
+      } else {
+        const rd = new FileReader();
+        rd.onload = e => {
+          try { const wb = XLSX.read(e.target.result, { type: 'binary' }); const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' }); showLoad(false); shInit(data, file.name) }
+          catch (err) { showLoad(false); alert('Error: ' + err.message) }
+        };
+        rd.readAsBinaryString(file);
+      }
+    }
 
-function shNum(v){if(v===undefined||v===null||v==='')return 0;return parseFloat(String(v).replace(/[^0-9.,]/g,'').replace(',','.'))||0}
-function shDate(s){
-  if(!s)return null;
-  if(s instanceof Date)return isNaN(s.getTime())?null:s;
-  const str=String(s).trim();
-  const mIso=str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})(?:[\sT](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
-  if(mIso)return new Date(+mIso[1],+mIso[2]-1,+mIso[3],+(mIso[4]||0),+(mIso[5]||0),+(mIso[6]||0));
-  const mSlash=str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:[\sT](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
-  if(mSlash){
-    let p1=+mSlash[1],p2=+mSlash[2],y=+mSlash[3];
-    let mo,d;
-    if(p1>12){d=p1;mo=p2-1}else if(p2>12){d=p2;mo=p1-1}else{mo=p1-1;d=p2}
-    return new Date(y,mo,d,+(mSlash[4]||0),+(mSlash[5]||0),+(mSlash[6]||0));
-  }
-  const dt=new Date(str);
-  return isNaN(dt.getTime())?null:dt;
-}
-function shFmtDI(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
-function shFmtS(n){if(n>=1e9)return'Rp '+(n/1e9).toFixed(2)+' M';if(n>=1e6)return'Rp '+(n/1e6).toFixed(2)+' Jt';return'Rp '+Math.round(n).toLocaleString('id-ID')}
-function shFmt(n){return'Rp '+Math.round(n).toLocaleString('id-ID')}
+    function shNum(v) { if (v === undefined || v === null || v === '') return 0; return parseFloat(String(v).replace(/[^0-9.,]/g, '').replace(',', '.')) || 0 }
+    function shDate(s) {
+      if (!s) return null;
+      if (s instanceof Date) return isNaN(s.getTime()) ? null : s;
+      const str = String(s).trim();
+      const mIso = str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})(?:[\sT](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+      if (mIso) return new Date(+mIso[1], +mIso[2] - 1, +mIso[3], +(mIso[4] || 0), +(mIso[5] || 0), +(mIso[6] || 0));
+      const mSlash = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:[\sT](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+      if (mSlash) {
+        let p1 = +mSlash[1], p2 = +mSlash[2], y = +mSlash[3];
+        let mo, d;
+        if (p1 > 12) { d = p1; mo = p2 - 1 } else if (p2 > 12) { d = p2; mo = p1 - 1 } else { mo = p1 - 1; d = p2 }
+        return new Date(y, mo, d, +(mSlash[4] || 0), +(mSlash[5] || 0), +(mSlash[6] || 0));
+      }
+      const dt = new Date(str);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+    function shFmtDI(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+    function shFmtS(n) { if (n >= 1e9) return 'Rp ' + (n / 1e9).toFixed(2) + ' M'; if (n >= 1e6) return 'Rp ' + (n / 1e6).toFixed(2) + ' Jt'; return 'Rp ' + Math.round(n).toLocaleString('id-ID') }
+    function shFmt(n) { return 'Rp ' + Math.round(n).toLocaleString('id-ID') }
 
-function shInit(data,fname){
-  shRaw=data.map(r=>({...r,_gmv:shNum(r['Nilai Pembelian(Rp)']),_exp:shNum(r['Pengeluaran(Rp)']),_date:shDate(r['Waktu Pesanan'])}));
-  document.getElementById('sh-fname').textContent=fname;
-  document.getElementById('sh-upload').style.display='none';
-  document.getElementById('sh-dash').style.display='block';
-  shKPI();shChartAll();shPromo();shTableInit();
-}
+    function shInit(data, fname) {
+      const hasPemotongan = data.some(r => r['Waktu Pemotongan'] && String(r['Waktu Pemotongan']).trim());
+      shRaw = data.map(r => ({ ...r, _gmv: shNum(r['Nilai Pembelian(Rp)']), _exp: shNum(r['Pengeluaran(Rp)']), _date: hasPemotongan ? shDate(r['Waktu Pemotongan']) : shDate(r['Waktu Pesanan']) }));
+      document.getElementById('sh-fname').textContent = fname;
+      document.getElementById('sh-upload').style.display = 'none';
+      document.getElementById('sh-dash').style.display = 'block';
+      shKPI(); shChartAll(); shPromo(); shTableInit();
+    }
 
-function shReset(){
-  Object.values(shCharts).forEach(c=>c&&c.destroy());shCharts={};shRaw=[];shFilt=[];
-  document.getElementById('sh-dash').style.display='none';
-  document.getElementById('sh-upload').style.display='flex';
-  document.getElementById('sh-status').textContent='';shFi.value='';
-  ['sh-sf-status','sh-sf-tipe','sh-sf-plat'].forEach(id=>{const s=document.getElementById(id);while(s.options.length>1)s.remove(1)});
-}
+    function shReset() {
+      Object.values(shCharts).forEach(c => c && c.destroy()); shCharts = {}; shRaw = []; shFilt = [];
+      document.getElementById('sh-dash').style.display = 'none';
+      document.getElementById('sh-upload').style.display = 'flex';
+      document.getElementById('sh-status').textContent = ''; shFi.value = '';
+      ['sh-sf-status', 'sh-sf-tipe', 'sh-sf-plat'].forEach(id => { const s = document.getElementById(id); while (s.options.length > 1) s.remove(1) });
+    }
 
-function shKPI(){
-  const orders=new Set(shRaw.map(r=>r['Kode Pesanan'])).size;
-  const gmv=shRaw.reduce((s,r)=>s+r._gmv,0),exp=shRaw.reduce((s,r)=>s+r._exp,0);
-  const ratio=gmv>0?exp/gmv*100:0;
-  const defs=[
-    {l:'Total Pesanan',v:orders.toLocaleString('id-ID'),s:'Unique order codes',c:'#ea580c',raw:orders},
-    {l:'Total GMV',v:shFmt(gmv),s:'Nilai Pembelian',c:'#16a34a',raw:Math.round(gmv)},
-    {l:'Total Pengeluaran',v:shFmt(exp),s:'Total Expenses',c:'#2563eb',raw:Math.round(exp)},
-    {l:'Expense Ratio',v:ratio.toFixed(2)+'%',s:'Pengeluaran / GMV',c:'#7c3aed',raw:ratio.toFixed(2)+'%'}
-  ];
-  document.getElementById('sh-kpi').innerHTML=defs.map(d=>`
+    function shKPI() {
+      const orders = new Set(shRaw.map(r => r['Kode Pesanan'])).size;
+      const gmv = shRaw.reduce((s, r) => s + r._gmv, 0), exp = shRaw.reduce((s, r) => s + r._exp, 0);
+      const ratio = gmv > 0 ? exp / gmv * 100 : 0;
+      const defs = [
+        { l: 'Total Pesanan', v: orders.toLocaleString('id-ID'), s: 'Unique order codes', c: '#ea580c', raw: orders },
+        { l: 'Total GMV', v: shFmt(gmv), s: 'Nilai Pembelian', c: '#16a34a', raw: Math.round(gmv) },
+        { l: 'Total Pengeluaran', v: shFmt(exp), s: 'Total Expenses', c: '#2563eb', raw: Math.round(exp) },
+        { l: 'Expense Ratio', v: ratio.toFixed(2) + '%', s: 'Pengeluaran / GMV', c: '#7c3aed', raw: ratio.toFixed(2) + '%' }
+      ];
+      document.getElementById('sh-kpi').innerHTML = defs.map(d => `
     <div class="sh-kpi" style="--kc:${d.c}">
       <button class="kpi-copy-btn" title="Salin nilai tanpa pemisah ribuan atau mata uang" onclick="copyKpi(this)" data-copy="${d.raw}">
         <svg class="cp-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
@@ -591,344 +2000,368 @@ function shKPI(){
       <div class="ks">${d.s}</div>
     </div>
   `).join('');
-}
+    }
 
-const SH_CD={
-  plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',titleColor:'#0f172a',bodyColor:'#475569',borderColor:'#e2e8f0',borderWidth:1,padding:10}},
-  scales:{x:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'rgba(226,232,240,.8)'}},y:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'rgba(226,232,240,.8)'}}},
-  responsive:true,maintainAspectRatio:false
-};
-function shMk(id,cfg){if(shCharts[id])shCharts[id].destroy();shCharts[id]=new Chart(document.getElementById(id),cfg)}
-function shGrp(d,kFn,vFn){const m={};d.forEach(r=>{const k=kFn(r);if(!k&&k!==0)return;m[k]=(m[k]||0)+vFn(r)});return m}
+    const SH_CD = {
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#fff', titleColor: '#0f172a', bodyColor: '#475569', borderColor: '#e2e8f0', borderWidth: 1, padding: 10 } },
+      scales: { x: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: 'rgba(226,232,240,.8)' } }, y: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: 'rgba(226,232,240,.8)' } } },
+      responsive: true, maintainAspectRatio: false
+    };
+    function shMk(id, cfg) { if (shCharts[id]) shCharts[id].destroy(); shCharts[id] = new Chart(document.getElementById(id), cfg) }
+    function shGrp(d, kFn, vFn) { const m = {}; d.forEach(r => { const k = kFn(r); if (!k && k !== 0) return; m[k] = (m[k] || 0) + vFn(r) }); return m }
 
-function shChartAll(){
-  // Daily
-  const dm=shGrp(shRaw,r=>r._date?shFmtDI(r._date):null,r=>r._gmv);
-  const ds=Object.entries(dm).sort((a,b)=>a[0].localeCompare(b[0]));
-  shMk('sh-c-daily',{type:'line',data:{labels:ds.map(([d])=>{const[y,m,day]=d.split('-').map(Number);return new Date(y,m-1,day).toLocaleDateString('id-ID',{day:'2-digit',month:'short'})}),datasets:[{label:'GMV',data:ds.map(([,v])=>v),borderColor:'#ea580c',backgroundColor:'rgba(234,88,12,.07)',fill:true,tension:.35,pointRadius:ds.length>30?0:3,pointHoverRadius:5,pointBackgroundColor:'#ea580c'}]},
-    options:{...SH_CD,plugins:{...SH_CD.plugins,tooltip:{...SH_CD.plugins.tooltip,callbacks:{label:c=>' '+shFmt(c.raw)}}},scales:{x:{...SH_CD.scales.x},y:{...SH_CD.scales.y,ticks:{...SH_CD.scales.y.ticks,callback:v=>shFmtS(v)}}}}});
+    function shChartAll() {
+      // Daily
+      const dm = shGrp(shRaw, r => r._date ? shFmtDI(r._date) : null, r => r._gmv);
+      const ds = Object.entries(dm).sort((a, b) => a[0].localeCompare(b[0]));
+      shMk('sh-c-daily', {
+        type: 'line', data: { labels: ds.map(([d]) => { const [y, m, day] = d.split('-').map(Number); return new Date(y, m - 1, day).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) }), datasets: [{ label: 'GMV', data: ds.map(([, v]) => v), borderColor: '#ea580c', backgroundColor: 'rgba(234,88,12,.07)', fill: true, tension: .35, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: '#ea580c', pointBorderColor: '#fff', pointBorderWidth: 1.5 }] },
+        options: { ...SH_CD, plugins: { ...SH_CD.plugins, tooltip: { ...SH_CD.plugins.tooltip, callbacks: { label: c => ' ' + shFmt(c.raw) } } }, scales: { x: { ...SH_CD.scales.x }, y: { ...SH_CD.scales.y, ticks: { ...SH_CD.scales.y.ticks, callback: v => shFmtS(v) } } } }
+      });
 
-  // Status
-  const sm=shGrp(shRaw,r=>r['Status Pesanan'],r=>1);
-  const sl=Object.keys(sm),sv=Object.values(sm);
-  shMk('sh-c-status',{type:'doughnut',data:{labels:sl,datasets:[{data:sv,backgroundColor:['#16a34a','#dc2626','#2563eb','#ea580c','#7c3aed','#b45309'].slice(0,sl.length),borderWidth:2,borderColor:'#fff'}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{color:'#475569',font:{size:11},padding:12,boxWidth:12}},tooltip:{...SH_CD.plugins.tooltip,callbacks:{label:c=>` ${c.label}: ${c.raw.toLocaleString('id-ID')} orders`}}},cutout:'60%'}});
+      // Status
+      const sm = shGrp(shRaw, r => r['Status Pesanan'], r => 1);
+      const sl = Object.keys(sm), sv = Object.values(sm);
+      shMk('sh-c-status', {
+        type: 'doughnut', data: { labels: sl, datasets: [{ data: sv, backgroundColor: ['#16a34a', '#dc2626', '#2563eb', '#ea580c', '#7c3aed', '#b45309'].slice(0, sl.length), borderWidth: 2, borderColor: '#fff' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { color: '#475569', font: { size: 11 }, padding: 12, boxWidth: 12 } }, tooltip: { ...SH_CD.plugins.tooltip, callbacks: { label: c => ` ${c.label}: ${c.raw.toLocaleString('id-ID')} orders` } } }, cutout: '60%' }
+      });
 
-  // Affiliates
-  const am=shGrp(shRaw,r=>r['Nama Affiliate']||'Unknown',r=>r._gmv);
-  const as2=Object.entries(am).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  const afl=as2.map(([k])=>k.length>18?k.slice(0,16)+'…':k),affl=as2.map(([k])=>k),afv=as2.map(([,v])=>v);
-  shMk('sh-c-aff',{type:'bar',data:{labels:afl,datasets:[{label:'GMV',data:afv,backgroundColor:'rgba(22,163,74,.65)',borderColor:'#16a34a',borderWidth:1,borderRadius:4}]},
-    options:{...SH_CD,indexAxis:'y',plugins:{...SH_CD.plugins,tooltip:{...SH_CD.plugins.tooltip,callbacks:{title:c=>affl[c[0].dataIndex],label:c=>' '+shFmt(c.raw)}}},scales:{x:{...SH_CD.scales.x,ticks:{...SH_CD.scales.x.ticks,callback:v=>shFmtS(v)}},y:{...SH_CD.scales.y}}}});
+      // Affiliates
+      const am = shGrp(shRaw, r => r['Nama Affiliate'] || 'Unknown', r => r._gmv);
+      const as2 = Object.entries(am).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      const afl = as2.map(([k]) => k.length > 18 ? k.slice(0, 16) + '…' : k), affl = as2.map(([k]) => k), afv = as2.map(([, v]) => v);
+      shMk('sh-c-aff', {
+        type: 'bar', data: { labels: afl, datasets: [{ label: 'GMV', data: afv, backgroundColor: 'rgba(22,163,74,.65)', borderColor: '#16a34a', borderWidth: 1, borderRadius: 4 }] },
+        options: { ...SH_CD, indexAxis: 'y', plugins: { ...SH_CD.plugins, tooltip: { ...SH_CD.plugins.tooltip, callbacks: { title: c => affl[c[0].dataIndex], label: c => ' ' + shFmt(c.raw) } } }, scales: { x: { ...SH_CD.scales.x, ticks: { ...SH_CD.scales.x.ticks, callback: v => shFmtS(v) } }, y: { ...SH_CD.scales.y } } }
+      });
 
-  // Products
-  const pm=shGrp(shRaw,r=>r['Nama Produk']||'Unknown',r=>r._gmv);
-  const ps2=Object.entries(pm).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  const pfl=ps2.map(([k])=>k),pl=ps2.map(([k])=>k.length>30?k.slice(0,28)+'…':k),pv=ps2.map(([,v])=>v);
-  shMk('sh-c-prod',{type:'bar',data:{labels:pl,datasets:[{label:'GMV',data:pv,backgroundColor:'rgba(124,58,237,.65)',borderColor:'#7c3aed',borderWidth:1,borderRadius:4}]},
-    options:{...SH_CD,indexAxis:'y',plugins:{...SH_CD.plugins,tooltip:{...SH_CD.plugins.tooltip,callbacks:{title:c=>pfl[c[0].dataIndex],label:c=>' '+shFmt(c.raw)}}},scales:{x:{...SH_CD.scales.x,ticks:{...SH_CD.scales.x.ticks,callback:v=>shFmtS(v)}},y:{...SH_CD.scales.y}}}});
+      // Products
+      const pm = shGrp(shRaw, r => r['Nama Produk'] || 'Unknown', r => r._gmv);
+      const ps2 = Object.entries(pm).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      const pfl = ps2.map(([k]) => k), pl = ps2.map(([k]) => k.length > 30 ? k.slice(0, 28) + '…' : k), pv = ps2.map(([, v]) => v);
+      shMk('sh-c-prod', {
+        type: 'bar', data: { labels: pl, datasets: [{ label: 'GMV', data: pv, backgroundColor: 'rgba(124,58,237,.65)', borderColor: '#7c3aed', borderWidth: 1, borderRadius: 4 }] },
+        options: { ...SH_CD, indexAxis: 'y', plugins: { ...SH_CD.plugins, tooltip: { ...SH_CD.plugins.tooltip, callbacks: { title: c => pfl[c[0].dataIndex], label: c => ' ' + shFmt(c.raw) } } }, scales: { x: { ...SH_CD.scales.x, ticks: { ...SH_CD.scales.x.ticks, callback: v => shFmtS(v) } }, y: { ...SH_CD.scales.y } } }
+      });
 
-  // Type
-  const tm=shGrp(shRaw,r=>r['Tipe Pesanan']||'Unknown',r=>r._gmv);
-  const tl=Object.keys(tm),tv=Object.values(tm);
-  const tc=['#ea580c','#2563eb','#16a34a','#7c3aed'],tb=['rgba(234,88,12,.65)','rgba(37,99,235,.65)','rgba(22,163,74,.65)','rgba(124,58,237,.65)'];
-  shMk('sh-c-type',{type:'bar',data:{labels:tl,datasets:[{label:'GMV',data:tv,backgroundColor:tl.map((_,i)=>tb[i%tb.length]),borderColor:tl.map((_,i)=>tc[i%tc.length]),borderWidth:1,borderRadius:4}]},
-    options:{...SH_CD,plugins:{...SH_CD.plugins,tooltip:{...SH_CD.plugins.tooltip,callbacks:{label:c=>' '+shFmt(c.raw)}}},scales:{x:{...SH_CD.scales.x},y:{...SH_CD.scales.y,ticks:{...SH_CD.scales.y.ticks,callback:v=>shFmtS(v)}}}}});
+      // Type
+      const tm = shGrp(shRaw, r => r['Tipe Pesanan'] || 'Unknown', r => r._gmv);
+      const tl = Object.keys(tm), tv = Object.values(tm);
+      const tc = ['#ea580c', '#2563eb', '#16a34a', '#7c3aed'], tb = ['rgba(234,88,12,.65)', 'rgba(37,99,235,.65)', 'rgba(22,163,74,.65)', 'rgba(124,58,237,.65)'];
+      shMk('sh-c-type', {
+        type: 'bar', data: { labels: tl, datasets: [{ label: 'GMV', data: tv, backgroundColor: tl.map((_, i) => tb[i % tb.length]), borderColor: tl.map((_, i) => tc[i % tc.length]), borderWidth: 1, borderRadius: 4 }] },
+        options: { ...SH_CD, plugins: { ...SH_CD.plugins, tooltip: { ...SH_CD.plugins.tooltip, callbacks: { label: c => ' ' + shFmt(c.raw) } } }, scales: { x: { ...SH_CD.scales.x }, y: { ...SH_CD.scales.y, ticks: { ...SH_CD.scales.y.ticks, callback: v => shFmtS(v) } } } }
+      });
 
-  // Platform
-  const plm=shGrp(shRaw,r=>r['Platform']||'Unknown',r=>r._gmv);
-  const pls=Object.entries(plm).sort((a,b)=>b[1]-a[1]).slice(0,15);
-  const pll=pls.map(([k])=>k),plv=pls.map(([,v])=>v);
-  const hues=[25,195,265,45,0,155,315,85,225,340,130,55,190,295,10];
-  shMk('sh-c-plat',{type:'bar',data:{labels:pll,datasets:[{label:'GMV',data:plv,backgroundColor:hues.map(h=>`hsla(${h},70%,52%,.75)`),borderColor:hues.map(h=>`hsl(${h},70%,42%)`),borderWidth:1,borderRadius:4}]},
-    options:{...SH_CD,plugins:{...SH_CD.plugins,tooltip:{...SH_CD.plugins.tooltip,callbacks:{label:c=>' '+shFmt(c.raw)}}},scales:{x:{...SH_CD.scales.x,ticks:{...SH_CD.scales.x.ticks,maxRotation:35}},y:{...SH_CD.scales.y,ticks:{...SH_CD.scales.y.ticks,callback:v=>shFmtS(v)}}}}});
-}
+      // Platform
+      const plm = shGrp(shRaw, r => r['Platform'] || 'Unknown', r => r._gmv);
+      const pls = Object.entries(plm).sort((a, b) => b[1] - a[1]).slice(0, 15);
+      const pll = pls.map(([k]) => k), plv = pls.map(([, v]) => v);
+      const hues = [25, 195, 265, 45, 0, 155, 315, 85, 225, 340, 130, 55, 190, 295, 10];
+      shMk('sh-c-plat', {
+        type: 'bar', data: { labels: pll, datasets: [{ label: 'GMV', data: plv, backgroundColor: hues.map(h => `hsla(${h},70%,52%,.75)`), borderColor: hues.map(h => `hsl(${h},70%,42%)`), borderWidth: 1, borderRadius: 4 }] },
+        options: { ...SH_CD, plugins: { ...SH_CD.plugins, tooltip: { ...SH_CD.plugins.tooltip, callbacks: { label: c => ' ' + shFmt(c.raw) } } }, scales: { x: { ...SH_CD.scales.x, ticks: { ...SH_CD.scales.x.ticks, maxRotation: 35 } }, y: { ...SH_CD.scales.y, ticks: { ...SH_CD.scales.y.ticks, callback: v => shFmtS(v) } } } }
+      });
+    }
 
-function shPromo(){
-  const tot=shRaw.reduce((s,r)=>s+r._gmv,0),bp={};
-  shRaw.forEach(r=>{const p=r['Jenis Promo']||'Tidak Ada';if(!bp[p])bp[p]={count:0,gmv:0,exp:0};bp[p].count++;bp[p].gmv+=r._gmv;bp[p].exp+=r._exp});
-  document.getElementById('sh-pt-body').innerHTML=Object.entries(bp).sort((a,b)=>b[1].gmv-a[1].gmv).map(([p,v])=>{
-    const er=v.gmv>0?v.exp/v.gmv*100:0,rc=er>20?'color:#dc2626;font-weight:600':er>10?'color:#b45309;font-weight:600':'color:#16a34a;font-weight:600';
-    return`<tr><td><span class="sh-pb">${p}</span></td><td>${v.count.toLocaleString('id-ID')}</td><td>${shFmt(v.gmv)}</td><td>${shFmt(v.exp)}</td><td style="${rc}">${er.toFixed(2)}%</td><td>${shFmt(v.gmv/v.count)}</td><td>${(v.gmv/tot*100).toFixed(1)}%</td></tr>`;
-  }).join('');
-}
+    function shPromo() {
+      const tot = shRaw.reduce((s, r) => s + r._gmv, 0), bp = {};
+      shRaw.forEach(r => { const p = r['Jenis Promo'] || 'Tidak Ada'; if (!bp[p]) bp[p] = { count: 0, gmv: 0, exp: 0 }; bp[p].count++; bp[p].gmv += r._gmv; bp[p].exp += r._exp });
+      document.getElementById('sh-pt-body').innerHTML = Object.entries(bp).sort((a, b) => b[1].gmv - a[1].gmv).map(([p, v]) => {
+        const er = v.gmv > 0 ? v.exp / v.gmv * 100 : 0, rc = er > 20 ? 'color:#dc2626;font-weight:600' : er > 10 ? 'color:#b45309;font-weight:600' : 'color:#16a34a;font-weight:600';
+        return `<tr><td><span class="sh-pb">${p}</span></td><td>${v.count.toLocaleString('id-ID')}</td><td>${shFmt(v.gmv)}</td><td>${shFmt(v.exp)}</td><td style="${rc}">${er.toFixed(2)}%</td><td>${shFmt(v.gmv / v.count)}</td><td>${(v.gmv / tot * 100).toFixed(1)}%</td></tr>`;
+      }).join('');
+    }
 
-function shTableInit(){
-  shBuildSel('sh-sf-status','Status Pesanan');shBuildSel('sh-sf-tipe','Tipe Pesanan');shBuildSel('sh-sf-plat','Platform');
-  document.getElementById('sh-srch').addEventListener('input',()=>{shPage=1;shApply()});
-  document.getElementById('sh-sf-status').addEventListener('change',()=>{shPage=1;shApply()});
-  document.getElementById('sh-sf-tipe').addEventListener('change',()=>{shPage=1;shApply()});
-  document.getElementById('sh-sf-plat').addEventListener('change',()=>{shPage=1;shApply()});
-  document.getElementById('sh-rpp').addEventListener('change',e=>{shRpp=+e.target.value;shPage=1;shRender()});
-  document.getElementById('sh-dt-head').innerHTML=`<tr>${SH_COLS.map((c,i)=>`<th data-col="${i}" onclick="shSortT(${i})">${c.label}<span class="sa">↕</span></th>`).join('')}</tr>`;
-  shApply();
-}
-function shBuildSel(id,col){const s=document.getElementById(id);[...new Set(shRaw.map(r=>r[col]).filter(Boolean))].sort().forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;s.appendChild(o)})}
-function shApply(){
-  const q=document.getElementById('sh-srch').value.toLowerCase();
-  const st=document.getElementById('sh-sf-status').value,ti=document.getElementById('sh-sf-tipe').value,pl=document.getElementById('sh-sf-plat').value;
-  shFilt=shRaw.filter(r=>{
-    if(st&&r['Status Pesanan']!==st)return false;if(ti&&r['Tipe Pesanan']!==ti)return false;if(pl&&r['Platform']!==pl)return false;
-    if(q){const s=[r['Kode Pesanan'],r['Nama Produk'],r['Nama Affiliate'],r['Username Affiliate']].join(' ').toLowerCase();if(!s.includes(q))return false}
-    return true;
-  });
-  if(shSortCol!==null)shDoSort();shRender();
-}
-function shSortT(i){
-  const ths=document.querySelectorAll('#sh-dt-head th');
-  ths.forEach(t=>{t.classList.remove('sa-asc','sa-desc');t.querySelector('.sa').textContent='↕'});
-  if(shSortCol===i)shSortDir=-shSortDir;else{shSortCol=i;shSortDir=1}
-  const t=ths[i];t.classList.add(shSortDir===1?'sa-asc':'sa-desc');t.querySelector('.sa').textContent=shSortDir===1?'↑':'↓';
-  shDoSort();shPage=1;shRender();
-}
-function shDoSort(){
-  const key=SH_COLS[shSortCol].key;
-  shFilt.sort((a,b)=>{let av=a[key]??'',bv=b[key]??'';if(key==='Nilai Pembelian(Rp)'||key==='Pengeluaran(Rp)'){av=shNum(av);bv=shNum(bv)}else{av=String(av).toLowerCase();bv=String(bv).toLowerCase()}return av<bv?-shSortDir:av>bv?shSortDir:0});
-}
-function shBadge(s){if(!s)return'<span class="sh-badge sh-bb">—</span>';if(s==='Selesai')return`<span class="sh-badge sh-bg">${s}</span>`;if(s==='Dibatalkan')return`<span class="sh-badge sh-br">${s}</span>`;return`<span class="sh-badge sh-by">${s}</span>`}
-function shRender(){
-  const st=(shPage-1)*shRpp,pg=shFilt.slice(st,st+shRpp);
-  document.getElementById('sh-dt-body').innerHTML=pg.map(r=>`<tr>${SH_COLS.map(c=>{
-    let v=r[c.key]??'—';
-    if(c.key==='Status Pesanan')return`<td>${shBadge(v)}</td>`;
-    if(c.key==='Nilai Pembelian(Rp)'||c.key==='Pengeluaran(Rp)')return`<td style="font-family:var(--mono);color:var(--text)">${shFmt(shNum(v))}</td>`;
-    if(c.key==='Nama Produk'){const safe=String(v).replace(/"/g,'&quot;');return`<td title="${safe}" style="max-width:160px">${String(v).slice(0,35)}${v.length>35?'…':''}</td>`}
-    if(c.key==='ID Model'){const n=parseFloat(v);return`<td style="font-family:var(--mono);font-size:.72rem">${isNaN(n)?v:Math.round(n)}</td>`}
-    return`<td>${v}</td>`;
-  }).join('')}</tr>`).join('');
-  const tot=shFilt.length,end=Math.min(st+shRpp,tot);
-  document.getElementById('sh-pg-info').textContent=`Showing ${tot===0?0:st+1}–${end} of ${tot.toLocaleString('id-ID')} records`;
-  shPaginate(Math.ceil(tot/shRpp));
-}
-function shPaginate(tp){
-  const c=document.getElementById('sh-pg-btns');c.innerHTML='';
-  const add=(lbl,pg,dis,act)=>{const b=document.createElement('button');b.className='sh-pb2'+(act?' active':'');b.textContent=lbl;b.disabled=dis;if(!dis)b.onclick=()=>{shPage=pg;shRender()};c.appendChild(b)};
-  add('‹',shPage-1,shPage===1,false);
-  let pages=new Set([1,tp]);for(let i=Math.max(1,shPage-2);i<=Math.min(tp,shPage+2);i++)pages.add(i);
-  pages=[...pages].sort((a,b)=>a-b);let prev=0;
-  pages.forEach(p=>{if(prev&&p-prev>1){const e=document.createElement('button');e.className='sh-pb2';e.textContent='…';e.disabled=true;c.appendChild(e)}add(p,p,false,p===shPage);prev=p});
-  add('›',shPage+1,shPage===tp||tp===0,false);
-}
+    function shTableInit() {
+      shBuildSel('sh-sf-status', 'Status Pesanan'); shBuildSel('sh-sf-tipe', 'Tipe Pesanan'); shBuildSel('sh-sf-plat', 'Platform');
+      document.getElementById('sh-srch').addEventListener('input', () => { shPage = 1; shApply() });
+      document.getElementById('sh-sf-status').addEventListener('change', () => { shPage = 1; shApply() });
+      document.getElementById('sh-sf-tipe').addEventListener('change', () => { shPage = 1; shApply() });
+      document.getElementById('sh-sf-plat').addEventListener('change', () => { shPage = 1; shApply() });
+      document.getElementById('sh-rpp').addEventListener('change', e => { shRpp = +e.target.value; shPage = 1; shRender() });
+      document.getElementById('sh-dt-head').innerHTML = `<tr>${SH_COLS.map((c, i) => `<th data-col="${i}" onclick="shSortT(${i})">${c.label}<span class="sa">↕</span></th>`).join('')}</tr>`;
+      shApply();
+    }
+    function shBuildSel(id, col) { const s = document.getElementById(id);[...new Set(shRaw.map(r => r[col]).filter(Boolean))].sort().forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; s.appendChild(o) }) }
+    function shApply() {
+      const q = document.getElementById('sh-srch').value.toLowerCase();
+      const st = document.getElementById('sh-sf-status').value, ti = document.getElementById('sh-sf-tipe').value, pl = document.getElementById('sh-sf-plat').value;
+      shFilt = shRaw.filter(r => {
+        if (st && r['Status Pesanan'] !== st) return false; if (ti && r['Tipe Pesanan'] !== ti) return false; if (pl && r['Platform'] !== pl) return false;
+        if (q) { const s = [r['Kode Pesanan'], r['Nama Produk'], r['Nama Affiliate'], r['Username Affiliate']].join(' ').toLowerCase(); if (!s.includes(q)) return false }
+        return true;
+      });
+      if (shSortCol !== null) shDoSort(); shRender();
+    }
+    function shSortT(i) {
+      const ths = document.querySelectorAll('#sh-dt-head th');
+      ths.forEach(t => { t.classList.remove('sa-asc', 'sa-desc'); t.querySelector('.sa').textContent = '↕' });
+      if (shSortCol === i) shSortDir = -shSortDir; else { shSortCol = i; shSortDir = 1 }
+      const t = ths[i]; t.classList.add(shSortDir === 1 ? 'sa-asc' : 'sa-desc'); t.querySelector('.sa').textContent = shSortDir === 1 ? '↑' : '↓';
+      shDoSort(); shPage = 1; shRender();
+    }
+    function shDoSort() {
+      const key = SH_COLS[shSortCol].key;
+      shFilt.sort((a, b) => { let av = a[key] ?? '', bv = b[key] ?? ''; if (key === 'Nilai Pembelian(Rp)' || key === 'Pengeluaran(Rp)') { av = shNum(av); bv = shNum(bv) } else { av = String(av).toLowerCase(); bv = String(bv).toLowerCase() } return av < bv ? -shSortDir : av > bv ? shSortDir : 0 });
+    }
+    function shBadge(s) { if (!s) return '<span class="sh-badge sh-bb">—</span>'; if (s === 'Selesai') return `<span class="sh-badge sh-bg">${s}</span>`; if (s === 'Dibatalkan') return `<span class="sh-badge sh-br">${s}</span>`; return `<span class="sh-badge sh-by">${s}</span>` }
+    function shRender() {
+      const st = (shPage - 1) * shRpp, pg = shFilt.slice(st, st + shRpp);
+      document.getElementById('sh-dt-body').innerHTML = pg.map(r => `<tr>${SH_COLS.map(c => {
+        let v = r[c.key] ?? '—';
+        if (c.key === 'Status Pesanan') return `<td>${shBadge(v)}</td>`;
+        if (c.key === 'Nilai Pembelian(Rp)' || c.key === 'Pengeluaran(Rp)') return `<td style="font-family:var(--mono);color:var(--text)">${shFmt(shNum(v))}</td>`;
+        if (c.key === 'Nama Produk') { const safe = String(v).replace(/"/g, '&quot;'); return `<td title="${safe}" style="max-width:160px">${String(v).slice(0, 35)}${v.length > 35 ? '…' : ''}</td>` }
+        if (c.key === 'ID Model') { const n = parseFloat(v); return `<td style="font-family:var(--mono);font-size:.72rem">${isNaN(n) ? v : Math.round(n)}</td>` }
+        return `<td>${v}</td>`;
+      }).join('')}</tr>`).join('');
+      const tot = shFilt.length, end = Math.min(st + shRpp, tot);
+      document.getElementById('sh-pg-info').textContent = `Showing ${tot === 0 ? 0 : st + 1}–${end} of ${tot.toLocaleString('id-ID')} records`;
+      shPaginate(Math.ceil(tot / shRpp));
+    }
+    function shPaginate(tp) {
+      const c = document.getElementById('sh-pg-btns'); c.innerHTML = '';
+      const add = (lbl, pg, dis, act) => { const b = document.createElement('button'); b.className = 'sh-pb2' + (act ? ' active' : ''); b.textContent = lbl; b.disabled = dis; if (!dis) b.onclick = () => { shPage = pg; shRender() }; c.appendChild(b) };
+      add('‹', shPage - 1, shPage === 1, false);
+      let pages = new Set([1, tp]); for (let i = Math.max(1, shPage - 2); i <= Math.min(tp, shPage + 2); i++)pages.add(i);
+      pages = [...pages].sort((a, b) => a - b); let prev = 0;
+      pages.forEach(p => { if (prev && p - prev > 1) { const e = document.createElement('button'); e.className = 'sh-pb2'; e.textContent = '…'; e.disabled = true; c.appendChild(e) } add(p, p, false, p === shPage); prev = p });
+      add('›', shPage + 1, shPage === tp || tp === 0, false);
+    }
 
-/* ════════════════════════════════════════
-   TIKTOK LOGIC
-════════════════════════════════════════ */
-let ttRaw=[],ttFilt=[],ttTbl=[],ttPage=1,ttPsz=10,ttSortC=-1,ttSortD=1,ttMode='month',ttAffMode='gmv',ttCharts={};
+    /* ════════════════════════════════════════
+       TIKTOK LOGIC
+    ════════════════════════════════════════ */
+    let ttRaw = [], ttFilt = [], ttTbl = [], ttPage = 1, ttPsz = 10, ttSortC = -1, ttSortD = 1, ttMode = 'month', ttAffMode = 'gmv', ttCharts = {};
 
-const ttDz=document.getElementById('tt-dz'),ttFi=document.getElementById('tt-fi');
-ttDz.addEventListener('click',()=>ttFi.click());
-ttDz.addEventListener('dragover',e=>{e.preventDefault();ttDz.classList.add('drag-over')});
-ttDz.addEventListener('dragleave',()=>ttDz.classList.remove('drag-over'));
-ttDz.addEventListener('drop',e=>{e.preventDefault();ttDz.classList.remove('drag-over');if(e.dataTransfer.files[0])ttLoad(e.dataTransfer.files[0])});
-ttFi.addEventListener('change',e=>{if(e.target.files[0])ttLoad(e.target.files[0])});
+    const ttDz = document.getElementById('tt-dz'), ttFi = document.getElementById('tt-fi');
+    ttDz.addEventListener('click', () => ttFi.click());
+    ttDz.addEventListener('dragover', e => { e.preventDefault(); ttDz.classList.add('drag-over') });
+    ttDz.addEventListener('dragleave', () => ttDz.classList.remove('drag-over'));
+    ttDz.addEventListener('drop', e => { e.preventDefault(); ttDz.classList.remove('drag-over'); if (e.dataTransfer.files[0]) ttLoad(e.dataTransfer.files[0]) });
+    ttFi.addEventListener('change', e => { if (e.target.files[0]) ttLoad(e.target.files[0]) });
 
-function ttLoad(file){
-  showLoad(true);
-  const rd=new FileReader();
-  rd.onload=e=>setTimeout(()=>{
-    try{
-      let data;
-      if(file.name.endsWith('.csv')){const wb=XLSX.read(e.target.result,{type:'string',raw:false});data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''})}
-      else{const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''})}
-      ttRaw=ttNorm(data);ttInit();
-    }catch(err){alert('Gagal: '+err.message)}finally{showLoad(false)}
-  },50);
-  if(file.name.endsWith('.csv'))rd.readAsText(file);else rd.readAsArrayBuffer(file);
-}
+    function ttLoad(file) {
+      showLoad(true);
+      const rd = new FileReader();
+      rd.onload = e => setTimeout(() => {
+        try {
+          let data;
+          if (file.name.endsWith('.csv')) { const wb = XLSX.read(e.target.result, { type: 'string', raw: false }); data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' }) }
+          else { const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true }); data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' }) }
+          ttRaw = ttNorm(data); ttInit();
+        } catch (err) { alert('Gagal: ' + err.message) } finally { showLoad(false) }
+      }, 50);
+      if (file.name.endsWith('.csv')) rd.readAsText(file); else rd.readAsArrayBuffer(file);
+    }
 
-function ttNorm(rows){
-  return rows.map(r=>{
-    const gmv=parseFloat(r['Acuan Komisi Aktual'])||0,exp=parseFloat(r['Pembayaran Komisi Aktual'])||0;
-    let cD=null,pD=null;
-    const cr=r['Waktu Komisi Dibayar'],pr=r['Waktu Pembayaran'];
-    if(cr instanceof Date)cD=cr;else if(cr&&String(cr).trim())cD=ttParseD(String(cr));
-    if(pr instanceof Date)pD=pr;else if(pr&&String(pr).trim())pD=ttParseD(String(pr));
-    return{idPesanan:String(r['ID Pesanan']||''),produk:String(r['Produk']||''),idSku:String(r['ID SKU']||''),status:String(r['Status Pesanan']||''),kreator:String(r['Nama pengguna kreator']||''),jenisKonten:String(r['Jenis Konten']||''),commissionModel:String(r['commission model']||''),persentaseKomisi:String(r['Persentase komisi standar']||''),gmv,expense:exp,waktuPembayaran:pD,waktuKomisiDibayar:cD,platform:String(r['Platform']||'')};
-  });
-}
-function ttParseD(s){const m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{2}:\d{2}(?::\d{2})?))?/);if(m){const[,d,mo,y,t]=m;return new Date(`${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}T${t||'00:00:00'}`)}const dt=new Date(s);return isNaN(dt)?null:dt}
-function ttFmtDI(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
-function ttFmtIDR(v){if(v>=1e9)return'Rp '+(v/1e9).toFixed(2)+'M';if(v>=1e6)return'Rp '+(v/1e6).toFixed(2)+'jt';if(v>=1e3)return'Rp '+(v/1e3).toFixed(1)+'rb';return'Rp '+v.toFixed(0)}
-function ttFmtFull(v){return'Rp '+Math.round(v).toLocaleString('id-ID')}
-function ttFmtDT(d){if(!d)return'—';return`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
+    function ttNorm(rows) {
+      return rows.map(r => {
+        const gmv = parseFloat(r['Acuan Komisi Aktual']) || 0, exp = parseFloat(r['Pembayaran Komisi Aktual']) || 0;
+        let cD = null, pD = null;
+        const cr = r['Waktu Komisi Dibayar'], pr = r['Waktu Pembayaran'];
+        if (cr instanceof Date) cD = cr; else if (cr && String(cr).trim()) cD = ttParseD(String(cr));
+        if (pr instanceof Date) pD = pr; else if (pr && String(pr).trim()) pD = ttParseD(String(pr));
+        return { idPesanan: String(r['ID Pesanan'] || ''), produk: String(r['Produk'] || ''), idSku: String(r['ID SKU'] || ''), status: String(r['Status Pesanan'] || ''), kreator: String(r['Nama pengguna kreator'] || ''), jenisKonten: String(r['Jenis Konten'] || ''), commissionModel: String(r['commission model'] || ''), persentaseKomisi: String(r['Persentase komisi standar'] || ''), gmv, expense: exp, waktuPembayaran: pD, waktuKomisiDibayar: cD, platform: String(r['Platform'] || '') };
+      });
+    }
+    function ttParseD(s) { const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{2}:\d{2}(?::\d{2})?))?/); if (m) { const [, d, mo, y, t] = m; return new Date(`${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}T${t || '00:00:00'}`) } const dt = new Date(s); return isNaN(dt) ? null : dt }
+    function ttFmtDI(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+    function ttFmtIDR(v) { if (v >= 1e9) return 'Rp ' + (v / 1e9).toFixed(2) + 'M'; if (v >= 1e6) return 'Rp ' + (v / 1e6).toFixed(2) + 'jt'; if (v >= 1e3) return 'Rp ' + (v / 1e3).toFixed(1) + 'rb'; return 'Rp ' + v.toFixed(0) }
+    function ttFmtFull(v) { return 'Rp ' + Math.round(v).toLocaleString('id-ID') }
+    function ttFmtDT(d) { if (!d) return '—'; return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
 
-function ttInit(){
-  ttDz.style.display='none';document.getElementById('tt-dash').style.display='block';
-  ttPopMonths();ttSetMode('month');
-}
-function ttPopMonths(){
-  const sel=document.getElementById('tt-ms');sel.innerHTML='';
-  const mos=new Set();ttRaw.forEach(r=>{if(r.waktuKomisiDibayar){const d=r.waktuKomisiDibayar;mos.add(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`)}});
-  [...mos].sort().reverse().forEach(m=>{const[y,mo]=m.split('-');const lbl=new Date(y,parseInt(mo)-1,1).toLocaleDateString('id-ID',{month:'long',year:'numeric'});const o=document.createElement('option');o.value=m;o.textContent=lbl;sel.appendChild(o)});
-  const all=ttRaw.filter(r=>r.waktuKomisiDibayar).map(r=>r.waktuKomisiDibayar);
-  if(all.length){document.getElementById('tt-df').value=ttFmtDI(new Date(Math.min(...all)));document.getElementById('tt-dt').value=ttFmtDI(new Date(Math.max(...all)))}
-}
-function ttSetMode(m){
-  ttMode=m;
-  document.querySelectorAll('.tt-fb').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));
-  document.getElementById('tt-ms').classList.toggle('vis',m==='month');
-  document.getElementById('tt-dp').classList.toggle('vis',m==='date');
-  ttFilter();
-}
-function ttFilter(){
-  if(ttMode==='all'){ttFilt=ttRaw.slice()}
-  else if(ttMode==='month'){const sv=document.getElementById('tt-ms').value;if(!sv){ttFilt=ttRaw.slice()}else{const[y,mo]=sv.split('-').map(Number);ttFilt=ttRaw.filter(r=>r.waktuKomisiDibayar&&r.waktuKomisiDibayar.getFullYear()===y&&r.waktuKomisiDibayar.getMonth()+1===mo)}}
-  else{const fv=document.getElementById('tt-df').value,tv=document.getElementById('tt-dt').value;const from=fv?new Date(fv+'T00:00:00'):null,to=tv?new Date(tv+'T23:59:59'):null;ttFilt=ttRaw.filter(r=>{if(!r.waktuKomisiDibayar)return true;if(from&&r.waktuKomisiDibayar<from)return false;if(to&&r.waktuKomisiDibayar>to)return false;return true})}
-  ttRenderAll();
-}
-function ttRenderAll(){
-  document.getElementById('tt-meta').textContent=`${ttFilt.length.toLocaleString('id-ID')} baris data`;
-  ttKPI();ttTrend();ttAffChart();ttProdChart();ttPromo();ttStatusChart();ttBreakdown('tt-ct-bd','jenisKonten');ttBreakdown('tt-pl-bd','platform');ttResetTbl();
-}
-function ttKPI(){
-  const orders=new Set(ttFilt.map(r=>r.idPesanan)).size,gmv=ttFilt.reduce((s,r)=>s+r.gmv,0),exp=ttFilt.reduce((s,r)=>s+r.expense,0),ratio=gmv>0?exp/gmv:0;
-  document.getElementById('tt-k-ord').textContent=orders.toLocaleString('id-ID');
-  document.getElementById('tt-k-gmv').textContent=ttFmtFull(gmv);
-  document.getElementById('tt-k-exp').textContent=ttFmtFull(exp);
-  document.getElementById('tt-k-rat').textContent=(ratio*100).toFixed(2)+'%';
+    function ttInit() {
+      ttDz.style.display = 'none'; document.getElementById('tt-dash').style.display = 'block';
+      ttPopMonths(); ttSetMode('month');
+    }
+    function ttPopMonths() {
+      const sel = document.getElementById('tt-ms'); sel.innerHTML = '';
+      const mos = new Set(); ttRaw.forEach(r => { if (r.waktuKomisiDibayar) { const d = r.waktuKomisiDibayar; mos.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`) } });
+      [...mos].sort().reverse().forEach(m => { const [y, mo] = m.split('-'); const lbl = new Date(y, parseInt(mo) - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }); const o = document.createElement('option'); o.value = m; o.textContent = lbl; sel.appendChild(o) });
+      const all = ttRaw.filter(r => r.waktuKomisiDibayar).map(r => r.waktuKomisiDibayar);
+      if (all.length) { document.getElementById('tt-df').value = ttFmtDI(new Date(Math.min(...all))); document.getElementById('tt-dt').value = ttFmtDI(new Date(Math.max(...all))) }
+    }
+    function ttSetMode(m) {
+      ttMode = m;
+      document.querySelectorAll('.tt-fb').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+      document.getElementById('tt-ms').classList.toggle('vis', m === 'month');
+      document.getElementById('tt-dp').classList.toggle('vis', m === 'date');
+      ttFilter();
+    }
+    function ttFilter() {
+      if (ttMode === 'all') { ttFilt = ttRaw.slice() }
+      else if (ttMode === 'month') { const sv = document.getElementById('tt-ms').value; if (!sv) { ttFilt = ttRaw.slice() } else { const [y, mo] = sv.split('-').map(Number); ttFilt = ttRaw.filter(r => r.waktuKomisiDibayar && r.waktuKomisiDibayar.getFullYear() === y && r.waktuKomisiDibayar.getMonth() + 1 === mo) } }
+      else { const fv = document.getElementById('tt-df').value, tv = document.getElementById('tt-dt').value; const from = fv ? new Date(fv + 'T00:00:00') : null, to = tv ? new Date(tv + 'T23:59:59') : null; ttFilt = ttRaw.filter(r => { if (!r.waktuKomisiDibayar) return true; if (from && r.waktuKomisiDibayar < from) return false; if (to && r.waktuKomisiDibayar > to) return false; return true }) }
+      ttRenderAll();
+    }
+    function ttRenderAll() {
+      document.getElementById('tt-meta').textContent = `${ttFilt.length.toLocaleString('id-ID')} baris data`;
+      ttKPI(); ttTrend(); ttAffChart(); ttProdChart(); ttPromo(); ttStatusChart(); ttBreakdown('tt-ct-bd', 'jenisKonten'); ttBreakdown('tt-pl-bd', 'platform'); ttResetTbl();
+    }
+    function ttKPI() {
+      const orders = new Set(ttFilt.map(r => r.idPesanan)).size, gmv = ttFilt.reduce((s, r) => s + r.gmv, 0), exp = ttFilt.reduce((s, r) => s + r.expense, 0), ratio = gmv > 0 ? exp / gmv : 0;
+      document.getElementById('tt-k-ord').textContent = orders.toLocaleString('id-ID');
+      document.getElementById('tt-k-gmv').textContent = ttFmtFull(gmv);
+      document.getElementById('tt-k-exp').textContent = ttFmtFull(exp);
+      document.getElementById('tt-k-rat').textContent = (ratio * 100).toFixed(2) + '%';
 
-  const bOrd=document.getElementById('tt-btn-copy-ord');if(bOrd)bOrd.dataset.copy=orders;
-  const bGmv=document.getElementById('tt-btn-copy-gmv');if(bGmv)bGmv.dataset.copy=Math.round(gmv);
-  const bExp=document.getElementById('tt-btn-copy-exp');if(bExp)bExp.dataset.copy=Math.round(exp);
-  const bRat=document.getElementById('tt-btn-copy-rat');if(bRat)bRat.dataset.copy=(ratio*100).toFixed(2)+'%';
-}
-function ttDel(id){if(ttCharts[id]){ttCharts[id].destroy();delete ttCharts[id]}}
-function ttBluG(n){return Array.from({length:n},(_,i)=>`rgba(59,91,219,${(0.85-i/n*.45).toFixed(2)})`)}
-function ttGrnG(n){return Array.from({length:n},(_,i)=>`rgba(47,158,68,${(0.85-i/n*.45).toFixed(2)})`)}
+      const bOrd = document.getElementById('tt-btn-copy-ord'); if (bOrd) bOrd.dataset.copy = orders;
+      const bGmv = document.getElementById('tt-btn-copy-gmv'); if (bGmv) bGmv.dataset.copy = Math.round(gmv);
+      const bExp = document.getElementById('tt-btn-copy-exp'); if (bExp) bExp.dataset.copy = Math.round(exp);
+      const bRat = document.getElementById('tt-btn-copy-rat'); if (bRat) bRat.dataset.copy = (ratio * 100).toFixed(2) + '%';
+    }
+    function ttDel(id) { if (ttCharts[id]) { ttCharts[id].destroy(); delete ttCharts[id] } }
+    function ttBluG(n) { return Array.from({ length: n }, (_, i) => `rgba(59,91,219,${(0.85 - i / n * .45).toFixed(2)})`) }
+    function ttGrnG(n) { return Array.from({ length: n }, (_, i) => `rgba(47,158,68,${(0.85 - i / n * .45).toFixed(2)})`) }
 
-function ttTrend(){
-  const bd={};ttFilt.forEach(r=>{if(!r.waktuKomisiDibayar)return;const k=ttFmtDI(r.waktuKomisiDibayar);bd[k]=(bd[k]||0)+r.gmv});
-  const lb=Object.keys(bd).sort(),vl=lb.map(l=>bd[l]);
-  ttDel('tt-c-trend');
-  ttCharts['tt-c-trend']=new Chart(document.getElementById('tt-c-trend').getContext('2d'),{type:'line',data:{labels:lb,datasets:[{label:'GMV',data:vl,borderColor:'#3B5BDB',backgroundColor:'rgba(59,91,219,.08)',fill:true,tension:.35,pointBackgroundColor:'#3B5BDB',pointRadius:lb.length>30?0:4,pointHoverRadius:6,borderWidth:2.5}]},
-    options:{responsive:true,maintainAspectRatio:true,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' GMV: '+ttFmtFull(c.parsed.y)}}},scales:{x:{grid:{color:'#F1F5F9'},ticks:{color:'#94A3B8',font:{size:11},maxTicksLimit:12}},y:{grid:{color:'#F1F5F9'},ticks:{color:'#94A3B8',font:{size:11},callback:v=>ttFmtIDR(v)}}}}});
-}
-function ttSetAff(m,btn){ttAffMode=m;document.querySelectorAll('#tt-aff-tog .tt-tgb').forEach(b=>b.classList.toggle('active',b===btn));ttAffChart()}
-function ttAffChart(){
-  const bk={};ttFilt.forEach(r=>{if(!r.kreator)return;if(!bk[r.kreator])bk[r.kreator]={gmv:0,commission:0};bk[r.kreator].gmv+=r.gmv;bk[r.kreator].commission+=r.expense});
-  const s=Object.entries(bk).sort((a,b)=>b[1][ttAffMode]-a[1][ttAffMode]).slice(0,10),lb=s.map(([k])=>k),vl=s.map(([,v])=>v[ttAffMode]);
-  ttDel('tt-c-aff');const ctx=document.getElementById('tt-c-aff').getContext('2d');
-  ttCharts['tt-c-aff']=new Chart(ctx,{type:'bar',data:{labels:lb,datasets:[{label:ttAffMode==='gmv'?'GMV':'Komisi',data:vl,backgroundColor:ttBluG(10),borderRadius:5,borderSkipped:false}]},
-    options:{indexAxis:'y',responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+ttFmtFull(c.parsed.x)}}},scales:{x:{grid:{color:'#F1F5F9'},ticks:{color:'#94A3B8',font:{size:10},callback:v=>ttFmtIDR(v)}},y:{grid:{display:false},ticks:{color:'#475569',font:{size:11}}}}}});
-}
-function ttProdChart(){
-  const bp={};ttFilt.forEach(r=>{bp[r.produk]=(bp[r.produk]||0)+r.gmv});
-  const s=Object.entries(bp).sort((a,b)=>b[1]-a[1]).slice(0,10),fn=s.map(([k])=>k),lb=fn.map(n=>n.length>32?n.substring(0,32)+'…':n),vl=s.map(([,v])=>v);
-  ttDel('tt-c-prod');const ctx=document.getElementById('tt-c-prod').getContext('2d');
-  ttCharts['tt-c-prod']=new Chart(ctx,{type:'bar',data:{labels:lb,datasets:[{label:'GMV',data:vl,backgroundColor:ttGrnG(10),borderRadius:5,borderSkipped:false}]},
-    options:{indexAxis:'y',responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>fn[items[0].dataIndex],label:c=>' GMV: '+ttFmtFull(c.parsed.x)}}},scales:{x:{grid:{color:'#F1F5F9'},ticks:{color:'#94A3B8',font:{size:10},callback:v=>ttFmtIDR(v)}},y:{grid:{display:false},ticks:{color:'#475569',font:{size:10}}}}}});
-}
-function ttPromo(){
-  const bm={};ttFilt.forEach(r=>{const k=r.commissionModel||'Unknown';if(!bm[k])bm[k]={orders:new Set(),gmv:0,expense:0};bm[k].orders.add(r.idPesanan);bm[k].gmv+=r.gmv;bm[k].expense+=r.expense});
-  const tb=document.querySelector('#tt-promo-t tbody');tb.innerHTML='';
-  Object.entries(bm).sort((a,b)=>b[1].gmv-a[1].gmv).forEach(([m,v])=>{const r=v.gmv>0?v.expense/v.gmv:0,cls=r<.05?'low':r<.1?'mid':'high';const tr=document.createElement('tr');tr.innerHTML=`<td style="font-weight:600">${m}</td><td>${v.orders.size.toLocaleString('id-ID')}</td><td>${ttFmtFull(v.gmv)}</td><td>${ttFmtFull(v.expense)}</td><td><span class="tt-rp ${cls}">${(r*100).toFixed(2)}%</span></td>`;tb.appendChild(tr)});
-}
-function ttStatusChart(){
-  const bs={};ttFilt.forEach(r=>{const k=r.status||'Unknown';bs[k]=(bs[k]||0)+r.gmv});
-  const lb=Object.keys(bs),vl=lb.map(k=>bs[k]),cl=['#3B5BDB','#2F9E44','#E8590C','#9B59B6','#F59E0B','#64748B'];
-  ttDel('tt-c-status');
-  ttCharts['tt-c-status']=new Chart(document.getElementById('tt-c-status').getContext('2d'),{type:'doughnut',data:{labels:lb,datasets:[{data:vl,backgroundColor:cl.slice(0,lb.length),borderWidth:2,borderColor:'#fff',hoverOffset:8}]},
-    options:{responsive:true,cutout:'60%',plugins:{legend:{position:'bottom',labels:{padding:14,font:{size:11},color:'#475569',usePointStyle:true,pointStyleWidth:8}},tooltip:{callbacks:{label:c=>' '+c.label+': '+ttFmtFull(c.parsed)}}}}});
-}
-const TT_BC=['#3B5BDB','#2F9E44','#E8590C','#9B59B6','#F59E0B','#0EA5E9','#EC4899'];
-function ttBreakdown(cid,field){
-  const bk={};ttFilt.forEach(r=>{const k=r[field]||'Unknown';bk[k]=(bk[k]||0)+r.gmv});
-  const s=Object.entries(bk).sort((a,b)=>b[1]-a[1]),tot=s.reduce((x,[,v])=>x+v,0);
-  const c=document.getElementById(cid);c.innerHTML='';
-  s.forEach(([lbl,val],i)=>{const pct=tot>0?val/tot*100:0;const row=document.createElement('div');row.className='tt-br';row.innerHTML=`<div class="tt-brl" title="${lbl}">${lbl}</div><div class="tt-brw"><div class="tt-brb" style="width:${pct.toFixed(1)}%;background:${TT_BC[i%TT_BC.length]}"></div></div><div class="tt-brv">${ttFmtFull(val)}</div><div class="tt-brp">${pct.toFixed(1)}%</div>`;c.appendChild(row)});
-}
-function ttResetTbl(){document.getElementById('tt-srch').value='';ttPage=1;ttSortC=-1;ttSortD=1;document.querySelectorAll('.tt-dt th').forEach(t=>t.classList.remove('sort-asc','sort-desc'));ttTbl=ttFilt.slice();ttRenderTbl()}
-function ttSearch(){const q=document.getElementById('tt-srch').value.toLowerCase();ttTbl=ttFilt.filter(r=>r.idPesanan.toLowerCase().includes(q)||r.produk.toLowerCase().includes(q)||r.kreator.toLowerCase().includes(q)||r.status.toLowerCase().includes(q));ttPage=1;ttRenderTbl()}
-function ttPageSzChg(){ttPsz=parseInt(document.getElementById('tt-pss').value);ttPage=1;ttRenderTbl()}
-function ttSort(col){
-  const ths=document.querySelectorAll('.tt-dt th');
-  if(ttSortC===col)ttSortD*=-1;else{ttSortC=col;ttSortD=1}
-  ths.forEach((t,i)=>{t.classList.remove('sort-asc','sort-desc');if(i===col)t.classList.add(ttSortD===1?'sort-asc':'sort-desc')});
-  const cols=['idPesanan','produk','idSku','status','kreator','jenisKonten','commissionModel','persentaseKomisi','gmv','expense','waktuPembayaran','waktuKomisiDibayar','platform'],key=cols[col];
-  ttTbl.sort((a,b)=>{let va=a[key],vb=b[key];if(va instanceof Date&&vb instanceof Date)return ttSortD*(va-vb);if(va==null)va='';if(vb==null)vb='';if(typeof va==='number')return ttSortD*(va-vb);return ttSortD*String(va).localeCompare(String(vb),'id')});
-  ttPage=1;ttRenderTbl();
-}
-function ttChgPage(d){const tp=Math.ceil(ttTbl.length/ttPsz);ttPage=Math.max(1,Math.min(tp,ttPage+d));ttRenderTbl()}
-function ttGoP(p){ttPage=p;ttRenderTbl()}
-function ttSBadge(s){const m={'Sudah dibayar':'paid','Dalam proses':'process','Tidak memenuhi syarat':'ineligible','Belum dibayar pembeli':'unpaid'};return`<span class="tt-sb ${m[s]||'unpaid'}">${s}</span>`}
-function ttPag(cur,tot){if(tot<=7)return Array.from({length:tot},(_,i)=>i+1);if(cur<=4)return[1,2,3,4,5,'…',tot];if(cur>=tot-3)return[1,'…',tot-4,tot-3,tot-2,tot-1,tot];return[1,'…',cur-1,cur,cur+1,'…',tot]}
-function ttRenderTbl(){
-  const tot=ttTbl.length,tp=Math.ceil(tot/ttPsz)||1,st=(ttPage-1)*ttPsz,en=Math.min(st+ttPsz,tot),sl=ttTbl.slice(st,en);
-  document.getElementById('tt-tbl-cnt').textContent=`${tot.toLocaleString('id-ID')} transaksi`;
-  document.getElementById('tt-pi').textContent=`Menampilkan ${st+1}–${en} dari ${tot.toLocaleString('id-ID')}`;
-  document.getElementById('tt-prev').disabled=ttPage<=1;
-  document.getElementById('tt-next').disabled=ttPage>=tp;
-  const ne=document.getElementById('tt-pns');ne.innerHTML='';
-  ttPag(ttPage,tp).forEach(p=>{if(p==='…'){const sp=document.createElement('span');sp.textContent='…';sp.style.cssText='padding:5px 4px;color:#94A3B8;font-size:.78rem;';ne.appendChild(sp)}else{const b=document.createElement('button');b.className='tt-pb'+(p===ttPage?' cur':'');b.textContent=p;b.onclick=()=>ttGoP(p);ne.appendChild(b)}});
-  const tb=document.getElementById('tt-tbody');tb.innerHTML='';
-  sl.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML=`<td title="${r.idPesanan}">${r.idPesanan.substring(0,14)}…</td><td title="${r.produk}" style="max-width:180px">${r.produk.length>30?r.produk.substring(0,30)+'…':r.produk}</td><td title="${r.idSku}">${r.idSku.substring(0,10)}…</td><td>${ttSBadge(r.status)}</td><td>${r.kreator}</td><td>${r.jenisKonten}</td><td>${r.commissionModel}</td><td style="text-align:right">${r.persentaseKomisi}</td><td style="text-align:right">${ttFmtFull(r.gmv)}</td><td style="text-align:right">${r.expense?ttFmtFull(r.expense):'—'}</td><td>${ttFmtDT(r.waktuPembayaran)}</td><td>${ttFmtDT(r.waktuKomisiDibayar)}</td><td>${r.platform}</td>`;tb.appendChild(tr)});
-}
+    function ttTrend() {
+      const bd = {}; ttFilt.forEach(r => { if (!r.waktuKomisiDibayar) return; const k = ttFmtDI(r.waktuKomisiDibayar); bd[k] = (bd[k] || 0) + r.gmv });
+      const lb = Object.keys(bd).sort(), vl = lb.map(l => bd[l]);
+      ttDel('tt-c-trend');
+      ttCharts['tt-c-trend'] = new Chart(document.getElementById('tt-c-trend').getContext('2d'), {
+        type: 'line', data: { labels: lb, datasets: [{ label: 'GMV', data: vl, borderColor: '#3B5BDB', backgroundColor: 'rgba(59,91,219,.08)', fill: true, tension: .35, pointBackgroundColor: '#3B5BDB', pointRadius: lb.length > 30 ? 0 : 4, pointHoverRadius: 6, borderWidth: 2.5 }] },
+        options: { responsive: true, maintainAspectRatio: true, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' GMV: ' + ttFmtFull(c.parsed.y) } } }, scales: { x: { grid: { color: '#F1F5F9' }, ticks: { color: '#94A3B8', font: { size: 11 }, maxTicksLimit: 12 } }, y: { grid: { color: '#F1F5F9' }, ticks: { color: '#94A3B8', font: { size: 11 }, callback: v => ttFmtIDR(v) } } } }
+      });
+    }
+    function ttSetAff(m, btn) { ttAffMode = m; document.querySelectorAll('#tt-aff-tog .tt-tgb').forEach(b => b.classList.toggle('active', b === btn)); ttAffChart() }
+    function ttAffChart() {
+      const bk = {}; ttFilt.forEach(r => { if (!r.kreator) return; if (!bk[r.kreator]) bk[r.kreator] = { gmv: 0, commission: 0 }; bk[r.kreator].gmv += r.gmv; bk[r.kreator].commission += r.expense });
+      const s = Object.entries(bk).sort((a, b) => b[1][ttAffMode] - a[1][ttAffMode]).slice(0, 10), lb = s.map(([k]) => k), vl = s.map(([, v]) => v[ttAffMode]);
+      ttDel('tt-c-aff'); const ctx = document.getElementById('tt-c-aff').getContext('2d');
+      ttCharts['tt-c-aff'] = new Chart(ctx, {
+        type: 'bar', data: { labels: lb, datasets: [{ label: ttAffMode === 'gmv' ? 'GMV' : 'Komisi', data: vl, backgroundColor: ttBluG(10), borderRadius: 5, borderSkipped: false }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + ttFmtFull(c.parsed.x) } } }, scales: { x: { grid: { color: '#F1F5F9' }, ticks: { color: '#94A3B8', font: { size: 10 }, callback: v => ttFmtIDR(v) } }, y: { grid: { display: false }, ticks: { color: '#475569', font: { size: 11 } } } } }
+      });
+    }
+    function ttProdChart() {
+      const bp = {}; ttFilt.forEach(r => { bp[r.produk] = (bp[r.produk] || 0) + r.gmv });
+      const s = Object.entries(bp).sort((a, b) => b[1] - a[1]).slice(0, 10), fn = s.map(([k]) => k), lb = fn.map(n => n.length > 32 ? n.substring(0, 32) + '…' : n), vl = s.map(([, v]) => v);
+      ttDel('tt-c-prod'); const ctx = document.getElementById('tt-c-prod').getContext('2d');
+      ttCharts['tt-c-prod'] = new Chart(ctx, {
+        type: 'bar', data: { labels: lb, datasets: [{ label: 'GMV', data: vl, backgroundColor: ttGrnG(10), borderRadius: 5, borderSkipped: false }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false }, tooltip: { callbacks: { title: items => fn[items[0].dataIndex], label: c => ' GMV: ' + ttFmtFull(c.parsed.x) } } }, scales: { x: { grid: { color: '#F1F5F9' }, ticks: { color: '#94A3B8', font: { size: 10 }, callback: v => ttFmtIDR(v) } }, y: { grid: { display: false }, ticks: { color: '#475569', font: { size: 10 } } } } }
+      });
+    }
+    function ttPromo() {
+      const bm = {}; ttFilt.forEach(r => { const k = r.commissionModel || 'Unknown'; if (!bm[k]) bm[k] = { orders: new Set(), gmv: 0, expense: 0 }; bm[k].orders.add(r.idPesanan); bm[k].gmv += r.gmv; bm[k].expense += r.expense });
+      const tb = document.querySelector('#tt-promo-t tbody'); tb.innerHTML = '';
+      Object.entries(bm).sort((a, b) => b[1].gmv - a[1].gmv).forEach(([m, v]) => { const r = v.gmv > 0 ? v.expense / v.gmv : 0, cls = r < .05 ? 'low' : r < .1 ? 'mid' : 'high'; const tr = document.createElement('tr'); tr.innerHTML = `<td style="font-weight:600">${m}</td><td>${v.orders.size.toLocaleString('id-ID')}</td><td>${ttFmtFull(v.gmv)}</td><td>${ttFmtFull(v.expense)}</td><td><span class="tt-rp ${cls}">${(r * 100).toFixed(2)}%</span></td>`; tb.appendChild(tr) });
+    }
+    function ttStatusChart() {
+      const bs = {}; ttFilt.forEach(r => { const k = r.status || 'Unknown'; bs[k] = (bs[k] || 0) + r.gmv });
+      const lb = Object.keys(bs), vl = lb.map(k => bs[k]), cl = ['#3B5BDB', '#2F9E44', '#E8590C', '#9B59B6', '#F59E0B', '#64748B'];
+      ttDel('tt-c-status');
+      ttCharts['tt-c-status'] = new Chart(document.getElementById('tt-c-status').getContext('2d'), {
+        type: 'doughnut', data: { labels: lb, datasets: [{ data: vl, backgroundColor: cl.slice(0, lb.length), borderWidth: 2, borderColor: '#fff', hoverOffset: 8 }] },
+        options: { responsive: true, cutout: '60%', plugins: { legend: { position: 'bottom', labels: { padding: 14, font: { size: 11 }, color: '#475569', usePointStyle: true, pointStyleWidth: 8 } }, tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + ttFmtFull(c.parsed) } } } }
+      });
+    }
+    const TT_BC = ['#3B5BDB', '#2F9E44', '#E8590C', '#9B59B6', '#F59E0B', '#0EA5E9', '#EC4899'];
+    function ttBreakdown(cid, field) {
+      const bk = {}; ttFilt.forEach(r => { const k = r[field] || 'Unknown'; bk[k] = (bk[k] || 0) + r.gmv });
+      const s = Object.entries(bk).sort((a, b) => b[1] - a[1]), tot = s.reduce((x, [, v]) => x + v, 0);
+      const c = document.getElementById(cid); c.innerHTML = '';
+      s.forEach(([lbl, val], i) => { const pct = tot > 0 ? val / tot * 100 : 0; const row = document.createElement('div'); row.className = 'tt-br'; row.innerHTML = `<div class="tt-brl" title="${lbl}">${lbl}</div><div class="tt-brw"><div class="tt-brb" style="width:${pct.toFixed(1)}%;background:${TT_BC[i % TT_BC.length]}"></div></div><div class="tt-brv">${ttFmtFull(val)}</div><div class="tt-brp">${pct.toFixed(1)}%</div>`; c.appendChild(row) });
+    }
+    function ttResetTbl() { document.getElementById('tt-srch').value = ''; ttPage = 1; ttSortC = -1; ttSortD = 1; document.querySelectorAll('.tt-dt th').forEach(t => t.classList.remove('sort-asc', 'sort-desc')); ttTbl = ttFilt.slice(); ttRenderTbl() }
+    function ttSearch() { const q = document.getElementById('tt-srch').value.toLowerCase(); ttTbl = ttFilt.filter(r => r.idPesanan.toLowerCase().includes(q) || r.produk.toLowerCase().includes(q) || r.kreator.toLowerCase().includes(q) || r.status.toLowerCase().includes(q)); ttPage = 1; ttRenderTbl() }
+    function ttPageSzChg() { ttPsz = parseInt(document.getElementById('tt-pss').value); ttPage = 1; ttRenderTbl() }
+    function ttSort(col) {
+      const ths = document.querySelectorAll('.tt-dt th');
+      if (ttSortC === col) ttSortD *= -1; else { ttSortC = col; ttSortD = 1 }
+      ths.forEach((t, i) => { t.classList.remove('sort-asc', 'sort-desc'); if (i === col) t.classList.add(ttSortD === 1 ? 'sort-asc' : 'sort-desc') });
+      const cols = ['idPesanan', 'produk', 'idSku', 'status', 'kreator', 'jenisKonten', 'commissionModel', 'persentaseKomisi', 'gmv', 'expense', 'waktuPembayaran', 'waktuKomisiDibayar', 'platform'], key = cols[col];
+      ttTbl.sort((a, b) => { let va = a[key], vb = b[key]; if (va instanceof Date && vb instanceof Date) return ttSortD * (va - vb); if (va == null) va = ''; if (vb == null) vb = ''; if (typeof va === 'number') return ttSortD * (va - vb); return ttSortD * String(va).localeCompare(String(vb), 'id') });
+      ttPage = 1; ttRenderTbl();
+    }
+    function ttChgPage(d) { const tp = Math.ceil(ttTbl.length / ttPsz); ttPage = Math.max(1, Math.min(tp, ttPage + d)); ttRenderTbl() }
+    function ttGoP(p) { ttPage = p; ttRenderTbl() }
+    function ttSBadge(s) { const m = { 'Sudah dibayar': 'paid', 'Dalam proses': 'process', 'Tidak memenuhi syarat': 'ineligible', 'Belum dibayar pembeli': 'unpaid' }; return `<span class="tt-sb ${m[s] || 'unpaid'}">${s}</span>` }
+    function ttPag(cur, tot) { if (tot <= 7) return Array.from({ length: tot }, (_, i) => i + 1); if (cur <= 4) return [1, 2, 3, 4, 5, '…', tot]; if (cur >= tot - 3) return [1, '…', tot - 4, tot - 3, tot - 2, tot - 1, tot]; return [1, '…', cur - 1, cur, cur + 1, '…', tot] }
+    function ttRenderTbl() {
+      const tot = ttTbl.length, tp = Math.ceil(tot / ttPsz) || 1, st = (ttPage - 1) * ttPsz, en = Math.min(st + ttPsz, tot), sl = ttTbl.slice(st, en);
+      document.getElementById('tt-tbl-cnt').textContent = `${tot.toLocaleString('id-ID')} transaksi`;
+      document.getElementById('tt-pi').textContent = `Menampilkan ${st + 1}–${en} dari ${tot.toLocaleString('id-ID')}`;
+      document.getElementById('tt-prev').disabled = ttPage <= 1;
+      document.getElementById('tt-next').disabled = ttPage >= tp;
+      const ne = document.getElementById('tt-pns'); ne.innerHTML = '';
+      ttPag(ttPage, tp).forEach(p => { if (p === '…') { const sp = document.createElement('span'); sp.textContent = '…'; sp.style.cssText = 'padding:5px 4px;color:#94A3B8;font-size:.78rem;'; ne.appendChild(sp) } else { const b = document.createElement('button'); b.className = 'tt-pb' + (p === ttPage ? ' cur' : ''); b.textContent = p; b.onclick = () => ttGoP(p); ne.appendChild(b) } });
+      const tb = document.getElementById('tt-tbody'); tb.innerHTML = '';
+      sl.forEach(r => { const tr = document.createElement('tr'); tr.innerHTML = `<td title="${r.idPesanan}">${r.idPesanan.substring(0, 14)}…</td><td title="${r.produk}" style="max-width:180px">${r.produk.length > 30 ? r.produk.substring(0, 30) + '…' : r.produk}</td><td title="${r.idSku}">${r.idSku.substring(0, 10)}…</td><td>${ttSBadge(r.status)}</td><td>${r.kreator}</td><td>${r.jenisKonten}</td><td>${r.commissionModel}</td><td style="text-align:right">${r.persentaseKomisi}</td><td style="text-align:right">${ttFmtFull(r.gmv)}</td><td style="text-align:right">${r.expense ? ttFmtFull(r.expense) : '—'}</td><td>${ttFmtDT(r.waktuPembayaran)}</td><td>${ttFmtDT(r.waktuKomisiDibayar)}</td><td>${r.platform}</td>`; tb.appendChild(tr) });
+    }
 
-Chart.defaults.font.family="'Inter',system-ui,sans-serif";
-Chart.defaults.color='#94A3B8';
+    Chart.defaults.font.family = "'Inter',system-ui,sans-serif";
+    Chart.defaults.color = '#94A3B8';
 
-/* ════ KPI COPY CLIPBOARD ════ */
-let kpiToastTimer = null;
-function showToast(msg){
-  const t = document.getElementById('kpi-toast');
-  const tm = document.getElementById('kpi-toast-msg');
-  if(!t || !tm) return;
-  tm.textContent = msg;
-  t.classList.add('show');
-  if(kpiToastTimer) clearTimeout(kpiToastTimer);
-  kpiToastTimer = setTimeout(()=>{ t.classList.remove('show'); }, 1800);
-}
+    /* ════ KPI COPY CLIPBOARD ════ */
+    let kpiToastTimer = null;
+    function showToast(msg) {
+      const t = document.getElementById('kpi-toast');
+      const tm = document.getElementById('kpi-toast-msg');
+      if (!t || !tm) return;
+      tm.textContent = msg;
+      t.classList.add('show');
+      if (kpiToastTimer) clearTimeout(kpiToastTimer);
+      kpiToastTimer = setTimeout(() => { t.classList.remove('show'); }, 1800);
+    }
 
-function copyKpi(btn){
-  const val = btn.getAttribute('data-copy');
-  if(!val || val === '—' || val === 'undefined') return;
-  copyToClipboard(val, btn);
-}
+    function copyKpi(btn) {
+      const val = btn.getAttribute('data-copy');
+      if (!val || val === '—' || val === 'undefined') return;
+      copyToClipboard(val, btn);
+    }
 
-function copyToClipboard(text, btn){
-  if(!text) return;
-  const onSuccess = () => {
-    btn.classList.add('copied');
-    const origHtml = btn.innerHTML;
-    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-    showToast('Disalin: ' + text);
-    setTimeout(() => {
-      btn.classList.remove('copied');
-      btn.innerHTML = origHtml;
-    }, 1500);
-  };
+    function copyToClipboard(text, btn) {
+      if (!text) return;
+      const onSuccess = () => {
+        btn.classList.add('copied');
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+        showToast('Disalin: ' + text);
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.innerHTML = origHtml;
+        }, 1500);
+      };
 
-  if(navigator.clipboard && window.isSecureContext){
-    navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess));
-  } else {
-    fallbackCopy(text, onSuccess);
-  }
-}
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess));
+      } else {
+        fallbackCopy(text, onSuccess);
+      }
+    }
 
-function fallbackCopy(text, cb){
-  try {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.position = 'fixed';
-    ta.style.top = '0';
-    ta.style.left = '0';
-    ta.style.opacity = '0';
-    ta.setAttribute('readonly', '');
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    const ok = document.execCommand('copy');
-    document.body.removeChild(ta);
-    if(ok && cb) cb();
-  } catch(e) {
-    console.error('Copy failed:', e);
-  }
-}
-</script>
+    function fallbackCopy(text, cb) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.top = '0';
+        ta.style.left = '0';
+        ta.style.opacity = '0';
+        ta.setAttribute('readonly', '');
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok && cb) cb();
+      } catch (e) {
+        console.error('Copy failed:', e);
+      }
+    }
+  </script>
 
-<div id="kpi-toast">
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-  <span id="kpi-toast-msg"></span>
-</div>
+  <div id="kpi-toast">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"
+      stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+    <span id="kpi-toast-msg"></span>
+  </div>
 </body>
+
 </html>
