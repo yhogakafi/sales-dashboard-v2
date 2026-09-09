@@ -535,7 +535,23 @@ function shHandleFile(file){
 }
 
 function shNum(v){if(v===undefined||v===null||v==='')return 0;return parseFloat(String(v).replace(/[^0-9.,]/g,'').replace(',','.'))||0}
-function shDate(s){if(!s)return null;const m=String(s).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(!m)return null;return new Date(+m[3],+m[1]-1,+m[2])}
+function shDate(s){
+  if(!s)return null;
+  if(s instanceof Date)return isNaN(s.getTime())?null:s;
+  const str=String(s).trim();
+  const mIso=str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})(?:[\sT](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if(mIso)return new Date(+mIso[1],+mIso[2]-1,+mIso[3],+(mIso[4]||0),+(mIso[5]||0),+(mIso[6]||0));
+  const mSlash=str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:[\sT](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if(mSlash){
+    let p1=+mSlash[1],p2=+mSlash[2],y=+mSlash[3];
+    let mo,d;
+    if(p1>12){d=p1;mo=p2-1}else if(p2>12){d=p2;mo=p1-1}else{mo=p1-1;d=p2}
+    return new Date(y,mo,d,+(mSlash[4]||0),+(mSlash[5]||0),+(mSlash[6]||0));
+  }
+  const dt=new Date(str);
+  return isNaN(dt.getTime())?null:dt;
+}
+function shFmtDI(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function shFmtS(n){if(n>=1e9)return'Rp '+(n/1e9).toFixed(2)+' M';if(n>=1e6)return'Rp '+(n/1e6).toFixed(2)+' Jt';return'Rp '+Math.round(n).toLocaleString('id-ID')}
 function shFmt(n){return'Rp '+Math.round(n).toLocaleString('id-ID')}
 
@@ -587,9 +603,9 @@ function shGrp(d,kFn,vFn){const m={};d.forEach(r=>{const k=kFn(r);if(!k&&k!==0)r
 
 function shChartAll(){
   // Daily
-  const dm=shGrp(shRaw,r=>r._date?r._date.toISOString().slice(0,10):null,r=>r._gmv);
+  const dm=shGrp(shRaw,r=>r._date?shFmtDI(r._date):null,r=>r._gmv);
   const ds=Object.entries(dm).sort((a,b)=>a[0].localeCompare(b[0]));
-  shMk('sh-c-daily',{type:'line',data:{labels:ds.map(([d])=>new Date(d+'T00:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'short'})),datasets:[{label:'GMV',data:ds.map(([,v])=>v),borderColor:'#ea580c',backgroundColor:'rgba(234,88,12,.07)',fill:true,tension:.35,pointRadius:3,pointBackgroundColor:'#ea580c'}]},
+  shMk('sh-c-daily',{type:'line',data:{labels:ds.map(([d])=>{const[y,m,day]=d.split('-').map(Number);return new Date(y,m-1,day).toLocaleDateString('id-ID',{day:'2-digit',month:'short'})}),datasets:[{label:'GMV',data:ds.map(([,v])=>v),borderColor:'#ea580c',backgroundColor:'rgba(234,88,12,.07)',fill:true,tension:.35,pointRadius:ds.length>30?0:3,pointHoverRadius:5,pointBackgroundColor:'#ea580c'}]},
     options:{...SH_CD,plugins:{...SH_CD.plugins,tooltip:{...SH_CD.plugins.tooltip,callbacks:{label:c=>' '+shFmt(c.raw)}}},scales:{x:{...SH_CD.scales.x},y:{...SH_CD.scales.y,ticks:{...SH_CD.scales.y.ticks,callback:v=>shFmtS(v)}}}}});
 
   // Status
