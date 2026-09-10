@@ -5,6 +5,7 @@ import UploadZone from '@/components/UploadZone'
 import SummaryCards from '@/components/SummaryCards'
 import CategoryAssign from '@/components/CategoryAssign'
 import { buildDefaultCategories } from '@/lib/defaultCategories'
+import AffiliateTab from '@/components/admin/AffiliateTab'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -794,6 +795,12 @@ export default function AdminPage() {
         >
           Data stock
         </button>
+        <button
+          className={`admin-tab-btn ${activeTab === 'affiliate' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('affiliate')}
+        >
+          Data affiliate
+        </button>
       </div>
 
       {activeTab === 'sales' && (
@@ -813,6 +820,8 @@ export default function AdminPage() {
       )}
 
       {activeTab === 'stock' && <StockTab />}
+
+      {activeTab === 'affiliate' && <AffiliateTab />}
     </div>
   )
 }
