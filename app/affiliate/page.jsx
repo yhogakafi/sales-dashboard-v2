@@ -6,6 +6,7 @@ import AuthGate from '@/components/AuthGate'
 import ShopeeDashboard from '@/components/affiliate/ShopeeDashboard'
 import TikTokDashboard from '@/components/affiliate/TikTokDashboard'
 import SemuaDashboard from '@/components/affiliate/SemuaDashboard'
+import AffiliateExportBtn from '@/components/affiliate/AffiliateExportBtn'
 
 export default function AffiliatePage() {
   const [activePlatform, setActivePlatform] = useState('shopee') // 'shopee' | 'tiktok' | 'semua'
@@ -163,6 +164,21 @@ export default function AffiliatePage() {
     return monthEntries.filter(e => e.platform === 'tiktok')
   }, [monthEntries])
 
+  const periodLabel = useMemo(() => {
+    if (dateMode === 'range' && dateFrom && dateTo) {
+      return `${dateFrom} s/d ${dateTo}`
+    }
+    const found = months.find((m) => m.monthKey === selectedMonth)
+    return found ? found.label : selectedMonth || 'Semua Periode'
+  }, [dateMode, dateFrom, dateTo, months, selectedMonth])
+
+  const accountLabel = useMemo(() => {
+    if (activePlatform === 'semua' || selectedAccount === 'ALL') {
+      return 'Semua Akun'
+    }
+    return selectedAccount
+  }, [activePlatform, selectedAccount])
+
   const hasData = monthEntries.length > 0
 
   return (
@@ -183,6 +199,27 @@ export default function AffiliatePage() {
           </div>
 
           <div className="aff-header-actions">
+            {hasData && (
+              <AffiliateExportBtn
+                platform={activePlatform}
+                allRows={
+                  activePlatform === 'shopee'
+                    ? shopeeRows
+                    : activePlatform === 'tiktok'
+                    ? tiktokRows
+                    : [
+                        ...shopeeAllEntries.flatMap((e) => e.rows || []),
+                        ...tiktokAllEntries.flatMap((e) => e.rows || []),
+                      ]
+                }
+                periodLabel={periodLabel}
+                account={accountLabel}
+                shopeeEntries={shopeeAllEntries}
+                tiktokEntries={tiktokAllEntries}
+                onShowToast={showToast}
+                label="Ekspor Laporan"
+              />
+            )}
             <Link href="/admin" className="btn-secondary aff-admin-link">
               Kelola Data di Admin →
             </Link>
@@ -323,17 +360,29 @@ export default function AffiliatePage() {
         ) : (
           <>
             {activePlatform === 'shopee' && (
-              <ShopeeDashboard rows={shopeeRows} onShowToast={showToast} />
+              <ShopeeDashboard
+                rows={shopeeRows}
+                periodLabel={periodLabel}
+                account={accountLabel}
+                onShowToast={showToast}
+              />
             )}
 
             {activePlatform === 'tiktok' && (
-              <TikTokDashboard rows={tiktokRows} onShowToast={showToast} />
+              <TikTokDashboard
+                rows={tiktokRows}
+                periodLabel={periodLabel}
+                account={accountLabel}
+                onShowToast={showToast}
+              />
             )}
 
             {activePlatform === 'semua' && (
               <SemuaDashboard
                 shopeeEntries={shopeeAllEntries}
                 tiktokEntries={tiktokAllEntries}
+                periodLabel={periodLabel}
+                account={accountLabel}
                 onShowToast={showToast}
               />
             )}

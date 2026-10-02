@@ -15,6 +15,7 @@ import {
   Filler,
 } from 'chart.js'
 import KpiCard from './KpiCard'
+import AffiliateExportBtn from './AffiliateExportBtn'
 import { formatRupiah, formatRupiahShort } from '@/lib/parseAffiliate'
 
 Chart.register(
@@ -30,7 +31,13 @@ Chart.register(
   Filler
 )
 
-export default function SemuaDashboard({ shopeeEntries = [], tiktokEntries = [], onShowToast }) {
+export default function SemuaDashboard({
+  shopeeEntries = [],
+  tiktokEntries = [],
+  periodLabel = '',
+  account = 'Semua Akun',
+  onShowToast,
+}) {
   const lineChartRef = useRef(null)
   const lineInstance = useRef(null)
 
@@ -390,7 +397,7 @@ export default function SemuaDashboard({ shopeeEntries = [], tiktokEntries = [],
             </h4>
           </div>
           <div style={{ height: '280px', position: 'relative' }}>
-            <canvas ref={lineChartRef} />
+            <canvas ref={lineChartRef} id="aff-semua-line-chart" />
           </div>
         </div>
 
@@ -401,18 +408,28 @@ export default function SemuaDashboard({ shopeeEntries = [], tiktokEntries = [],
             </h4>
           </div>
           <div style={{ height: '280px', position: 'relative' }}>
-            <canvas ref={shareChartRef} />
+            <canvas ref={shareChartRef} id="aff-semua-share-chart" />
           </div>
         </div>
       </div>
 
       {/* ── Breakdown of All Stored Accounts in this Month ── */}
       <div className="aff-card">
-        <div className="aff-card-header">
+        <div className="aff-card-header" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
           <div>
             <h4 className="aff-card-title">Rincian Seluruh Data Akun / Pelanggan Tersimpan</h4>
             <p className="aff-card-sub">Menghitung seluruh data yang tersimpan untuk periode bulan ini</p>
           </div>
+          <AffiliateExportBtn
+            platform="semua"
+            allRows={[...allShopeeRows, ...allTikTokRows]}
+            periodLabel={periodLabel}
+            account={account}
+            shopeeEntries={shopeeEntries}
+            tiktokEntries={tiktokEntries}
+            size="sm"
+            onShowToast={onShowToast}
+          />
         </div>
 
         <div className="table-scroll">

@@ -17,6 +17,7 @@ import {
   Filler,
 } from 'chart.js'
 import KpiCard from './KpiCard'
+import AffiliateExportBtn from './AffiliateExportBtn'
 import { formatRupiah, formatRupiahShort } from '@/lib/parseAffiliate'
 
 Chart.register(
@@ -36,7 +37,12 @@ Chart.register(
 
 const PROGRESS_COLORS = ['#3B5BDB', '#2F9E44', '#E8590C', '#9B59B6', '#F59E0B', '#0EA5E9', '#EC4899']
 
-export default function TikTokDashboard({ rows = [], onShowToast }) {
+export default function TikTokDashboard({
+  rows = [],
+  periodLabel = '',
+  account = 'Semua Akun',
+  onShowToast,
+}) {
   // ─── Filter & Table State ───────────────────────────────────────────────────
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -45,6 +51,13 @@ export default function TikTokDashboard({ rows = [], onShowToast }) {
   const [sortCol, setSortCol] = useState(null)
   const [sortDir, setSortDir] = useState(1)
   const [affMode, setAffMode] = useState('gmv') // 'gmv' | 'commission'
+
+  const filterDesc = useMemo(() => {
+    const parts = []
+    if (search) parts.push(`Cari: "${search}"`)
+    if (statusFilter) parts.push(`Status: ${statusFilter}`)
+    return parts.join(' · ')
+  }, [search, statusFilter])
 
   // ─── Chart Refs ─────────────────────────────────────────────────────────────
   const trendChartRef = useRef(null)
@@ -478,7 +491,7 @@ export default function TikTokDashboard({ rows = [], onShowToast }) {
           <span className="aff-card-sub">Berdasarkan Waktu Komisi Dibayar</span>
         </div>
         <div style={{ height: '270px', position: 'relative' }}>
-          <canvas ref={trendChartRef} />
+          <canvas ref={trendChartRef} id="aff-tiktok-trend-chart" />
         </div>
       </div>
 
@@ -507,7 +520,7 @@ export default function TikTokDashboard({ rows = [], onShowToast }) {
             </div>
           </div>
           <div style={{ height: '280px', position: 'relative' }}>
-            <canvas ref={creatorChartRef} />
+            <canvas ref={creatorChartRef} id="aff-tiktok-creator-chart" />
           </div>
         </div>
 
@@ -518,7 +531,7 @@ export default function TikTokDashboard({ rows = [], onShowToast }) {
             </h4>
           </div>
           <div style={{ height: '280px', position: 'relative' }}>
-            <canvas ref={prodChartRef} />
+            <canvas ref={prodChartRef} id="aff-tiktok-prod-chart" />
           </div>
         </div>
       </div>
@@ -571,7 +584,7 @@ export default function TikTokDashboard({ rows = [], onShowToast }) {
             </h4>
           </div>
           <div style={{ height: '260px', position: 'relative' }}>
-            <canvas ref={statusChartRef} />
+            <canvas ref={statusChartRef} id="aff-tiktok-status-chart" />
           </div>
         </div>
       </div>
@@ -664,6 +677,17 @@ export default function TikTokDashboard({ rows = [], onShowToast }) {
               <option value={50}>50</option>
               <option value={100}>100</option>
             </select>
+
+            <AffiliateExportBtn
+              platform="tiktok"
+              allRows={rows}
+              filteredRows={filteredRows}
+              periodLabel={periodLabel}
+              account={account}
+              filterDesc={filterDesc}
+              size="sm"
+              onShowToast={onShowToast}
+            />
           </div>
         </div>
 

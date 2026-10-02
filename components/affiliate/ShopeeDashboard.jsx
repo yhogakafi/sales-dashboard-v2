@@ -17,6 +17,7 @@ import {
   Filler,
 } from 'chart.js'
 import KpiCard from './KpiCard'
+import AffiliateExportBtn from './AffiliateExportBtn'
 import { formatRupiah, formatRupiahShort } from '@/lib/parseAffiliate'
 
 Chart.register(
@@ -34,7 +35,12 @@ Chart.register(
   Filler
 )
 
-export default function ShopeeDashboard({ rows = [], onShowToast }) {
+export default function ShopeeDashboard({
+  rows = [],
+  periodLabel = '',
+  account = 'Semua Akun',
+  onShowToast,
+}) {
   // ─── Table & Filter State ───────────────────────────────────────────────────
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -44,6 +50,15 @@ export default function ShopeeDashboard({ rows = [], onShowToast }) {
   const [currentPage, setCurrentPage] = useState(1)
   const [sortCol, setSortCol] = useState(null)
   const [sortDir, setSortDir] = useState(1) // 1 asc, -1 desc
+
+  const filterDesc = useMemo(() => {
+    const parts = []
+    if (search) parts.push(`Cari: "${search}"`)
+    if (statusFilter) parts.push(`Status: ${statusFilter}`)
+    if (typeFilter) parts.push(`Tipe: ${typeFilter}`)
+    if (platFilter) parts.push(`Platform: ${platFilter}`)
+    return parts.join(' · ')
+  }, [search, statusFilter, typeFilter, platFilter])
 
   // ─── Chart Refs ─────────────────────────────────────────────────────────────
   const dailyChartRef = useRef(null)
@@ -554,7 +569,7 @@ export default function ShopeeDashboard({ rows = [], onShowToast }) {
             </h4>
           </div>
           <div style={{ height: '270px', position: 'relative' }}>
-            <canvas ref={dailyChartRef} />
+            <canvas ref={dailyChartRef} id="aff-shopee-daily-chart" />
           </div>
         </div>
 
@@ -565,7 +580,7 @@ export default function ShopeeDashboard({ rows = [], onShowToast }) {
             </h4>
           </div>
           <div style={{ height: '270px', position: 'relative' }}>
-            <canvas ref={statusChartRef} />
+            <canvas ref={statusChartRef} id="aff-shopee-status-chart" />
           </div>
         </div>
       </div>
@@ -579,7 +594,7 @@ export default function ShopeeDashboard({ rows = [], onShowToast }) {
             </h4>
           </div>
           <div style={{ height: '280px', position: 'relative' }}>
-            <canvas ref={affChartRef} />
+            <canvas ref={affChartRef} id="aff-shopee-aff-chart" />
           </div>
         </div>
 
@@ -590,7 +605,7 @@ export default function ShopeeDashboard({ rows = [], onShowToast }) {
             </h4>
           </div>
           <div style={{ height: '280px', position: 'relative' }}>
-            <canvas ref={prodChartRef} />
+            <canvas ref={prodChartRef} id="aff-shopee-prod-chart" />
           </div>
         </div>
       </div>
@@ -604,7 +619,7 @@ export default function ShopeeDashboard({ rows = [], onShowToast }) {
             </h4>
           </div>
           <div style={{ height: '220px', position: 'relative' }}>
-            <canvas ref={typeChartRef} />
+            <canvas ref={typeChartRef} id="aff-shopee-type-chart" />
           </div>
         </div>
 
@@ -615,7 +630,7 @@ export default function ShopeeDashboard({ rows = [], onShowToast }) {
             </h4>
           </div>
           <div style={{ height: '220px', position: 'relative' }}>
-            <canvas ref={platChartRef} />
+            <canvas ref={platChartRef} id="aff-shopee-plat-chart" />
           </div>
         </div>
       </div>
@@ -715,6 +730,17 @@ export default function ShopeeDashboard({ rows = [], onShowToast }) {
               <option value={50}>50</option>
               <option value={100}>100</option>
             </select>
+
+            <AffiliateExportBtn
+              platform="shopee"
+              allRows={rows}
+              filteredRows={filteredRows}
+              periodLabel={periodLabel}
+              account={account}
+              filterDesc={filterDesc}
+              size="sm"
+              onShowToast={onShowToast}
+            />
           </div>
         </div>
 
