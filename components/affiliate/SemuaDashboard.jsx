@@ -16,7 +16,7 @@ import {
 } from 'chart.js'
 import KpiCard from './KpiCard'
 import AffiliateExportBtn from './AffiliateExportBtn'
-import { formatRupiah, formatRupiahShort } from '@/lib/parseAffiliate'
+import { formatRupiah, formatRupiahShort, isShopeeCompleted, isTikTokCompleted } from '@/lib/parseAffiliate'
 
 Chart.register(
   LineController,
@@ -57,7 +57,17 @@ export default function SemuaDashboard({
     const gmv = allShopeeRows.reduce((s, r) => s + r.gmv, 0)
     const expense = allShopeeRows.reduce((s, r) => s + r.expense, 0)
     const ratio = gmv > 0 ? (expense / gmv) * 100 : 0
-    return { orders, gmv, expense, ratio: ratio.toFixed(2) }
+    const completedCount = allShopeeRows.filter(r => isShopeeCompleted(r)).length
+    const completionRate = allShopeeRows.length > 0 ? (completedCount / allShopeeRows.length) * 100 : 0
+    return {
+      orders,
+      gmv,
+      expense,
+      ratio: ratio.toFixed(2),
+      completedCount,
+      totalRows: allShopeeRows.length,
+      completionRate: completionRate.toFixed(2),
+    }
   }, [allShopeeRows])
 
   // ─── Calculate TikTok totals ────────────────────────────────────────────────
@@ -66,7 +76,17 @@ export default function SemuaDashboard({
     const gmv = allTikTokRows.reduce((s, r) => s + r.gmv, 0)
     const expense = allTikTokRows.reduce((s, r) => s + r.expense, 0)
     const ratio = gmv > 0 ? (expense / gmv) * 100 : 0
-    return { orders, gmv, expense, ratio: ratio.toFixed(2) }
+    const completedCount = allTikTokRows.filter(r => isTikTokCompleted(r)).length
+    const completionRate = allTikTokRows.length > 0 ? (completedCount / allTikTokRows.length) * 100 : 0
+    return {
+      orders,
+      gmv,
+      expense,
+      ratio: ratio.toFixed(2),
+      completedCount,
+      totalRows: allTikTokRows.length,
+      completionRate: completionRate.toFixed(2),
+    }
   }, [allTikTokRows])
 
   // ─── Calculate Combined totals ──────────────────────────────────────────────
@@ -77,6 +97,9 @@ export default function SemuaDashboard({
     const totalRatio = totalGmv > 0 ? (totalExpense / totalGmv) * 100 : 0
     const shopeeShare = totalGmv > 0 ? (shopeeStats.gmv / totalGmv) * 100 : 0
     const tiktokShare = totalGmv > 0 ? (tiktokStats.gmv / totalGmv) * 100 : 0
+    const totalCompleted = (shopeeStats.completedCount || 0) + (tiktokStats.completedCount || 0)
+    const totalAllRows = (shopeeStats.totalRows || 0) + (tiktokStats.totalRows || 0)
+    const combinedCompletionRate = totalAllRows > 0 ? (totalCompleted / totalAllRows) * 100 : 0
     return {
       orders: totalOrders,
       gmv: Math.round(totalGmv),
@@ -84,6 +107,9 @@ export default function SemuaDashboard({
       ratio: totalRatio.toFixed(2),
       shopeeShare: shopeeShare.toFixed(1),
       tiktokShare: tiktokShare.toFixed(1),
+      totalCompleted,
+      totalAllRows,
+      completionRate: combinedCompletionRate.toFixed(2),
     }
   }, [shopeeStats, tiktokStats])
 
@@ -97,6 +123,8 @@ export default function SemuaDashboard({
       const gmv = rows.reduce((s, r) => s + r.gmv, 0)
       const expense = rows.reduce((s, r) => s + r.expense, 0)
       const ratio = gmv > 0 ? (expense / gmv) * 100 : 0
+      const completedCount = rows.filter(r => isShopeeCompleted(r)).length
+      const completionRate = rows.length > 0 ? (completedCount / rows.length) * 100 : 0
       list.push({
         platform: 'Shopee',
         account: entry.account,
@@ -104,6 +132,7 @@ export default function SemuaDashboard({
         gmv,
         expense,
         ratio: ratio.toFixed(2),
+        completionRate: completionRate.toFixed(2),
         share: combinedStats.gmv > 0 ? (gmv / combinedStats.gmv) * 100 : 0,
       })
     })
@@ -114,6 +143,8 @@ export default function SemuaDashboard({
       const gmv = rows.reduce((s, r) => s + r.gmv, 0)
       const expense = rows.reduce((s, r) => s + r.expense, 0)
       const ratio = gmv > 0 ? (expense / gmv) * 100 : 0
+      const completedCount = rows.filter(r => isTikTokCompleted(r)).length
+      const completionRate = rows.length > 0 ? (completedCount / rows.length) * 100 : 0
       list.push({
         platform: 'TikTok',
         account: entry.account,
@@ -121,6 +152,7 @@ export default function SemuaDashboard({
         gmv,
         expense,
         ratio: ratio.toFixed(2),
+        completionRate: completionRate.toFixed(2),
         share: combinedStats.gmv > 0 ? (gmv / combinedStats.gmv) * 100 : 0,
       })
     })
@@ -319,6 +351,14 @@ export default function SemuaDashboard({
           raw={`${combinedStats.ratio}%`}
           onCopy={onShowToast}
         />
+        <KpiCard
+          label="Penyelesaian Pesanan Gabungan"
+          value={`${combinedStats.completionRate}%`}
+          sub={`Shopee: ${shopeeStats.completionRate}% · TikTok: ${tiktokStats.completionRate}%`}
+          color="#059669"
+          raw={`${combinedStats.completionRate}%`}
+          onCopy={onShowToast}
+        />
       </div>
 
       {/* ── Side-by-side Channel Comparison Cards ── */}
@@ -348,6 +388,10 @@ export default function SemuaDashboard({
             <div className="aff-channel-metric">
               <span className="label">Expense Ratio</span>
               <span className="val mono" style={{ color: '#ea580c' }}>{shopeeStats.ratio}%</span>
+            </div>
+            <div className="aff-channel-metric">
+              <span className="label">Penyelesaian Pesanan</span>
+              <span className="val mono" style={{ color: '#0d9488' }}>{shopeeStats.completionRate}%</span>
             </div>
           </div>
           <div className="aff-channel-footer">
@@ -380,6 +424,10 @@ export default function SemuaDashboard({
             <div className="aff-channel-metric">
               <span className="label">Expense Ratio</span>
               <span className="val mono" style={{ color: '#3B5BDB' }}>{tiktokStats.ratio}%</span>
+            </div>
+            <div className="aff-channel-metric">
+              <span className="label">Penyelesaian Pesanan</span>
+              <span className="val mono" style={{ color: '#0891b2' }}>{tiktokStats.completionRate}%</span>
             </div>
           </div>
           <div className="aff-channel-footer">
@@ -442,13 +490,14 @@ export default function SemuaDashboard({
                 <th style={{ textAlign: 'right' }}>GMV (Rp)</th>
                 <th style={{ textAlign: 'right' }}>Pengeluaran (Rp)</th>
                 <th style={{ textAlign: 'right' }}>Expense Ratio</th>
+                <th style={{ textAlign: 'right' }}>Penyelesaian (%)</th>
                 <th style={{ textAlign: 'right' }}>Kontribusi GMV</th>
               </tr>
             </thead>
             <tbody>
               {accountBreakdown.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '2rem' }} className="muted">
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '2rem' }} className="muted">
                     Belum ada data akun yang tersimpan untuk periode bulan ini.
                   </td>
                 </tr>
@@ -466,6 +515,9 @@ export default function SemuaDashboard({
                   <td className="mono" style={{ textAlign: 'right' }}>{formatRupiah(item.expense)}</td>
                   <td className="mono" style={{ textAlign: 'right', fontWeight: 600, color: item.platform === 'Shopee' ? '#ea580c' : '#3B5BDB' }}>
                     {item.ratio}%
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right', fontWeight: 600, color: '#0d9488' }}>
+                    {item.completionRate}%
                   </td>
                   <td className="mono" style={{ textAlign: 'right' }}>{item.share.toFixed(1)}%</td>
                 </tr>

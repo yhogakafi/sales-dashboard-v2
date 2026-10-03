@@ -109,10 +109,21 @@ export default function AffiliateTab() {
       const buffer = await file.arrayBuffer()
       const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
       const firstSheet = wb.Sheets[wb.SheetNames[0]]
+      const rawHeaderRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 })
       const data = XLSX.utils.sheet_to_json(firstSheet, { defval: '' })
 
       if (!data || data.length === 0) {
         throw new Error('File tidak memiliki data atau format tidak sesuai.')
+      }
+
+      // Ensure column B value is passed
+      if (rawHeaderRows && rawHeaderRows.length > 1) {
+        for (let idx = 0; idx < data.length; idx++) {
+          const rawRow = rawHeaderRows[idx + 1]
+          if (rawRow && rawRow[1] !== undefined) {
+            data[idx]['__col_b'] = rawRow[1]
+          }
+        }
       }
 
       const parsed = normalizeShopeeData(data)
@@ -204,10 +215,21 @@ export default function AffiliateTab() {
       const buffer = await file.arrayBuffer()
       const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
       const firstSheet = wb.Sheets[wb.SheetNames[0]]
+      const rawHeaderRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 })
       const data = XLSX.utils.sheet_to_json(firstSheet, { defval: '' })
 
       if (!data || data.length === 0) {
         throw new Error('File tidak memiliki data atau format tidak sesuai.')
+      }
+
+      // Ensure column I (index 8) is passed
+      if (rawHeaderRows && rawHeaderRows.length > 1) {
+        for (let idx = 0; idx < data.length; idx++) {
+          const rawRow = rawHeaderRows[idx + 1]
+          if (rawRow && rawRow[8] !== undefined) {
+            data[idx]['__col_i'] = rawRow[8]
+          }
+        }
       }
 
       const normalized = normalizeTikTokData(data)
@@ -445,6 +467,7 @@ export default function AffiliateTab() {
                 <div><span>Total GMV:</span> <strong>{formatRupiah(shParsed.stats.gmv)}</strong></div>
                 <div><span>Pengeluaran:</span> <strong>{formatRupiah(shParsed.stats.expense)}</strong></div>
                 <div><span>Expense Ratio:</span> <strong>{shParsed.stats.ratio}%</strong></div>
+                <div><span>Penyelesaian:</span> <strong style={{ color: '#0d9488' }}>{shParsed.stats.completionRate}%</strong> ({shParsed.stats.completedCount} selesai)</div>
                 <div><span>Jumlah Baris:</span> <strong>{shParsed.rows.length.toLocaleString('id-ID')} baris</strong></div>
               </div>
 
@@ -637,6 +660,7 @@ export default function AffiliateTab() {
                   <div><span>GMV:</span> <strong>{formatRupiah(ttFilteredData.stats.gmv)}</strong></div>
                   <div><span>Expenses:</span> <strong>{formatRupiah(ttFilteredData.stats.expense)}</strong></div>
                   <div><span>Expense Ratio:</span> <strong>{ttFilteredData.stats.ratio}%</strong></div>
+                  <div><span>Penyelesaian:</span> <strong style={{ color: '#0891b2' }}>{ttFilteredData.stats.completionRate}%</strong> ({ttFilteredData.stats.completedCount} tanpa pengembalian)</div>
                   <div><span>Jumlah Baris:</span> <strong>{ttFilteredData.filteredRows.length.toLocaleString('id-ID')} baris</strong></div>
                 </div>
               )}

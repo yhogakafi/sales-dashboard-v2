@@ -18,7 +18,7 @@ import {
 } from 'chart.js'
 import KpiCard from './KpiCard'
 import AffiliateExportBtn from './AffiliateExportBtn'
-import { formatRupiah, formatRupiahShort } from '@/lib/parseAffiliate'
+import { formatRupiah, formatRupiahShort, isShopeeCompleted } from '@/lib/parseAffiliate'
 
 Chart.register(
   LineController,
@@ -134,11 +134,16 @@ export default function ShopeeDashboard({
     const totalGmv = rows.reduce((s, r) => s + r.gmv, 0)
     const totalExp = rows.reduce((s, r) => s + r.expense, 0)
     const ratio = totalGmv > 0 ? (totalExp / totalGmv) * 100 : 0
+    const selesaiCount = rows.filter(r => isShopeeCompleted(r)).length
+    const completionRate = rows.length > 0 ? (selesaiCount / rows.length) * 100 : 0
     return {
       orders: uniqueOrders,
       gmv: Math.round(totalGmv),
       expense: Math.round(totalExp),
       ratio: ratio.toFixed(2),
+      completedCount: selesaiCount,
+      totalRows: rows.length,
+      completionRate: completionRate.toFixed(2),
     }
   }, [rows])
 
@@ -556,6 +561,14 @@ export default function ShopeeDashboard({
           sub="Pengeluaran / GMV"
           color="#7c3aed"
           raw={`${kpiData.ratio}%`}
+          onCopy={onShowToast}
+        />
+        <KpiCard
+          label="Penyelesaian Pesanan"
+          value={`${kpiData.completionRate}%`}
+          sub={`${kpiData.completedCount.toLocaleString('id-ID')} dari ${kpiData.totalRows.toLocaleString('id-ID')} pesanan selesai`}
+          color="#0d9488"
+          raw={`${kpiData.completionRate}%`}
           onCopy={onShowToast}
         />
       </div>

@@ -18,7 +18,7 @@ import {
 } from 'chart.js'
 import KpiCard from './KpiCard'
 import AffiliateExportBtn from './AffiliateExportBtn'
-import { formatRupiah, formatRupiahShort } from '@/lib/parseAffiliate'
+import { formatRupiah, formatRupiahShort, isTikTokCompleted } from '@/lib/parseAffiliate'
 
 Chart.register(
   LineController,
@@ -117,11 +117,16 @@ export default function TikTokDashboard({
     const totalGmv = rows.reduce((s, r) => s + r.gmv, 0)
     const totalExp = rows.reduce((s, r) => s + r.expense, 0)
     const ratio = totalGmv > 0 ? (totalExp / totalGmv) * 100 : 0
+    const tidakCount = rows.filter(r => isTikTokCompleted(r)).length
+    const completionRate = rows.length > 0 ? (tidakCount / rows.length) * 100 : 0
     return {
       orders: uniqueOrders,
       gmv: Math.round(totalGmv),
       expense: Math.round(totalExp),
       ratio: ratio.toFixed(2),
+      completedCount: tidakCount,
+      totalRows: rows.length,
+      completionRate: completionRate.toFixed(2),
     }
   }, [rows])
 
@@ -478,6 +483,14 @@ export default function TikTokDashboard({
           sub="Komisi / GMV"
           color="#9B59B6"
           raw={`${kpiData.ratio}%`}
+          onCopy={onShowToast}
+        />
+        <KpiCard
+          label="Penyelesaian Pesanan"
+          value={`${kpiData.completionRate}%`}
+          sub={`${kpiData.completedCount.toLocaleString('id-ID')} dari ${kpiData.totalRows.toLocaleString('id-ID')} tanpa pengembalian`}
+          color="#0891b2"
+          raw={`${kpiData.completionRate}%`}
           onCopy={onShowToast}
         />
       </div>
