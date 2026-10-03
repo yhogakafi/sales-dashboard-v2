@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import LemonIcon from '@/components/LemonIcon'
 
 const NAV_ITEMS = [
   {
@@ -132,7 +133,10 @@ export default function Sidebar() {
         aria-label="Navigasi utama"
       >
         <div className="sidebar-top">
-          <span className="sidebar-brand">{collapsed ? 'TMS' : 'TMS Online'}</span>
+          <div className="sidebar-brand-wrap">
+            <LemonIcon size={22} className="sidebar-brand-icon" />
+            <span className="sidebar-brand">{collapsed ? 'TMS' : 'TMS Online'}</span>
+          </div>
           <div className="sidebar-top-actions">
             <button
               type="button"
@@ -175,7 +179,21 @@ export default function Sidebar() {
             )
           })}
         </nav>
+
+        <div
+          className="sidebar-footer"
+          title={collapsed ? 'TMS Online — Dashboard penjualan tim TMS Online' : undefined}
+        >
+          <div className="sidebar-footer-brand">
+            <LemonIcon size={20} className="sidebar-footer-icon" />
+            <span className="sidebar-footer-title">TMS Online</span>
+          </div>
+          <p className="sidebar-footer-desc">
+            Dashboard penjualan tim TMS Online
+          </p>
+        </div>
       </aside>
     </>
   )
 }
+
