@@ -48,6 +48,19 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: '/laporan-affiliate',
+    label: 'Laporan Affiliate',
+    icon: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M14 2V8H20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M16 13H8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M16 17H8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M10 9H8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     href: '/app',
     label: 'App',
     icon: (active) => (
