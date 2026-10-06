@@ -5,6 +5,7 @@ import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import AuthGate from '@/components/AuthGate'
 import KpiCard from '@/components/affiliate/KpiCard'
+import LemonIcon from '@/components/LemonIcon'
 
 export default function LaporanAffiliatePage() {
   const [activePlatform, setActivePlatform] = useState('semua') // 'semua' | 'shopee' | 'tiktok'
@@ -261,7 +262,13 @@ export default function LaporanAffiliatePage() {
         {/* Top Header */}
         <header className="aff-top-header">
           <div>
-            <h1>Laporan Affiliate</h1>
+            <div className="aff-lemon-eyebrow">
+              <LemonIcon size={15} />
+              <span>TMS ONLINE · LAPORAN AFFILIATE</span>
+            </div>
+            <h1 style={{ color: '#1C1917', fontSize: '28px', fontWeight: 800, margin: '2px 0 6px', letterSpacing: '-0.02em' }}>
+              Laporan Affiliate
+            </h1>
             <p className="aff-header-sub">
               {activePlatform === 'shopee'
                 ? 'Rekap performa listing & pendekatan Shopee Affiliate dari Google Sheets'
@@ -271,75 +278,61 @@ export default function LaporanAffiliatePage() {
             </p>
           </div>
 
-          <div className="aff-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="aff-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             {data && (
               <button
                 type="button"
-                className="btn-export"
+                className="btn-export-lemon"
                 onClick={handleExportExcel}
                 title="Unduh laporan dalam format Excel (.xlsx)"
               >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                Ekspor Excel
+                <span>Ekspor Excel</span>
               </button>
             )}
 
             <button
               type="button"
-              className="btn-secondary"
+              className="btn-refresh-lemon"
               onClick={() => fetchData(true)}
               disabled={refreshing}
               title="Sinkronkan ulang data dari Vercel Blob"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', height: '36px', padding: '0 12px', fontSize: '13px' }}
             >
               <svg
-                width="14"
-                height="14"
+                width="15"
+                height="15"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 style={{ transform: refreshing ? 'rotate(360deg)' : 'none', transition: 'transform 0.8s ease' }}
               >
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
               </svg>
-              {refreshing ? 'Memuat...' : 'Refresh'}
+              <span>{refreshing ? 'Memuat...' : 'Refresh'}</span>
             </button>
           </div>
         </header>
 
         {/* Sync Status Badge Bar */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          background: 'rgba(255, 255, 255, 0.03)',
-          border: '1px solid rgba(255, 255, 255, 0.07)',
-          borderRadius: '10px',
-          padding: '8px 14px',
-          marginBottom: '1rem',
-          fontSize: '12px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: data ? '#22c55e' : '#f59e0b',
-              boxShadow: data ? '0 0 8px #22c55e' : 'none'
-            }} />
-            <span style={{ color: '#94a3b8' }}>
-              Sumber: <strong>Google Sheets (AFFILIATE REPORT) +' Vercel Blob</strong>
+        <div className="aff-status-banner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className="aff-status-pulse" />
+            <span style={{ color: '#713F12' }}>
+              Sumber Data: <strong style={{ color: '#451A03' }}>Google Sheets (AFFILIATE REPORT) &amp; Vercel Blob</strong>
             </span>
           </div>
-          <div style={{ color: '#cbd5e1', fontSize: '11.5px' }}>
-            Terakhir Sinkron: <span style={{ color: '#818cf8', fontWeight: 600 }}>{formattedSyncTime}</span>
+          <div style={{ color: '#78716C', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>Terakhir Sinkron:</span>
+            <span style={{ background: '#FEF08A', color: '#854D0E', padding: '3px 8px', borderRadius: '6px', fontWeight: 700, border: '1px solid #FDE047' }}>
+              {formattedSyncTime}
+            </span>
           </div>
         </div>
 
@@ -350,7 +343,7 @@ export default function LaporanAffiliatePage() {
             className={`aff-plat-btn ${activePlatform === 'semua' ? 'is-active semua' : ''}`}
             onClick={() => setActivePlatform('semua')}
           >
-            <span className="dot" style={{ background: '#7c3aed' }} />
+            <span className="dot" style={{ background: '#EAB308' }} />
             Semua Platform
           </button>
           <button
@@ -358,7 +351,7 @@ export default function LaporanAffiliatePage() {
             className={`aff-plat-btn ${activePlatform === 'shopee' ? 'is-active shopee' : ''}`}
             onClick={() => setActivePlatform('shopee')}
           >
-            <span className="dot" style={{ background: '#ea580c' }} />
+            <span className="dot" style={{ background: '#EA580C' }} />
             Shopee
           </button>
           <button
@@ -366,13 +359,13 @@ export default function LaporanAffiliatePage() {
             className={`aff-plat-btn ${activePlatform === 'tiktok' ? 'is-active tiktok' : ''}`}
             onClick={() => setActivePlatform('tiktok')}
           >
-            <span className="dot" style={{ background: '#3B5BDB' }} />
+            <span className="dot" style={{ background: '#16A34A' }} />
             TikTok Shop
           </button>
         </div>
 
         {/* Filter Controls Bar */}
-        <div className="aff-control-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'flex-end' }}>
+        <div className="aff-control-bar">
           {/* Filter 1: Waktu */}
           <div className="aff-filter-group">
             <label className="aff-filter-label">Filter Waktu:</label>
@@ -395,7 +388,7 @@ export default function LaporanAffiliatePage() {
 
             {timeMode === 'date' && (
               <select
-                className="category-select aff-month-select"
+                className="aff-month-select"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
               >
@@ -413,7 +406,7 @@ export default function LaporanAffiliatePage() {
           <div className="aff-filter-group">
             <label className="aff-filter-label">Brand:</label>
             <select
-              className="category-select aff-account-select"
+              className="aff-account-select"
               value={selectedBrand}
               onChange={(e) => setSelectedBrand(e.target.value)}
             >
@@ -428,7 +421,7 @@ export default function LaporanAffiliatePage() {
           <div className="aff-filter-group">
             <label className="aff-filter-label">Progress:</label>
             <select
-              className="category-select aff-account-select"
+              className="aff-account-select"
               value={selectedProgress}
               onChange={(e) => setSelectedProgress(e.target.value)}
             >
@@ -440,34 +433,69 @@ export default function LaporanAffiliatePage() {
           </div>
 
           {/* Filter 4: Search input */}
-          <div className="aff-filter-group" style={{ flex: '1 1 200px' }}>
-            <label className="aff-filter-label">Cari Username / Kontak:</label>
-            <div style={{ position: 'relative' }}>
+          <div className="aff-filter-group" style={{ flex: '1 1 220px', minWidth: '200px' }}>
+            <label className="aff-filter-label">Cari:</label>
+            <div style={{ position: 'relative', width: '100%', flex: 1 }}>
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#78716C"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
               <input
                 type="text"
                 className="login-input"
-                placeholder="Cari affiliator..."
+                placeholder="Cari username, kontak, kategori..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '100%', height: '36px', fontSize: '13px', paddingRight: '28px' }}
+                style={{
+                  width: '100%',
+                  height: '36px',
+                  fontSize: '13px',
+                  paddingLeft: '32px',
+                  paddingRight: '30px',
+                  backgroundColor: '#FFFFFF',
+                  borderColor: '#E2E8F0',
+                  color: '#1C1917',
+                  borderRadius: '8px'
+                }}
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
+                  title="Hapus pencarian"
                   style={{
                     position: 'absolute',
                     right: '8px',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    background: 'none',
+                    background: '#FEF08A',
                     border: 'none',
-                    color: '#94a3b8',
+                    borderRadius: '50%',
+                    width: '20px',
+                    height: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#854D0E',
                     cursor: 'pointer',
-                    fontSize: '14px'
+                    fontSize: '11px',
+                    padding: 0
                   }}
                 >
-                  o 
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
                 </button>
               )}
             </div>
@@ -476,27 +504,29 @@ export default function LaporanAffiliatePage() {
 
         {/* Content View */}
         {loading ? (
-          <div className="aff-loading-box">
-            <div className="spinner" />
-            <p className="loading-text">Memuat data Laporan Affiliate dari Vercel Blob...</p>
+          <div className="aff-lemon-card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', marginTop: '1.5rem' }}>
+            <div className="spinner" style={{ width: '36px', height: '36px', borderWidth: '3px', borderColor: '#FEF08A', borderTopColor: '#EAB308', margin: '0 auto 14px' }} />
+            <p style={{ color: '#713F12', fontSize: '14.5px', fontWeight: 600, margin: 0 }}>Memuat data Laporan Affiliate dari Vercel Blob...</p>
           </div>
         ) : !data || rawRecords.length === 0 ? (
-          <div className="placeholder-block" style={{ marginTop: '2rem' }}>
-            <div className="placeholder-icon">dY"S</div>
-            <h3 className="placeholder-title">Belum ada data laporan affiliator tersimpan</h3>
-            <p className="placeholder-sub">
-              Buka Google Sheet Anda, pilih menu <strong>?" Affiliate Marketing +' 🚀 Push Report to Dashboard (Vercel)</strong> untuk mengirimkan data ke web dashboard ini.
+          <div className="aff-lemon-card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', marginTop: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
+              <LemonIcon size={48} />
+            </div>
+            <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#1F2937', margin: '0 0 8px' }}>Belum ada data laporan affiliator tersimpan</h3>
+            <p style={{ fontSize: '13.5px', color: '#78716C', maxWidth: '520px', margin: '0 auto', lineHeight: 1.5 }}>
+              Buka Google Sheet Anda, pilih menu <strong>Affiliate Marketing &gt; Push Report to Dashboard (Vercel)</strong> untuk mengirimkan data ke web dashboard ini.
             </p>
           </div>
         ) : (
           <>
             {/* KPI Summary Cards */}
-            <div className="aff-kpi-grid" style={{ marginBottom: '1.75rem' }}>
+            <div className="aff-kpi-grid">
               <KpiCard
                 label={timeMode === 'all' ? 'Total Affiliator (All Time)' : `Total Affiliator (${selectedDate})`}
                 value={kpis.total.toLocaleString('id-ID')}
                 sub={`TikTok: ${kpis.tt}  |  Shopee: ${kpis.sp}`}
-                color="#4F46E5"
+                color="#EAB308"
                 raw={kpis.total}
                 onCopy={showToast}
               />
@@ -504,7 +534,7 @@ export default function LaporanAffiliatePage() {
                 label="In Progress: Listing"
                 value={kpis.listing.toLocaleString('id-ID')}
                 sub={`${kpis.listingPct}% dari total affiliator`}
-                color="#10B981"
+                color="#16A34A"
                 raw={kpis.listing}
                 onCopy={showToast}
               />
@@ -512,7 +542,7 @@ export default function LaporanAffiliatePage() {
                 label="In Progress: Approaching"
                 value={kpis.approaching.toLocaleString('id-ID')}
                 sub={`${kpis.approachingPct}% dari total affiliator`}
-                color="#F59E0B"
+                color="#EA580C"
                 raw={kpis.approaching}
                 onCopy={showToast}
               />
@@ -520,250 +550,240 @@ export default function LaporanAffiliatePage() {
                 label="Brand Aktif"
                 value={kpis.brandCount}
                 sub={kpis.brandsList || 'Semua Brand'}
-                color="#8B5CF6"
+                color="#D97706"
                 raw={kpis.brandCount}
                 onCopy={showToast}
               />
             </div>
 
             {/* Section 1: Daily Breakdown Log */}
-            <div className="aff-card-section" style={{
-              background: '#1E293B',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '12px',
-              padding: '1.25rem',
-              marginBottom: '1.5rem'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#F8FAFC', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>dY"</span> 1. Rincian Harian (Daily Affiliator Breakdown Log)
+            <div className="aff-lemon-card" style={{ marginBottom: '1.5rem' }}>
+              <div className="aff-section-header">
+                <h3 className="aff-section-title">
+                  <span className="aff-section-icon-wrap yellow">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                  </span>
+                  <span>1. Rincian Harian (Daily Affiliator Breakdown Log)</span>
                 </h3>
-                <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                <span className="aff-counter-badge">
                   {dynamicDailyRows.length} tanggal tercatat
                 </span>
               </div>
 
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+              <div className="aff-table-scroll">
+                <table className="aff-lemon-table">
                   <thead>
-                    <tr style={{ background: '#0F172A', color: '#E2E8F0', borderBottom: '2px solid #334155' }}>
-                      <th style={{ padding: '10px 12px', fontWeight: 600 }}>Tanggal</th>
-                      <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'center' }}>Total Affiliator</th>
-                      <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'center' }}>TikTok</th>
-                      <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'center' }}>Shopee</th>
-                      <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'center' }}>Listing</th>
-                      <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'center' }}>Approaching</th>
+                    <tr>
+                      <th style={{ paddingLeft: '16px' }}>Tanggal</th>
+                      <th style={{ textAlign: 'center' }}>Total Affiliator</th>
+                      <th style={{ textAlign: 'center' }}>TikTok</th>
+                      <th style={{ textAlign: 'center' }}>Shopee</th>
+                      <th style={{ textAlign: 'center' }}>Listing</th>
+                      <th style={{ textAlign: 'center' }}>Approaching</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {dynamicDailyRows.map((row, idx) => (
-                      <tr
-                        key={row.date}
-                        style={{
-                          background: idx % 2 === 0 ? '#1E293B' : 'rgba(255, 255, 255, 0.02)',
-                          borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
-                        }}
-                      >
-                        <td style={{ padding: '10px 12px', fontWeight: 600, color: '#93C5FD' }}>{row.date}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#F8FAFC' }}>{row.total}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center', color: '#93C5FD' }}>{row.tiktok}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center', color: '#FB923C' }}>{row.shopee}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center', color: '#34D399', fontWeight: 600 }}>{row.listing}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center', color: '#FBBF24', fontWeight: 600 }}>{row.approaching}</td>
+                    {dynamicDailyRows.map((row) => (
+                      <tr key={row.date}>
+                        <td style={{ fontWeight: 700, color: '#1F2937', paddingLeft: '16px' }}>{row.date}</td>
+                        <td style={{ textAlign: 'center', fontWeight: 800, color: '#111827' }}>{row.total}</td>
+                        <td style={{ textAlign: 'center', fontWeight: 700, color: '#059669' }}>{row.tiktok}</td>
+                        <td style={{ textAlign: 'center', fontWeight: 700, color: '#EA580C' }}>{row.shopee}</td>
+                        <td style={{ textAlign: 'center', fontWeight: 700, color: '#16A34A' }}>{row.listing}</td>
+                        <td style={{ textAlign: 'center', fontWeight: 700, color: '#D97706' }}>{row.approaching}</td>
                       </tr>
                     ))}
-                    {/* Summary row */}
-                    <tr style={{ background: '#0F172A', fontWeight: 700, color: '#F8FAFC', borderTop: '2px solid #475569' }}>
-                      <td style={{ padding: '10px 12px' }}>TOTAL</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>{kpis.total}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#93C5FD' }}>{kpis.tt}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#FB923C' }}>{kpis.sp}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#34D399' }}>{kpis.listing}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#FBBF24' }}>{kpis.approaching}</td>
-                    </tr>
                   </tbody>
+                  <tfoot>
+                    <tr>
+                      <td style={{ paddingLeft: '16px' }}>TOTAL</td>
+                      <td style={{ textAlign: 'center' }}>{kpis.total}</td>
+                      <td style={{ textAlign: 'center' }}>{kpis.tt}</td>
+                      <td style={{ textAlign: 'center' }}>{kpis.sp}</td>
+                      <td style={{ textAlign: 'center' }}>{kpis.listing}</td>
+                      <td style={{ textAlign: 'center' }}>{kpis.approaching}</td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
 
             {/* Section 2: Progress & Brand Breakdown Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
               {/* Breakdown by Progress */}
-              <div style={{
-                background: '#1E293B',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '12px',
-                padding: '1.25rem'
-              }}>
-                <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#F8FAFC', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>dY"S</span> 2. Breakdown Berdasarkan Status Progress
-                </h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                  <thead>
-                    <tr style={{ background: '#0F172A', color: '#94A3B8' }}>
-                      <th style={{ padding: '8px 10px' }}>Status</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center' }}>TikTok</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center' }}>Shopee</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center' }}>Total</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center' }}>Share</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dynamicProgressRows.map((r, i) => (
-                      <tr key={r.status} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                        <td style={{ padding: '8px 10px', fontWeight: 600 }}>
-                          <span style={{
-                            display: 'inline-block',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            fontSize: '11px',
-                            background: r.status.toLowerCase() === 'listing' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                            color: r.status.toLowerCase() === 'listing' ? '#34D399' : '#FBBF24',
-                          }}>
-                            {r.status}
-                          </span>
-                        </td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#93C5FD' }}>{r.tiktok}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#FB923C' }}>{r.shopee}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700 }}>{r.total}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#A78BFA', fontWeight: 600 }}>{r.pct}%</td>
+              <div className="aff-lemon-card">
+                <div className="aff-section-header">
+                  <h3 className="aff-section-title">
+                    <span className="aff-section-icon-wrap orange">
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+                        <path d="M22 12A10 10 0 0 0 12 2v10z" />
+                      </svg>
+                    </span>
+                    <span>2. Breakdown Status Progress</span>
+                  </h3>
+                </div>
+
+                <div className="aff-table-scroll">
+                  <table className="aff-lemon-table">
+                    <thead>
+                      <tr>
+                        <th style={{ paddingLeft: '14px' }}>Status</th>
+                        <th style={{ textAlign: 'center' }}>TikTok</th>
+                        <th style={{ textAlign: 'center' }}>Shopee</th>
+                        <th style={{ textAlign: 'center' }}>Total</th>
+                        <th style={{ textAlign: 'center' }}>Share</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {dynamicProgressRows.map((r) => (
+                        <tr key={r.status}>
+                          <td style={{ paddingLeft: '14px' }}>
+                            <span className={r.status.toLowerCase() === 'listing' ? 'badge-status-listing' : 'badge-status-approaching'}>
+                              {r.status}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: 600, color: '#059669' }}>{r.tiktok}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 600, color: '#EA580C' }}>{r.shopee}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 800, color: '#111827' }}>{r.total}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{
+                              background: '#FEF3C7',
+                              color: '#B45309',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              fontWeight: 700,
+                              fontSize: '11px',
+                              border: '1px solid #FDE68A'
+                            }}>
+                              {r.pct}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* Breakdown by Brand */}
-              <div style={{
-                background: '#1E293B',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '12px',
-                padding: '1.25rem'
-              }}>
-                <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#F8FAFC', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>dYÅ</span> 3. Breakdown Berdasarkan Brand
-                </h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                  <thead>
-                    <tr style={{ background: '#0F172A', color: '#94A3B8' }}>
-                      <th style={{ padding: '8px 10px' }}>Brand</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center' }}>TikTok</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center' }}>Shopee</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center' }}>Total</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center' }}>Listing</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center' }}>Approaching</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dynamicBrandRows.map((b) => (
-                      <tr key={b.brand} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                        <td style={{ padding: '8px 10px', fontWeight: 700, color: '#C084FC' }}>{b.brand}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#93C5FD' }}>{b.tiktok}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#FB923C' }}>{b.shopee}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700 }}>{b.total}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#34D399' }}>{b.listing}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#FBBF24' }}>{b.approaching}</td>
+              <div className="aff-lemon-card">
+                <div className="aff-section-header">
+                  <h3 className="aff-section-title">
+                    <span className="aff-section-icon-wrap yellow">
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                        <line x1="7" y1="7" x2="7.01" y2="7" />
+                      </svg>
+                    </span>
+                    <span>3. Breakdown Brand</span>
+                  </h3>
+                </div>
+
+                <div className="aff-table-scroll">
+                  <table className="aff-lemon-table">
+                    <thead>
+                      <tr>
+                        <th style={{ paddingLeft: '14px' }}>Brand</th>
+                        <th style={{ textAlign: 'center' }}>TikTok</th>
+                        <th style={{ textAlign: 'center' }}>Shopee</th>
+                        <th style={{ textAlign: 'center' }}>Total</th>
+                        <th style={{ textAlign: 'center' }}>Listing</th>
+                        <th style={{ textAlign: 'center' }}>Approaching</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {dynamicBrandRows.map((b) => (
+                        <tr key={b.brand}>
+                          <td style={{ paddingLeft: '14px' }}>
+                            <span className="badge-brand-tag">
+                              {b.brand}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: 600, color: '#059669' }}>{b.tiktok}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 600, color: '#EA580C' }}>{b.shopee}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 800, color: '#111827' }}>{b.total}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 700, color: '#16A34A' }}>{b.listing}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 700, color: '#D97706' }}>{b.approaching}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
             {/* Section 3: All-Time Affiliator Details Log Table */}
-            <div style={{
-              background: '#1E293B',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '12px',
-              padding: '1.25rem'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '8px' }}>
-                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#F8FAFC', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>dY"</span> 4. Log Lengkap Affiliator ({filteredRecords.length} Data)
+            <div className="aff-lemon-card">
+              <div className="aff-section-header">
+                <h3 className="aff-section-title">
+                  <span className="aff-section-icon-wrap green">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+                      <path d="M9 12h6M9 16h6" />
+                    </svg>
+                  </span>
+                  <span>4. Log Lengkap Affiliator ({filteredRecords.length} Data)</span>
                 </h3>
-                <div style={{ fontSize: '12px', color: '#94A3B8' }}>
+                <span className="aff-counter-badge">
                   Menampilkan {filteredRecords.length} dari {rawRecords.length} affiliator
-                </div>
+                </span>
               </div>
 
-              <div style={{ overflowX: 'auto', maxHeight: '560px', overflowY: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+              <div className="aff-table-scroll" style={{ maxHeight: '580px', overflowY: 'auto' }}>
+                <table className="aff-lemon-table">
                   <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
-                    <tr style={{ background: '#0F172A', color: '#E2E8F0', borderBottom: '2px solid #334155' }}>
-                      <th style={{ padding: '10px 10px', width: '40px', textAlign: 'center' }}>No</th>
-                      <th style={{ padding: '10px 10px' }}>Tanggal</th>
-                      <th style={{ padding: '10px 10px', textAlign: 'center' }}>Platform</th>
-                      <th style={{ padding: '10px 10px' }}>Username</th>
-                      <th style={{ padding: '10px 10px', textAlign: 'center' }}>Brand</th>
-                      <th style={{ padding: '10px 10px', textAlign: 'center' }}>Progress</th>
-                      <th style={{ padding: '10px 10px' }}>Followers</th>
-                      <th style={{ padding: '10px 10px' }}>GMV</th>
-                      <th style={{ padding: '10px 10px' }}>Kategori</th>
-                      <th style={{ padding: '10px 10px' }}>Kontak</th>
+                    <tr>
+                      <th style={{ width: '45px', textAlign: 'center' }}>No</th>
+                      <th>Tanggal</th>
+                      <th style={{ textAlign: 'center' }}>Platform</th>
+                      <th>Username</th>
+                      <th style={{ textAlign: 'center' }}>Brand</th>
+                      <th style={{ textAlign: 'center' }}>Progress</th>
+                      <th>Followers</th>
+                      <th>GMV</th>
+                      <th>Kategori</th>
+                      <th>Kontak</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredRecords.length === 0 ? (
                       <tr>
-                        <td colSpan={10} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
-                          Tidak ada data affiliator yang cocok dengan filter.
+                        <td colSpan={10} style={{ padding: '36px', textAlign: 'center', color: '#78716C' }}>
+                          Tidak ada data affiliator yang cocok dengan filter yang dipilih.
                         </td>
                       </tr>
                     ) : (
                       filteredRecords.map((item, idx) => (
-                        <tr
-                          key={`${item.platform}_${item.username}_${idx}`}
-                          style={{
-                            background: idx % 2 === 0 ? '#1E293B' : 'rgba(255, 255, 255, 0.02)',
-                            borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
-                          }}
-                        >
-                          <td style={{ padding: '8px 10px', textAlign: 'center', color: '#64748B' }}>{idx + 1}</td>
-                          <td style={{ padding: '8px 10px', color: '#94A3B8', whiteSpace: 'nowrap' }}>{item.date}</td>
-                          <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                            <span style={{
-                              display: 'inline-block',
-                              padding: '2px 8px',
-                              borderRadius: '999px',
-                              fontSize: '10.5px',
-                              fontWeight: 600,
-                              background: item.platform?.toLowerCase() === 'shopee' ? 'rgba(234, 88, 12, 0.15)' : 'rgba(59, 91, 219, 0.15)',
-                              color: item.platform?.toLowerCase() === 'shopee' ? '#FB923C' : '#93C5FD'
-                            }}>
+                        <tr key={`${item.platform}_${item.username}_${idx}`}>
+                          <td style={{ textAlign: 'center', color: '#9CA3AF', fontWeight: 600 }}>{idx + 1}</td>
+                          <td style={{ color: '#4B5563', whiteSpace: 'nowrap' }}>{item.date}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={item.platform?.toLowerCase() === 'shopee' ? 'badge-plat-shopee' : 'badge-plat-tiktok'}>
                               {item.platform}
                             </span>
                           </td>
-                          <td style={{ padding: '8px 10px', fontWeight: 600, color: '#F8FAFC' }}>{item.username}</td>
-                          <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                            <span style={{
-                              display: 'inline-block',
-                              padding: '2px 7px',
-                              borderRadius: '6px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              background: 'rgba(168, 85, 247, 0.15)',
-                              color: '#C084FC'
-                            }}>
+                          <td style={{ fontWeight: 700, color: '#111827' }}>{item.username}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className="badge-brand-tag">
                               {item.brand}
                             </span>
                           </td>
-                          <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                            <span style={{
-                              display: 'inline-block',
-                              padding: '2px 8px',
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              background: item.progress?.toLowerCase() === 'listing' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                              color: item.progress?.toLowerCase() === 'listing' ? '#34D399' : '#FBBF24'
-                            }}>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={item.progress?.toLowerCase() === 'listing' ? 'badge-status-listing' : 'badge-status-approaching'}>
                               {item.progress}
                             </span>
                           </td>
-                          <td style={{ padding: '8px 10px', color: '#E2E8F0' }}>{item.followers || '-'}</td>
-                          <td style={{ padding: '8px 10px', color: '#E2E8F0' }}>{item.gmv || '-'}</td>
-                          <td style={{ padding: '8px 10px', color: '#94A3B8' }}>{item.category || '-'}</td>
-                          <td style={{ padding: '8px 10px', color: '#94A3B8', fontSize: '11.5px', maxWidth: '200px', wordBreak: 'break-word' }}>
+                          <td style={{ color: '#374151', fontWeight: 500 }}>{item.followers || '-'}</td>
+                          <td style={{ color: '#374151', fontWeight: 600 }}>{item.gmv || '-'}</td>
+                          <td style={{ color: '#4B5563' }}>{item.category || '-'}</td>
+                          <td style={{ color: '#4B5563', fontSize: '12px', maxWidth: '220px', wordBreak: 'break-word' }}>
                             {item.contact || '-'}
                           </td>
                         </tr>
@@ -778,7 +798,7 @@ export default function LaporanAffiliatePage() {
 
         {/* Toast Notification */}
         <div className={`kpi-toast ${toastVisible ? 'show' : ''}`}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
           <span>{toastMessage}</span>

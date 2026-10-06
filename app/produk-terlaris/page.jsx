@@ -1309,11 +1309,11 @@ const ALL_VISIBLE_COLS = [
   { key: 'namaBarang', label: 'Nama Barang' },
   { key: 'brand', label: 'Brand' },
   { key: 'kuantitas', label: 'Terjual' },
-  { key: 'hargaProduk', label: 'Harga Produk' },
+  { key: 'hpp', label: 'HPP PCS' },
   { key: 'stock', label: 'Stock' },
   { key: 'mpStock', label: 'MP Stock' },
   { key: 'unit', label: 'Unit' },
-  { key: 'hpp', label: 'HPP PCS' },
+  { key: 'hargaProduk', label: 'TOTAL TERJUAL' },
   { key: 'totalHpp', label: 'Total HPP' },
   { key: 'ssr', label: 'SSR' },
 ]
@@ -1421,7 +1421,7 @@ function BestSellerTable({
         </button>
       </div>
 
-      {/* ── Upload gambar SKU + column visibility picker ── */}
+      {/* ── Upload gambar SKU ── */}
       <div style={{ display: 'flex', gap: 6, marginBottom: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           ref={imageInputRef}
@@ -1449,21 +1449,44 @@ function BestSellerTable({
             {imageMeta.savedAt ? ` · diupdate ${new Date(imageMeta.savedAt).toLocaleString('id-ID')}` : ''}
           </span>
         )}
+      </div>
+      {imageError && (
+        <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {imageError}</p>
+      )}
+      {imageUploadError && (
+        <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {imageUploadError}</p>
+      )}
+      {notesError && (
+        <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {notesError}</p>
+      )}
 
-        {/* ── Column visibility picker ── */}
-        <div ref={colPickerRef} style={{ position: 'relative', marginLeft: 'auto' }}>
+      {/* ── Opsi Pengaturan Kolom & Search Bar ── */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: '0.75rem' }}>
+        {/* ── Column visibility picker (di sebelah kiri cari nama barang) ── */}
+        <div ref={colPickerRef} style={{ position: 'relative', flexShrink: 0 }}>
           <button
             type="button"
             className={`btn-col-picker ${colPickerOpen ? 'is-open' : ''}`}
             onClick={() => setColPickerOpen(v => !v)}
             title={`${activeColCount} dari ${availableCols.length} kolom ditampilkan · Klik untuk pilih kolom`}
+            style={{
+              height: 38,
+              boxSizing: 'border-box',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '0 12px',
+              fontSize: 13,
+              fontWeight: 500,
+              borderRadius: 8,
+            }}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
               <rect x="3" y="3" width="18" height="18" rx="2" />
               <path d="M9 3v18" />
               <path d="M15 3v18" />
             </svg>
-            <span>Kolom</span>
+            <span>Pengaturan Kolom</span>
             <span className="col-count-badge">
               {activeColCount}
             </span>
@@ -1481,10 +1504,10 @@ function BestSellerTable({
           </button>
           {colPickerOpen && (
             <div style={{
-              position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 400,
+              position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 400,
               background: 'var(--surface, #fff)', border: '1px solid var(--border, #ddd)',
               borderRadius: 10, boxShadow: '0 10px 28px -4px rgba(0,0,0,.12), 0 4px 10px -2px rgba(0,0,0,.06)',
-              padding: '0.75rem 0.85rem', minWidth: 215,
+              padding: '0.75rem 0.85rem', minWidth: 230,
               display: 'flex', flexDirection: 'column', gap: 4,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 2px 6px' }}>
@@ -1553,44 +1576,44 @@ function BestSellerTable({
             </div>
           )}
         </div>
-      </div>
-      {imageError && (
-        <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {imageError}</p>
-      )}
-      {imageUploadError && (
-        <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {imageUploadError}</p>
-      )}
-      {notesError && (
-        <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {notesError}</p>
-      )}
 
-      {/* ── Search bar ── */}
-      <div style={{ marginBottom: '0.75rem', position: 'relative' }}>
-        <span style={{
-          position: 'absolute', left: '0.75rem', top: '50%',
-          transform: 'translateY(-50%)', fontSize: 15,
-          color: 'var(--muted, #888)', pointerEvents: 'none',
-        }}>🔍</span>
-        <input
-          type="text"
-          className="login-input"
-          placeholder="Cari nama barang…"
-          value={searchQuery}
-          onChange={e => onSearchChange(e.target.value)}
-          style={{ paddingLeft: '2.25rem', paddingRight: searchQuery ? '2.25rem' : undefined }}
-        />
-        {searchQuery && (
-          <button
-            onClick={() => onSearchChange('')}
+        {/* ── Search bar (di sebelah kanan opsi pengaturan kolom, ukuran box sama persis) ── */}
+        <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+          <span style={{
+            position: 'absolute', left: '0.75rem', top: '50%',
+            transform: 'translateY(-50%)', fontSize: 14,
+            color: 'var(--muted, #888)', pointerEvents: 'none',
+          }}>🔍</span>
+          <input
+            type="text"
+            className="login-input"
+            placeholder="Cari nama barang…"
+            value={searchQuery}
+            onChange={e => onSearchChange(e.target.value)}
             style={{
-              position: 'absolute', right: '0.6rem', top: '50%',
-              transform: 'translateY(-50%)', background: 'none', border: 'none',
-              cursor: 'pointer', fontSize: 16, color: 'var(--muted, #888)',
-              lineHeight: 1, padding: '0 4px',
+              width: '100%',
+              height: 38,
+              boxSizing: 'border-box',
+              paddingLeft: '2.25rem',
+              paddingRight: searchQuery ? '2.25rem' : '0.75rem',
+              fontSize: 13,
+              borderRadius: 8,
+              margin: 0,
             }}
-            title="Hapus pencarian"
-          >✕</button>
-        )}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange('')}
+              style={{
+                position: 'absolute', right: '0.6rem', top: '50%',
+                transform: 'translateY(-50%)', background: 'none', border: 'none',
+                cursor: 'pointer', fontSize: 15, color: 'var(--muted, #888)',
+                lineHeight: 1, padding: '0 4px',
+              }}
+              title="Hapus pencarian"
+            >✕</button>
+          )}
+        </div>
       </div>
 
       {loading && <p className="loading-text">Memuat data…</p>}
@@ -1612,7 +1635,7 @@ function BestSellerTable({
               flex: 1, minWidth: 140,
               background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.6rem 1rem',
             }}>
-              <p className="muted" style={{ fontSize: 12, margin: 0 }}>Total Harga Produk</p>
+              <p className="muted" style={{ fontSize: 12, margin: 0 }}>Total Terjual (Rp)</p>
               <p className="mono" style={{ fontSize: 18, fontWeight: 700, margin: '2px 0 0' }}>
                 {formatRupiah(totalHargaProduk)}
               </p>
@@ -1698,11 +1721,11 @@ function BestSellerTable({
                   {visibleCols.has('namaBarang') && <ColHeader col="namaBarang" label="Nama Barang" align="left"  {...colHeaderProps} />}
                   {hasStock && visibleCols.has('brand') && <ColHeader col="brand" label="Brand" align="left"  {...colHeaderProps} />}
                   {visibleCols.has('kuantitas') && <ColHeader col="kuantitas" label="Terjual" align="right" {...colHeaderProps} />}
-                  {visibleCols.has('hargaProduk') && <ColHeader col="hargaProduk" label="Harga Produk" align="right" {...colHeaderProps} />}
+                  {hasStock && visibleCols.has('hpp') && <ColHeader col="hpp" label="HPP PCS" align="right" {...colHeaderProps} />}
                   {hasStock && visibleCols.has('stock') && <ColHeader col="stock" label="Stock" align="right" {...colHeaderProps} />}
                   {showImageCol && visibleCols.has('mpStock') && <ColHeader col="mpStock" label="MP Stock" align="right" {...colHeaderProps} />}
                   {hasStock && visibleCols.has('unit') && <ColHeader col="unit" label="Unit" align="left" {...colHeaderProps} />}
-                  {hasStock && visibleCols.has('hpp') && <ColHeader col="hpp" label="HPP PCS" align="right" {...colHeaderProps} />}
+                  {visibleCols.has('hargaProduk') && <ColHeader col="hargaProduk" label="TOTAL TERJUAL" align="right" {...colHeaderProps} />}
                   {hasStock && visibleCols.has('totalHpp') && <ColHeader col="totalHpp" label="Total HPP" align="right" {...colHeaderProps} />}
                   {hasStock && visibleCols.has('ssr') && <ColHeader col="ssr" label="SSR" align="right" {...colHeaderProps} />}
                 </tr>
@@ -1806,9 +1829,9 @@ function BestSellerTable({
                           {row.kuantitas.toLocaleString('id-ID')}
                         </td>
                       )}
-                      {visibleCols.has('hargaProduk') && (
+                      {hasStock && visibleCols.has('hpp') && (
                         <td className="mono" style={{ textAlign: 'right' }}>
-                          {formatRupiah(row.hargaProduk)}
+                          {row.hpp ? formatRupiah(row.hpp) : <span className="muted">—</span>}
                         </td>
                       )}
                       {hasStock && visibleCols.has('stock') && (
@@ -1836,9 +1859,9 @@ function BestSellerTable({
                             : <span className="muted">—</span>}
                         </td>
                       )}
-                      {hasStock && visibleCols.has('hpp') && (
+                      {visibleCols.has('hargaProduk') && (
                         <td className="mono" style={{ textAlign: 'right' }}>
-                          {row.hpp ? formatRupiah(row.hpp) : <span className="muted">—</span>}
+                          {formatRupiah(row.hargaProduk)}
                         </td>
                       )}
                       {hasStock && visibleCols.has('totalHpp') && (
@@ -2353,7 +2376,7 @@ export default function ProdukTerlarisPage() {
     }
     // add active column filters
     const colLabels = {
-      kodeBarang: 'Kode Barang', namaBarang: 'Nama Barang', kuantitas: 'Terjual', hargaProduk: 'Harga Produk',
+      kodeBarang: 'Kode Barang', namaBarang: 'Nama Barang', kuantitas: 'Terjual', hargaProduk: 'TOTAL TERJUAL',
       brand: 'Brand', stock: 'Stock', hpp: 'HPP PCS', totalHpp: 'Total HPP', ssr: 'SSR', tipe: 'Tipe',
     }
     for (const [col, f] of Object.entries(colFilters)) {
