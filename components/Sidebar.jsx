@@ -11,9 +11,9 @@ const NAV_ITEMS = [
     label: 'Dashboard',
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="3" y="12" width="4" height="9" rx="1" fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" />
-        <rect x="10" y="7" width="4" height="14" rx="1" fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" />
-        <rect x="17" y="3" width="4" height="18" rx="1" fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <rect x="3" y="12" width="4" height="9" rx="1" fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <rect x="10" y="7" width="4" height="14" rx="1" fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <rect x="17" y="3" width="4" height="18" rx="1" fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" />
       </svg>
     ),
   },
@@ -24,7 +24,7 @@ const NAV_ITEMS = [
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path
           d="M7 4H17V9C17 11.7614 14.7614 14 12 14C9.23858 14 7 11.7614 7 9V4Z"
-          fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"
+          fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"
         />
         <path d="M7 5H4V7C4 8.65685 5.34315 10 7 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         <path d="M17 5H20V7C20 8.65685 18.6569 10 17 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -39,9 +39,9 @@ const NAV_ITEMS = [
     label: 'Affiliate',
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="18" cy="5" r="3" fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" />
-        <circle cx="6" cy="12" r="3" fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" />
-        <circle cx="18" cy="19" r="3" fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <circle cx="18" cy="5" r="3" fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <circle cx="6" cy="12" r="3" fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <circle cx="18" cy="19" r="3" fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" />
         <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" stroke="currentColor" strokeWidth="1.8" />
         <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" stroke="currentColor" strokeWidth="1.8" />
       </svg>
@@ -52,7 +52,7 @@ const NAV_ITEMS = [
     label: 'Laporan Affiliate',
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M14 2V8H20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M16 13H8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         <path d="M16 17H8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -65,10 +65,10 @@ const NAV_ITEMS = [
     label: 'App',
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" />
-        <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" />
-        <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" />
-        <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" />
       </svg>
     ),
   },
@@ -77,7 +77,7 @@ const NAV_ITEMS = [
     label: 'Admin',
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="12" cy="12" r="3" fill={active ? '#8886F0' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <circle cx="12" cy="12" r="3" fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" />
         <path
           d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"
           stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
