@@ -27,6 +27,7 @@ export default function PelangganPage() {
   // Active Customer for Date History Tooltip / Box Modal
   const [activeCustomerDates, setActiveCustomerDates] = useState(null)
   const [copiedDates, setCopiedDates] = useState(false)
+  const [copiedResi, setCopiedResi] = useState(null)
 
   const fetchData = useCallback(async () => {
     try {
@@ -72,10 +73,15 @@ export default function PelangganPage() {
     if (!data?.customers) return []
 
     return data.customers.filter((c) => {
-      // 1. Search Query
+      // 1. Search Query (Username or No. Resi)
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase()
-        if (!c.username.toLowerCase().includes(q)) {
+        const matchUser = c.username.toLowerCase().includes(q)
+        const matchResi =
+          (c.latestResi && c.latestResi.toLowerCase().includes(q)) ||
+          c.allResi?.some((r) => r.toLowerCase().includes(q))
+
+        if (!matchUser && !matchResi) {
           return false
         }
       }
@@ -115,6 +121,8 @@ export default function PelangganPage() {
         cmp = a.orderCount - b.orderCount
       } else if (sortField === 'username') {
         cmp = a.username.localeCompare(b.username)
+      } else if (sortField === 'latestResi') {
+        cmp = (a.latestResi || '').localeCompare(b.latestResi || '')
       } else if (sortField === 'lastOrder') {
         cmp = (a.lastOrderIso || '').localeCompare(b.lastOrderIso || '')
       } else if (sortField === 'firstOrder') {
@@ -150,11 +158,24 @@ export default function PelangganPage() {
 
   const handleCopyDates = (cust) => {
     if (!cust) return
-    const lines = cust.orders.map((o, idx) => `${idx + 1}. ${o.date} (${o.channel})`)
-    const text = `Riwayat Pesanan Pelanggan: ${cust.username} (Total ${cust.orderCount}x)\n` + lines.join('\n')
+    const lines = cust.orders.map(
+      (o, idx) => `${idx + 1}. ${o.date} - Resi: ${o.resi || '-'} (${o.channel})`
+    )
+    const text =
+      `Riwayat Pesanan & Resi Pelanggan: ${cust.username} (Total ${cust.orderCount}x)\n` +
+      lines.join('\n')
     navigator.clipboard.writeText(text).then(() => {
       setCopiedDates(true)
       setTimeout(() => setCopiedDates(false), 2000)
+    })
+  }
+
+  const handleCopySingleResi = (resi, e) => {
+    if (e) e.stopPropagation()
+    if (!resi || resi === '-') return
+    navigator.clipboard.writeText(resi).then(() => {
+      setCopiedResi(resi)
+      setTimeout(() => setCopiedResi(null), 1800)
     })
   }
 
@@ -163,13 +184,17 @@ export default function PelangganPage() {
 
     const exportRows = sortedCustomers.map((c, idx) => ({
       No: idx + 1,
-      'Username Pelanggan': c.username,
+      'Username Pelanggan (Kolom C)': c.username,
+      'No. Resi (Kolom D)': c.latestResi || '-',
       'Jumlah Pesanan': c.orderCount,
       'Status Pelanggan': c.orderCount > 1 ? 'Repeat Customer' : 'Single Order',
       'Marketplace / Channel': c.channels.join(', '),
       'Pesanan Pertama': c.firstOrder,
       'Pesanan Terakhir': c.lastOrder,
-      'Daftar Tanggal Order': c.orders.map((o) => `${o.date} [${o.channel}]`).join('; '),
+      'Semua No. Resi': (c.allResi || []).join(', '),
+      'Daftar Tanggal & Resi': c.orders
+        .map((o) => `${o.date} [Resi: ${o.resi || '-'}] (${o.channel})`)
+        .join('; '),
     }))
 
     const ws = XLSX.utils.json_to_sheet(exportRows)
@@ -501,13 +526,13 @@ export default function PelangganPage() {
                     <input
                       type="text"
                       className="login-input"
-                      placeholder="Cari username pelanggan…"
+                      placeholder="Cari username atau No. Resi…"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       style={{
                         padding: '7px 12px',
                         fontSize: '13px',
-                        width: '220px',
+                        width: '240px',
                         borderRadius: '8px',
                       }}
                     />
@@ -595,6 +620,13 @@ export default function PelangganPage() {
                         {sortField === 'username' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
                       </th>
                       <th
+                        onClick={() => handleSort('latestResi')}
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                      >
+                        No. Resi (Kolom D){' '}
+                        {sortField === 'latestResi' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
+                      </th>
+                      <th
                         onClick={() => handleSort('orderCount')}
                         style={{ cursor: 'pointer', userSelect: 'none' }}
                       >
@@ -622,7 +654,7 @@ export default function PelangganPage() {
                   <tbody>
                     {paginatedCustomers.length === 0 ? (
                       <tr>
-                        <td colSpan={7} style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--ink-muted)' }}>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--ink-muted)' }}>
                           Tidak ada data pelanggan yang cocok dengan kriteria pencarian / filter.
                         </td>
                       </tr>
@@ -669,6 +701,64 @@ export default function PelangganPage() {
                                     {cust.username}
                                   </strong>
                                 </div>
+                              </div>
+                            </td>
+
+                            {/* No. Resi (Kolom D) */}
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span
+                                  style={{
+                                    fontFamily: 'var(--font-mono)',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    color: cust.latestResi ? 'var(--ink)' : 'var(--ink-muted)',
+                                    background: cust.latestResi ? '#F1F5F9' : 'transparent',
+                                    padding: cust.latestResi ? '2px 8px' : '0',
+                                    borderRadius: '4px',
+                                    border: cust.latestResi ? '1px solid #E2E8F0' : 'none',
+                                  }}
+                                >
+                                  {cust.latestResi || '—'}
+                                </span>
+                                {cust.latestResi && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleCopySingleResi(cust.latestResi, e)}
+                                    title={copiedResi === cust.latestResi ? 'No. Resi tersalin!' : 'Salin No. Resi'}
+                                    style={{
+                                      background: copiedResi === cust.latestResi ? '#DCFCE7' : 'none',
+                                      color: copiedResi === cust.latestResi ? '#15803D' : 'inherit',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                      padding: '2px 4px',
+                                      transition: 'all 0.12s ease',
+                                    }}
+                                  >
+                                    {copiedResi === cust.latestResi ? '✓' : '📋'}
+                                  </button>
+                                )}
+                                {cust.allResi && cust.allResi.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveCustomerDates(cust)}
+                                    style={{
+                                      fontSize: '10.5px',
+                                      padding: '1px 6px',
+                                      borderRadius: '10px',
+                                      background: '#FEF08A',
+                                      color: '#713F12',
+                                      border: '1px solid #FDE047',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                    title={`${cust.allResi.length} no. resi berbeda, klik untuk lihat semua`}
+                                  >
+                                    +{cust.allResi.length - 1} resi
+                                  </button>
+                                )}
                               </div>
                             </td>
 
@@ -919,12 +1009,12 @@ export default function PelangganPage() {
               {/* Modal Body: List of Order Dates */}
               <div className="pelanggan-modal-body">
                 <p style={{ margin: '0 0 10px', fontSize: '12px', fontWeight: 600, color: 'var(--ink-muted)' }}>
-                  DAFTAR TANGGAL ORDER ({activeCustomerDates.orders.length} PESANAN):
+                  DAFTAR TANGGAL ORDER &amp; NO. RESI ({activeCustomerDates.orders.length} PESANAN):
                 </p>
 
                 {activeCustomerDates.orders.map((ord, idx) => (
                   <div key={idx} className="pelanggan-date-item">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <span
                         style={{
                           fontSize: '11px',
@@ -938,6 +1028,40 @@ export default function PelangganPage() {
                       <span style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
                         {ord.date}
                       </span>
+                      {ord.resi && (
+                        <span
+                          style={{
+                            fontSize: '11.5px',
+                            fontFamily: 'var(--font-mono)',
+                            background: '#F1F5F9',
+                            padding: '2px 7px',
+                            borderRadius: '4px',
+                            border: '1px solid #E2E8F0',
+                            color: '#1E293B',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <span>Resi: {ord.resi}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => handleCopySingleResi(ord.resi, e)}
+                            title={copiedResi === ord.resi ? 'Tersalin!' : 'Salin No. Resi ini'}
+                            style={{
+                              background: copiedResi === ord.resi ? '#DCFCE7' : 'none',
+                              color: copiedResi === ord.resi ? '#15803D' : 'inherit',
+                              border: 'none',
+                              borderRadius: '3px',
+                              cursor: 'pointer',
+                              fontSize: '11px',
+                              padding: '1px 3px',
+                            }}
+                          >
+                            {copiedResi === ord.resi ? '✓' : '📋'}
+                          </button>
+                        </span>
+                      )}
                     </div>
 
                     <span
@@ -963,7 +1087,7 @@ export default function PelangganPage() {
                   onClick={() => handleCopyDates(activeCustomerDates)}
                   style={{ fontSize: '12.5px', background: copiedDates ? '#DCFCE7' : '#FFFFFF' }}
                 >
-                  {copiedDates ? '✅ Berhasil Disalin!' : '📋 Salin Semua Tanggal'}
+                  {copiedDates ? '✅ Berhasil Disalin!' : '📋 Salin Tanggal & No. Resi'}
                 </button>
 
                 <button

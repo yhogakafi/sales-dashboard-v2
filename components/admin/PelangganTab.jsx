@@ -240,7 +240,7 @@ export default function PelangganTab() {
         <h3 className="block-title">Unggah Data Excel Pelanggan Baru</h3>
         <p className="assign-hint" style={{ marginBottom: '1.25rem' }}>
           Unggah file Excel (format <code>.xls</code> atau <code>.xlsx</code>) yang berisi data pelanggan.
-          Sistem akan membaca kolom tanggal order (Kolom A), channel / marketplace (Kolom B), dan nama pelanggan / username (Kolom C) untuk menghitung statistik repeat order secara otomatis.
+          Sistem akan membaca kolom tanggal order (Kolom A), channel / marketplace (Kolom B), nama pelanggan / username (Kolom C), dan No. Resi (Kolom D) untuk menghitung statistik repeat order secara otomatis.
         </p>
 
         <div
