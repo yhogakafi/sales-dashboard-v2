@@ -967,10 +967,10 @@ export default function LaporanAffiliatePage() {
           </button>
         </div>
 
-        {/* Top Filter Controls Bar */}
-        <div className="aff-control-bar">
+        {/* Top Filter Controls Bar: Waktu Sejajar dengan Fitur Cari */}
+        <div className="aff-control-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
           {/* Filter 1: Waktu */}
-          <div className="aff-filter-group">
+          <div className="aff-filter-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <label className="aff-filter-label">Waktu:</label>
             <div className="aff-toggle-group">
               <button
@@ -1008,77 +1008,9 @@ export default function LaporanAffiliatePage() {
             )}
           </div>
 
-          {/* Filter 2: Brand */}
-          <div className="aff-filter-group">
-            <label className="aff-filter-label">Brand:</label>
-            <select
-              className="aff-account-select"
-              value={selectedBrand}
-              onChange={(e) => setSelectedBrand(e.target.value)}
-            >
-              <option value="ALL">Semua Brand ({availableBrands.length})</option>
-              {availableBrands.map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filter 3: Progress */}
-          <div className="aff-filter-group">
-            <label className="aff-filter-label">Progress:</label>
-            <select
-              className="aff-account-select"
-              value={selectedProgress}
-              onChange={(e) => setSelectedProgress(e.target.value)}
-            >
-              <option value="ALL">Semua Status ({allAvailableStatuses.length})</option>
-              {allAvailableStatuses.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filter 4: Kategori */}
-          <div className="aff-filter-group">
-            <label className="aff-filter-label">Kategori:</label>
-            <select
-              className="aff-account-select"
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-            >
-              <option value="ALL">Semua Kategori ({availableCategories.length})</option>
-              {availableCategories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filter 5: Followers Tier */}
-          <div className="aff-filter-group">
-            <label className="aff-filter-label">Followers:</label>
-            <select
-              className="aff-account-select"
-              value={selectedFollowerRange}
-              onChange={(e) => setSelectedFollowerRange(e.target.value)}
-            >
-              <option value="ALL">Semua Followers</option>
-              <option value="nano">Nano (&lt; 5K)</option>
-              <option value="micro">Micro (5K - 20K)</option>
-              <option value="macro">Macro (&gt; 20K)</option>
-              <option value="has_followers">Ada Followers (&gt; 0)</option>
-              <option value="no_followers">Kosong (-)</option>
-            </select>
-          </div>
-
-          {/* Filter 6: Global Search Input */}
-          <div className="aff-filter-group" style={{ flex: '1 1 200px', minWidth: '180px' }}>
-            <label className="aff-filter-label">Cari:</label>
+          {/* Fitur CARI (Sejajar dengan Waktu) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1 1 300px', maxWidth: '520px', marginLeft: 'auto' }}>
+            <label className="aff-filter-label" style={{ marginBottom: 0 }}>Cari:</label>
             <div style={{ position: 'relative', width: '100%', flex: 1 }}>
               <svg
                 width="15"
@@ -1102,7 +1034,7 @@ export default function LaporanAffiliatePage() {
               </svg>
               <input
                 type="text"
-                placeholder="Cari username, kontak, kategori..."
+                placeholder="Cari username, kontak, kategori, brand..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -1112,11 +1044,12 @@ export default function LaporanAffiliatePage() {
                   paddingLeft: '32px',
                   paddingRight: '30px',
                   backgroundColor: '#FFFFFF',
-                  border: '1px solid #E2E8F0',
+                  border: '1.5px solid #FEF08A',
                   color: '#1C1917',
                   borderRadius: '8px',
                   margin: 0,
                   outline: 'none',
+                  transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
                 }}
               />
               {searchQuery && (
@@ -1147,30 +1080,32 @@ export default function LaporanAffiliatePage() {
                 </button>
               )}
             </div>
-          </div>
 
-          {/* Reset button if active filters */}
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={resetAllFilters}
-              style={{
-                height: '36px',
-                padding: '0 12px',
-                fontSize: '12px',
-                fontWeight: 700,
-                color: '#991B1B',
-                background: '#FEF2F2',
-                border: '1px solid #FECACA',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                transition: 'background 0.15s ease',
-              }}
-              title="Reset semua filter ke kondisi awal"
-            >
-              ✕ Reset Semua Filter
-            </button>
-          )}
+            {/* Reset button if active filters */}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={resetAllFilters}
+                style={{
+                  height: '36px',
+                  padding: '0 12px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#991B1B',
+                  background: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  transition: 'background 0.15s ease',
+                }}
+                title="Reset semua filter ke kondisi awal"
+              >
+                ✕ Reset Filter
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Content View */}
