@@ -6,6 +6,7 @@ import SummaryCards from '@/components/SummaryCards'
 import CategoryAssign from '@/components/CategoryAssign'
 import { buildDefaultCategories } from '@/lib/defaultCategories'
 import AffiliateTab from '@/components/admin/AffiliateTab'
+import PelangganTab from '@/components/admin/PelangganTab'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -801,6 +802,12 @@ export default function AdminPage() {
         >
           Data affiliate
         </button>
+        <button
+          className={`admin-tab-btn ${activeTab === 'pelanggan' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('pelanggan')}
+        >
+          Data pelanggan
+        </button>
       </div>
 
       {activeTab === 'sales' && (
@@ -822,6 +829,8 @@ export default function AdminPage() {
       {activeTab === 'stock' && <StockTab />}
 
       {activeTab === 'affiliate' && <AffiliateTab />}
+
+      {activeTab === 'pelanggan' && <PelangganTab />}
     </div>
   )
 }

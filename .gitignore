@@ -27,6 +27,11 @@ scratch/
 *.tar.gz
 *.7z
 
+# Excel Data Files
+*.xls
+*.xlsx
+PELANGGAN 2.xls
+
 # Logs & Debugging
 *.log
 npm-debug.log*
