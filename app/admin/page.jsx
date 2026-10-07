@@ -7,6 +7,7 @@ import CategoryAssign from '@/components/CategoryAssign'
 import { buildDefaultCategories } from '@/lib/defaultCategories'
 import AffiliateTab from '@/components/admin/AffiliateTab'
 import PelangganTab from '@/components/admin/PelangganTab'
+import StokMarketplaceTab from '@/components/admin/StokMarketplaceTab'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -808,6 +809,12 @@ export default function AdminPage() {
         >
           Data pelanggan
         </button>
+        <button
+          className={`admin-tab-btn ${activeTab === 'stok-marketplace' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('stok-marketplace')}
+        >
+          Data stok marketplace
+        </button>
       </div>
 
       {activeTab === 'sales' && (
@@ -831,6 +838,8 @@ export default function AdminPage() {
       {activeTab === 'affiliate' && <AffiliateTab />}
 
       {activeTab === 'pelanggan' && <PelangganTab />}
+
+      {activeTab === 'stok-marketplace' && <StokMarketplaceTab />}
     </div>
   )
 }
