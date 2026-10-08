@@ -15,6 +15,25 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     let customerId = searchParams.get('customer')
 
+    if (customerId === 'all') {
+      const index = await getMarketplaceStockIndex()
+      const allItems = []
+      for (const entry of index) {
+        const cData = await getMarketplaceCustomerStock(entry.id)
+        if (cData?.items) {
+          allItems.push(...cData.items.map(it => ({ ...it, customerId: entry.id, customerName: entry.name })))
+        }
+      }
+      return NextResponse.json({
+        ok: true,
+        data: {
+          id: 'all',
+          name: 'Semua Toko Marketplace',
+          items: allItems,
+        },
+      })
+    }
+
     // If no specific customer requested, find the first available one from index
     if (!customerId) {
       const index = await getMarketplaceStockIndex()

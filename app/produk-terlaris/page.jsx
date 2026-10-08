@@ -1858,12 +1858,13 @@ function PembagianPromoModal({
   // ── Integrasi Stok Marketplace & Diskon Promo ──
   const [discountPct, setDiscountPct] = useState(10)
   const [mpCustomers, setMpCustomers] = useState([])
-  const [selectedMpCustomer, setSelectedMpCustomer] = useState('')
+  const [selectedMpCustomer, setSelectedMpCustomer] = useState('all')
   const [mpStockItems, setMpStockItems] = useState([])
+  const [allMpStockItems, setAllMpStockItems] = useState([])
   const [isExportingZip, setIsExportingZip] = useState(false)
   const [zipSuccessToast, setZipSuccessToast] = useState(false)
 
-  // Muat daftar toko dari stok marketplace
+  // Muat daftar toko dari stok marketplace dan juga pre-fetch data semua toko
   useEffect(() => {
     let isMounted = true
     async function loadMpIndex() {
@@ -1874,22 +1875,41 @@ function PembagianPromoModal({
           const list = json.customers || []
           if (isMounted) {
             setMpCustomers(list)
-            if (list.length > 0) {
-              setSelectedMpCustomer(list[0].id)
-            }
           }
         }
       } catch (err) {
         console.error('Error fetching marketplace stock index:', err)
       }
     }
+
+    async function loadAllStores() {
+      try {
+        const res = await fetch('/api/stok-marketplace/data?customer=all')
+        if (res.ok) {
+          const json = await res.json()
+          if (isMounted && json.data?.items) {
+            setAllMpStockItems(json.data.items)
+            setMpStockItems(json.data.items)
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching all marketplace stock:', err)
+      }
+    }
+
     loadMpIndex()
+    loadAllStores()
     return () => { isMounted = false }
   }, [])
 
-  // Muat data stok marketplace dari toko terpilih
+  // Muat data stok marketplace saat toko spesifik dipilih (jika bukan 'all')
   useEffect(() => {
-    if (!selectedMpCustomer) return
+    if (!selectedMpCustomer || selectedMpCustomer === 'all') {
+      if (allMpStockItems.length > 0) {
+        setMpStockItems(allMpStockItems)
+      }
+      return
+    }
     let isMounted = true
     async function loadMpData() {
       try {
@@ -1906,42 +1926,58 @@ function PembagianPromoModal({
     }
     loadMpData()
     return () => { isMounted = false }
-  }, [selectedMpCustomer])
+  }, [selectedMpCustomer, allMpStockItems])
 
-  // Lookup map stok marketplace untuk matching: SKU di Stok MP vs Nama Barang di Produk Terlaris
+  // Lookup map stok marketplace untuk matching: SKU di Stok MP vs Nama Variasi di Pembagian Promo
   const mpLookupMap = useMemo(() => {
     const map = new Map()
-    for (const item of mpStockItems) {
-      if (!item || !item.sku) continue
+    const registerItem = (item) => {
+      if (!item || !item.sku) return
       const rawSku = String(item.sku).trim()
       const normSku = rawSku.toLowerCase()
-      map.set(normSku, item)
+      if (!map.has(normSku)) map.set(normSku, item)
 
-      // Versi alphanumeric tanpa spasi dan simbol untuk toleransi variasi penulisan
+      const normSpace = normSku.replace(/\s+/g, ' ')
+      if (!map.has(normSpace)) map.set(normSpace, item)
+
       const cleanSku = normSku.replace(/[^a-z0-9]/g, '')
       if (cleanSku && !map.has(cleanSku)) {
         map.set(cleanSku, item)
       }
 
-      // Juga simpan namaProduk jika tersedia
       if (item.namaProduk) {
         const normNama = String(item.namaProduk).trim().toLowerCase()
         if (!map.has(normNama)) map.set(normNama, item)
       }
     }
-    return map
-  }, [mpStockItems])
 
-  // Helper pencocokan: "match the Nama Barang in produk terlaris with SKU in stok marketplace"
+    // Prioritaskan item dari toko terpilih
+    for (const item of mpStockItems) {
+      registerItem(item)
+    }
+
+    // Juga tambahkan fallback dari allMpStockItems jika ada varian dari toko lain
+    for (const item of allMpStockItems) {
+      registerItem(item)
+    }
+
+    return map
+  }, [mpStockItems, allMpStockItems])
+
+  // Helper pencocokan: "use Nama Variasi (in pembagian promo) to match the SKU (in stok marketplace)"
   const getMatchedMpItem = useCallback((v) => {
     if (!v) return null
-    const nama = String(v.namaBarang || '').trim().toLowerCase()
+    // Nama Variasi di tabel promo adalah v.namaBarang
+    const rawNama = String(v.namaBarang || '').trim()
+    const nama = rawNama.toLowerCase()
+    const normSpace = nama.replace(/\s+/g, ' ')
     const cleanNama = nama.replace(/[^a-z0-9]/g, '')
     const kode = String(v.kodeBarang || '').trim().toLowerCase()
     const cleanKode = kode.replace(/[^a-z0-9]/g, '')
 
-    // 1. Match Nama Barang di Produk Terlaris dengan SKU di Stok Marketplace
+    // 1. Match Nama Variasi (namaBarang) di Produk Terlaris dengan SKU di Stok Marketplace
     if (mpLookupMap.has(nama)) return mpLookupMap.get(nama)
+    if (mpLookupMap.has(normSpace)) return mpLookupMap.get(normSpace)
     if (cleanNama && mpLookupMap.has(cleanNama)) return mpLookupMap.get(cleanNama)
 
     // 2. Match Kode Barang dengan SKU di Stok Marketplace
@@ -1956,17 +1992,17 @@ function PembagianPromoModal({
     const matched = getMatchedMpItem(v)
     const diskonVal = Math.max(0, Math.min(100, Number(discount) || 0))
 
-    // Harga normal dari stok marketplace, jika kosong fallback ke harga jual rata-rata
-    const hargaNormal = (matched?.harga && matched.harga > 0)
-      ? matched.harga
-      : (v.hargaProduk && v.kuantitas ? Math.round(v.hargaProduk / v.kuantitas) : 0)
+    // Harga normal murni dari Stok Marketplace (match Nama Variasi dgn SKU di Stok MP)
+    const hargaNormal = (matched?.harga && matched.harga > 0) ? matched.harga : 0
 
     // Harga diskon: Harga normal dikurangi persentase diskon
-    const hargaDiskon = Math.max(0, Math.round(hargaNormal * (1 - (diskonVal / 100))))
+    const hargaDiskon = hargaNormal > 0
+      ? Math.max(0, Math.round(hargaNormal * (1 - (diskonVal / 100))))
+      : 0
 
     return {
       namaVariasi: v.namaBarang || '-',
-      kodeProduk: matched?.kodeProduk || v.kodeBarang || '-',
+      kodeProduk: matched?.kodeProduk || '-',
       kodeVariasi: matched?.kodeVariasi || '-',
       hargaDiskon,
       hargaNormal,
@@ -3152,7 +3188,7 @@ function PembagianPromoModal({
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: 0.3 }}>
                     🏪 Stok MP:
                   </span>
-                  {mpCustomers.length > 1 ? (
+                  {mpCustomers.length > 0 ? (
                     <select
                       value={selectedMpCustomer}
                       onChange={e => setSelectedMpCustomer(e.target.value)}
@@ -3166,6 +3202,7 @@ function PembagianPromoModal({
                         fontWeight: 600,
                       }}
                     >
+                      <option value="all">🌐 Semua Toko Marketplace</option>
                       {mpCustomers.map(c => (
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
