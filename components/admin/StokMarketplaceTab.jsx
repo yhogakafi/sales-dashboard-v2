@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx'
 import {
   parseMarketplaceStockFile,
   mergeMarketplaceStockItems,
+  slugifyCustomerId,
 } from '@/lib/parseMarketplaceStock'
 
 const COMMON_CUSTOMER_PRESETS = [
@@ -121,11 +122,19 @@ export default function StokMarketplaceTab() {
     setImgSuccessMsg(null)
 
     try {
+      const matchedCustomer = indexList.find(
+        (c) =>
+          c.name?.trim().toLowerCase() === imgCustomerName.trim().toLowerCase() ||
+          c.id === slugifyCustomerId(imgCustomerName)
+      )
+      const customerId = matchedCustomer?.id || slugifyCustomerId(imgCustomerName)
+
       const res = await fetch('/api/stok-marketplace/images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerName: imgCustomerName.trim(),
+          customerId,
           images: previewImgData.images,
           count: previewImgData.count,
           fileName: selectedImgFile?.name || 'gambar.xlsx',
@@ -160,12 +169,20 @@ export default function StokMarketplaceTab() {
     setImgSuccessMsg(null)
 
     try {
+      const matchedCustomer = indexList.find(
+        (c) =>
+          c.name?.trim().toLowerCase() === imgCustomerName.trim().toLowerCase() ||
+          c.id === slugifyCustomerId(imgCustomerName)
+      )
+      const customerId = matchedCustomer?.id || slugifyCustomerId(imgCustomerName)
+
       const res = await fetch('/api/stok-marketplace/images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'sync-sample',
           customerName: imgCustomerName.trim(),
+          customerId,
         }),
       })
 

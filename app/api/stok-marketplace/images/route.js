@@ -4,17 +4,35 @@ import fs from 'fs'
 import path from 'path'
 import * as XLSX from 'xlsx'
 import { checkAdminCookie, ADMIN_COOKIE_NAME } from '@/lib/auth'
+import { slugifyCustomerId } from '@/lib/parseMarketplaceStock'
 import {
   getMarketplaceCustomerImages,
   saveMarketplaceCustomerImages,
   getMarketplaceCustomerStock,
+  getMarketplaceStockIndex,
 } from '@/lib/blobMarketplaceStock'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function labelToId(label) {
-  return label.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+async function resolveCustomerId(customerNameOrId) {
+  if (!customerNameOrId) return 'marketplace'
+  const raw = String(customerNameOrId).trim()
+  const slug = slugifyCustomerId(raw)
+  try {
+    const index = await getMarketplaceStockIndex()
+    const found = index.find(
+      (c) =>
+        c.id === raw ||
+        c.id === slug ||
+        c.name?.trim().toLowerCase() === raw.toLowerCase() ||
+        slugifyCustomerId(c.name) === slug
+    )
+    if (found) return found.id
+  } catch {
+    // fallback to slug
+  }
+  return slug
 }
 
 function parseImageExcelBuffer(buffer) {
@@ -60,7 +78,7 @@ export async function GET(request) {
       return NextResponse.json({ ok: false, error: 'Parameter customer wajib diisi.' }, { status: 400 })
     }
 
-    const customerId = labelToId(customer)
+    const customerId = await resolveCustomerId(customer)
     const data = await getMarketplaceCustomerImages(customerId)
     return NextResponse.json({ ok: true, data })
   } catch (err) {
@@ -95,7 +113,7 @@ export async function POST(request) {
         const buffer = fs.readFileSync(samplePath)
         const { images, count } = parseImageExcelBuffer(buffer)
         const customerName = (body.customerName || 'SHOPEE / SCELTA').trim()
-        const customerId = labelToId(customerName)
+        const customerId = await resolveCustomerId(body.customerId || customerName)
 
         const saved = await saveMarketplaceCustomerImages(customerId, {
           images,
@@ -122,7 +140,7 @@ export async function POST(request) {
         return NextResponse.json({ ok: false, error: 'Nama pelanggan wajib diisi.' }, { status: 400 })
       }
 
-      const customerId = body.customerId || labelToId(customerName)
+      const customerId = await resolveCustomerId(body.customerId || customerName)
       const images = body.images || {}
       const count = body.count || Object.keys(images).length
       const fileName = body.fileName || 'gambar.xlsx'
@@ -165,7 +183,7 @@ export async function POST(request) {
 
       const buffer = Buffer.from(await file.arrayBuffer())
       const { images, count } = parseImageExcelBuffer(buffer)
-      const customerId = labelToId(customerName)
+      const customerId = await resolveCustomerId(formData.get('customerId') || customerName)
 
       if (count === 0) {
         return NextResponse.json(
