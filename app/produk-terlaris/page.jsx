@@ -2069,6 +2069,65 @@ function PembagianPromoModal({
         zip.file(`Periode ${periodNum}.xlsx`, excelBuffer)
       }
 
+      // ── File Excel Tambahan: Satu berkas yang memuat seluruh data periode (Semua Periode.xlsx) ──
+      const allPeriodHeaders = ['Periode Promo', 'Nama Variasi', 'Kode Produk', 'Kode Variasi', 'Harga diskon', 'Harga normal']
+      // Urutkan seluruh varian terpilih berdasarkan periodIndex asc, kemudian kuantitas desc
+      const sortedAllVariants = [...variantsToExport].sort((a, b) => a.periodIndex - b.periodIndex || (b.kuantitas || 0) - (a.kuantitas || 0))
+      const allRows = sortedAllVariants.map(v => {
+        const det = getVariantPromoDetails(v, diskonVal)
+        return [
+          v.periodePromo || `Periode ${v.periodIndex + 1}`,
+          det.namaVariasi,
+          det.kodeProduk,
+          det.kodeVariasi,
+          det.hargaDiskon,
+          det.hargaNormal,
+        ]
+      })
+
+      const wbAll = XLSX.utils.book_new()
+
+      // Sheet 1: Seluruh data periode digabung dalam satu tabel
+      const wsAll = XLSX.utils.aoa_to_sheet([allPeriodHeaders, ...allRows])
+      wsAll['!cols'] = [
+        { wch: 16 }, // Periode Promo
+        { wch: 44 }, // Nama Variasi
+        { wch: 22 }, // Kode Produk
+        { wch: 22 }, // Kode Variasi
+        { wch: 18 }, // Harga diskon
+        { wch: 18 }, // Harga normal
+      ]
+      XLSX.utils.book_append_sheet(wbAll, wsAll, 'Semua Periode')
+
+      // Sheet 2..N+1: Sheet per periode di dalam workbook yang sama
+      for (let p = 0; p < periodCount; p++) {
+        const periodNum = p + 1
+        const periodVariants = variantsToExport.filter(v => v.periodIndex === p)
+        const singleHeaders = ['Nama Variasi', 'Kode Produk', 'Kode Variasi', 'Harga diskon', 'Harga normal']
+        const pRows = periodVariants.map(v => {
+          const det = getVariantPromoDetails(v, diskonVal)
+          return [
+            det.namaVariasi,
+            det.kodeProduk,
+            det.kodeVariasi,
+            det.hargaDiskon,
+            det.hargaNormal,
+          ]
+        })
+        const wsP = XLSX.utils.aoa_to_sheet([singleHeaders, ...pRows])
+        wsP['!cols'] = [
+          { wch: 44 },
+          { wch: 22 },
+          { wch: 22 },
+          { wch: 18 },
+          { wch: 18 },
+        ]
+        XLSX.utils.book_append_sheet(wbAll, wsP, `Periode ${periodNum}`)
+      }
+
+      const allExcelBuffer = XLSX.write(wbAll, { bookType: 'xlsx', type: 'array' })
+      zip.file('Semua Periode.xlsx', allExcelBuffer)
+
       // Kemas seluruh file Excel ke dalam berkas .zip
       const zipBlob = await zip.generateAsync({ type: 'blob' })
       const url = URL.createObjectURL(zipBlob)
@@ -3431,7 +3490,7 @@ function PembagianPromoModal({
                     boxShadow: '0 3px 10px rgba(16, 185, 129, 0.35)',
                     transition: 'all 0.15s ease',
                   }}
-                  title={selectedExportCount === 0 ? 'Centang minimal 1 varian untuk diekspor ke Excel ZIP' : `Ekspor ${selectedExportCount} varian terpilih ke dalam file ZIP (${periodCount} file Excel)`}
+                  title={selectedExportCount === 0 ? 'Centang minimal 1 varian untuk diekspor ke Excel ZIP' : `Ekspor ${selectedExportCount} varian terpilih ke dalam file ZIP (${periodCount} file per periode + 1 file Semua Periode)`}
                 >
                   {isExportingZip ? (
                     <>
@@ -3448,7 +3507,7 @@ function PembagianPromoModal({
                         borderRadius: 4,
                         fontWeight: 600,
                       }}>
-                        {selectedExportCount} Varian ({periodCount} File)
+                        {selectedExportCount} Varian ({periodCount + 1} File)
                       </span>
                     </>
                   )}
