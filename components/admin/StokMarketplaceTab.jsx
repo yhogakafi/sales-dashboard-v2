@@ -36,6 +36,153 @@ export default function StokMarketplaceTab() {
 
   const fileInputRef = useRef(null)
 
+  // Image upload form state (Foto Sampul per customer)
+  const [imgCustomerName, setImgCustomerName] = useState('SHOPEE / SCELTA')
+  const [selectedImgFile, setSelectedImgFile] = useState(null)
+  const [parsingImg, setParsingImg] = useState(false)
+  const [previewImgData, setPreviewImgData] = useState(null)
+  const [uploadingImg, setUploadingImg] = useState(false)
+  const [syncingImgSample, setSyncingImgSample] = useState(false)
+  const [imgErrorMsg, setImgErrorMsg] = useState(null)
+  const [imgSuccessMsg, setImgSuccessMsg] = useState(null)
+  const imgFileInputRef = useRef(null)
+
+  // In-browser parse for Excel image links (Foto Sampul on column E, Kode Produk on column A)
+  const handleImgFileChosen = async (file) => {
+    if (!file) return
+    setSelectedImgFile(file)
+    setImgErrorMsg(null)
+    setImgSuccessMsg(null)
+    setParsingImg(true)
+
+    try {
+      const buffer = await file.arrayBuffer()
+      const wb = XLSX.read(buffer, { type: 'array' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
+
+      let headerIdx = -1
+      let kodeCol = 0
+      let fotoCol = 4 // Column E
+
+      for (let i = 0; i < Math.min(10, rows.length); i++) {
+        const r = rows[i] || []
+        const kIdx = r.findIndex((c) => String(c).trim().toLowerCase() === 'kode produk')
+        const fIdx = r.findIndex((c) => String(c).trim().toLowerCase() === 'foto sampul')
+        if (kIdx !== -1 && fIdx !== -1) {
+          headerIdx = i
+          kodeCol = kIdx
+          fotoCol = fIdx
+          break
+        }
+      }
+
+      const images = {}
+      const startRow = headerIdx !== -1 ? headerIdx + 1 : 1
+      for (let i = startRow; i < rows.length; i++) {
+        const r = rows[i] || []
+        const kode = String(r[kodeCol] || '').trim()
+        const url = String(r[fotoCol] || '').trim()
+        if (kode && url && url.startsWith('http')) {
+          images[kode] = url
+        }
+      }
+
+      const count = Object.keys(images).length
+      if (count === 0) {
+        throw new Error('Tidak ditemukan link foto sampul (Kolom E) yang valid dalam file Excel ini.')
+      }
+
+      setPreviewImgData({
+        images,
+        count,
+        sampleEntries: Object.entries(images).slice(0, 8),
+      })
+    } catch (err) {
+      setImgErrorMsg(err.message || 'Gagal membaca file gambar Excel.')
+      setPreviewImgData(null)
+    } finally {
+      setParsingImg(false)
+    }
+  }
+
+  const handleUploadImagesAndPublish = async () => {
+    if (!imgCustomerName.trim()) {
+      setImgErrorMsg('Nama pelanggan wajib diisi.')
+      return
+    }
+    if (!previewImgData || previewImgData.count === 0) {
+      setImgErrorMsg('Pilih file Excel gambar yang valid.')
+      return
+    }
+
+    setUploadingImg(true)
+    setImgErrorMsg(null)
+    setImgSuccessMsg(null)
+
+    try {
+      const res = await fetch('/api/stok-marketplace/images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: imgCustomerName.trim(),
+          images: previewImgData.images,
+          count: previewImgData.count,
+          fileName: selectedImgFile?.name || 'gambar.xlsx',
+        }),
+      })
+
+      const body = await res.json()
+      if (!res.ok || !body.ok) {
+        throw new Error(body.error || 'Gagal menyimpan gambar produk.')
+      }
+
+      setImgSuccessMsg(body.message || 'Gambar produk berhasil disimpan!')
+      setSelectedImgFile(null)
+      setPreviewImgData(null)
+      if (imgFileInputRef.current) imgFileInputRef.current.value = ''
+      await fetchIndex()
+    } catch (err) {
+      setImgErrorMsg(err.message)
+    } finally {
+      setUploadingImg(false)
+    }
+  }
+
+  const handleSyncImgSample = async () => {
+    if (!imgCustomerName.trim()) {
+      setImgErrorMsg('Nama pelanggan wajib diisi.')
+      return
+    }
+
+    setSyncingImgSample(true)
+    setImgErrorMsg(null)
+    setImgSuccessMsg(null)
+
+    try {
+      const res = await fetch('/api/stok-marketplace/images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'sync-sample',
+          customerName: imgCustomerName.trim(),
+        }),
+      })
+
+      const body = await res.json()
+      if (!res.ok || !body.ok) {
+        throw new Error(body.error || 'Gagal memuat sampel gambar.')
+      }
+
+      setImgSuccessMsg(body.message || 'File sampel gambar berhasil dimuat!')
+      await fetchIndex()
+    } catch (err) {
+      setImgErrorMsg(err.message)
+    } finally {
+      setSyncingImgSample(false)
+    }
+  }
+
   // Fetch registered marketplace customers
   const fetchIndex = useCallback(async () => {
     setLoadingIndex(true)
@@ -388,6 +535,12 @@ export default function StokMarketplaceTab() {
                         <span style={{ fontSize: '11px' }}>({sm.lowStockPct || 0}%)</span>
                       </div>
                     </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#78716C', fontWeight: 600 }}>Foto Sampul</div>
+                      <div style={{ fontSize: '14px', fontWeight: 800, color: cust.imageSummary?.totalImages ? '#7C3AED' : '#9CA3AF' }}>
+                        {cust.imageSummary?.totalImages ? `${cust.imageSummary.totalImages.toLocaleString('id-ID')} foto` : '0 foto'}
+                      </div>
+                    </div>
                   </div>
 
                   <div
@@ -395,16 +548,23 @@ export default function StokMarketplaceTab() {
                       display: 'flex',
                       justifyContent: 'space-between',
                       flexWrap: 'wrap',
+                      gap: '8px',
                       fontSize: '11.5px',
                       color: '#78716C',
                     }}
                   >
                     <span>
-                      File:{' '}
+                      File Stok:{' '}
                       <strong style={{ color: '#451A03' }}>
                         {Array.isArray(cust.fileNames) ? cust.fileNames.join(', ') : 'File Excel'}
                       </strong>
                     </span>
+                    {cust.imageSummary?.fileName && (
+                      <span>
+                        File Foto:{' '}
+                        <strong style={{ color: '#6D28D9' }}>{cust.imageSummary.fileName}</strong>
+                      </span>
+                    )}
                     <span>
                       Diperbarui:{' '}
                       {cust.savedAt ? new Date(cust.savedAt).toLocaleString('id-ID') : '-'}
@@ -701,6 +861,268 @@ export default function StokMarketplaceTab() {
               style={{ background: '#713F12', color: '#FEF08A' }}
             >
               {syncingSample ? 'Menyinkronkan…' : `⚡ Muat Sampel ke ${customerName}`}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Block 3: Upload Foto Sampul / Gambar Produk Marketplace ── */}
+      <div className="table-block">
+        <div className="table-block-header">
+          <div>
+            <h3 className="block-title" style={{ margin: 0 }}>
+              Unggah Gambar Produk Marketplace (Foto Sampul)
+            </h3>
+            <p className="assign-hint" style={{ marginTop: '4px', marginBottom: 0 }}>
+              Unggah file Excel berisi link foto produk (menggunakan <code>gambar-shopee-scelta.xlsx</code> sebagai panduan).
+              Sistem akan membaca link foto dari kolom <strong>Foto Sampul</strong> (Kolom E) dan mencocokkan ke varian stok menggunakan <strong>Kode Produk</strong> (Kolom A).
+            </p>
+          </div>
+        </div>
+
+        {/* Step 1: Customer Selector for Images */}
+        <div style={{ marginTop: '1rem', marginBottom: '1.25rem' }}>
+          <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#451A03', marginBottom: '6px' }}>
+            1. Tentukan Nama Pelanggan (Marketplace / Brand)
+          </label>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+            {COMMON_CUSTOMER_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setImgCustomerName(preset)}
+                style={{
+                  background: imgCustomerName === preset ? '#EDE9FE' : '#FFFDF5',
+                  border: imgCustomerName === preset ? '1.5px solid #8B5CF6' : '1px solid #E2E8F0',
+                  color: imgCustomerName === preset ? '#5B21B6' : '#4B5563',
+                  fontWeight: imgCustomerName === preset ? 700 : 500,
+                  fontSize: '12px',
+                  padding: '5px 10px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+          <input
+            type="text"
+            value={imgCustomerName}
+            onChange={(e) => setImgCustomerName(e.target.value)}
+            placeholder="Contoh: SHOPEE / SCELTA"
+            className="login-input"
+            style={{ width: '100%', maxWidth: '420px', padding: '8px 12px', fontSize: '13.5px' }}
+          />
+        </div>
+
+        {/* Step 2: Upload Excel File for Images */}
+        <div style={{ marginBottom: '1.25rem' }}>
+          <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#451A03', marginBottom: '6px' }}>
+            2. Pilih File Excel Gambar (Foto Sampul Kolom E)
+          </label>
+
+          <div
+            className={`upload-zone ${selectedImgFile ? 'is-dragover' : ''}`}
+            onClick={() => imgFileInputRef.current?.click()}
+            style={{ cursor: 'pointer', borderColor: '#8B5CF6' }}
+          >
+            <input
+              ref={imgFileInputRef}
+              type="file"
+              accept=".xls,.xlsx"
+              onChange={(e) => handleImgFileChosen(e.target.files?.[0])}
+              className="upload-input"
+              style={{ display: 'none' }}
+            />
+            <div className="upload-zone-content">
+              <span className="upload-icon" style={{ fontSize: '32px' }}>🖼️</span>
+              <p className="upload-primary-text">
+                {selectedImgFile ? (
+                  <strong>{selectedImgFile.name}</strong>
+                ) : (
+                  <>Klik atau seret file <strong>Excel Gambar (.xlsx / .xls)</strong> ke sini</>
+                )}
+              </p>
+              <p className="upload-sub-text">
+                Contoh format: <code>gambar-shopee-scelta.xlsx</code> (Kolom A: Kode Produk, Kolom E: Foto Sampul)
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Parsing state */}
+        {parsingImg && (
+          <p className="loading-text" style={{ color: '#7C3AED' }}>
+            ⏳ Membaca dan mengekstrak link foto sampul dari Excel…
+          </p>
+        )}
+
+        {/* Alerts */}
+        {imgErrorMsg && (
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: '8px',
+              background: '#FEF2F2',
+              border: '1px solid #FECACA',
+              color: '#B91C1C',
+              fontSize: '13px',
+              marginBottom: '1rem',
+            }}
+          >
+            ❌ {imgErrorMsg}
+          </div>
+        )}
+
+        {imgSuccessMsg && (
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: '8px',
+              background: '#F0FDF4',
+              border: '1px solid #BBF7D0',
+              color: '#15803D',
+              fontSize: '13px',
+              marginBottom: '1rem',
+            }}
+          >
+            ✓ {imgSuccessMsg}
+          </div>
+        )}
+
+        {/* Preview of Parsed Images */}
+        {previewImgData && (
+          <div
+            style={{
+              marginTop: '1rem',
+              padding: '1rem',
+              borderRadius: '10px',
+              background: '#FAF5FF',
+              border: '1.5px solid #DDD6FE',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+              <div>
+                <strong style={{ color: '#5B21B6', fontSize: '15px' }}>
+                  Pratinjau Foto Produk: {previewImgData.count.toLocaleString('id-ID')} Kode Produk Teridentifikasi
+                </strong>
+                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#6B7280' }}>
+                  Target Pelanggan: <strong>{imgCustomerName}</strong> (File: {selectedImgFile?.name})
+                </p>
+              </div>
+            </div>
+
+            {/* Thumbnail grid */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                gap: '10px',
+                maxHeight: '260px',
+                overflowY: 'auto',
+                padding: '8px',
+                background: '#FFFFFF',
+                borderRadius: '8px',
+                border: '1px solid #E9D5FF',
+                marginBottom: '1rem',
+              }}
+            >
+              {(previewImgData.sampleEntries || []).map(([kode, url]) => (
+                <div
+                  key={kode}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    padding: '6px',
+                    borderRadius: '6px',
+                    border: '1px solid #F3E8FF',
+                    background: '#FAFAFA',
+                    fontSize: '11px',
+                    textAlign: 'center',
+                  }}
+                >
+                  <img
+                    src={url}
+                    alt={kode}
+                    referrerPolicy="no-referrer"
+                    style={{
+                      width: '64px',
+                      height: '64px',
+                      objectFit: 'cover',
+                      borderRadius: '4px',
+                      border: '1px solid #E5E7EB',
+                      marginBottom: '4px',
+                      background: '#F3F4F6',
+                    }}
+                    onError={(e) => {
+                      e.target.style.display = 'none'
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontFamily: 'monospace',
+                      fontWeight: 600,
+                      color: '#4B5563',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      maxWidth: '100%',
+                    }}
+                    title={kode}
+                  >
+                    {kode}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn-export"
+                onClick={handleUploadImagesAndPublish}
+                disabled={uploadingImg}
+                style={{ background: '#7C3AED', color: '#FFFFFF' }}
+              >
+                {uploadingImg ? 'Menyimpan Foto ke Storage Blob…' : `Simpan Foto untuk ${imgCustomerName}`}
+              </button>
+              <button
+                type="button"
+                className="pill-btn"
+                onClick={() => {
+                  setSelectedImgFile(null)
+                  setPreviewImgData(null)
+                  if (imgFileInputRef.current) imgFileInputRef.current.value = ''
+                }}
+                disabled={uploadingImg}
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Quick Shortcut to load sample image file */}
+        <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <strong style={{ fontSize: '13px', color: '#5B21B6' }}>⚡ Pintasan Sampel gambar-shopee-scelta.xlsx</strong>
+              <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#78716C' }}>
+                Langsung muat 1.488 link foto sampul dari file <code>.data/gambar-shopee-scelta.xlsx</code> ke pelanggan yang dipilih di atas.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn-export"
+              onClick={handleSyncImgSample}
+              disabled={syncingImgSample}
+              style={{ background: '#6D28D9', color: '#EDE9FE' }}
+            >
+              {syncingImgSample ? 'Menyinkronkan…' : `⚡ Muat Sampel Gambar ke ${imgCustomerName}`}
             </button>
           </div>
         </div>

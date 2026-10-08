@@ -24,6 +24,7 @@ export default function StokMarketplacePage() {
   const [colSearchNama, setColSearchNama] = useState('')
   const [colSearchSku, setColSearchSku] = useState('')
   const [colStokRange, setColStokRange] = useState('ALL') // 'ALL' | '0' | '1-5' | '6-20' | '>20'
+  const [previewModalImage, setPreviewModalImage] = useState(null)
 
   // Popover state for column filters
   const [openColFilter, setOpenColFilter] = useState(null) // null | 'kodeProduk' | 'kodeVariasi' | 'nama' | 'sku' | 'stok' | 'status'
@@ -918,10 +919,15 @@ export default function StokMarketplacePage() {
                   <thead>
                     <tr>
                       {/* Column: No */}
-                      <th style={{ width: '60px', textAlign: 'center' }}>
+                      <th style={{ width: '50px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                           <span>No</span>
                         </div>
+                      </th>
+
+                      {/* Column: Gambar */}
+                      <th style={{ width: '70px', textAlign: 'center' }}>
+                        <span>Gambar</span>
                       </th>
 
                       {/* Column: Kode Produk */}
@@ -1064,79 +1070,8 @@ export default function StokMarketplacePage() {
                         </div>
                       </th>
 
-                      {/* Column: Nama Produk */}
-                      <th>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                          <span
-                            onClick={() => handleSort('namaProduk')}
-                            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                            title="Urutkan berdasarkan Nama Produk"
-                          >
-                            <span>Nama Produk</span>
-                            {sortField === 'namaProduk' && (
-                              <span style={{ fontSize: '10px', color: '#EAB308' }}>
-                                {sortDir === 'asc' ? '▲' : '▼'}
-                              </span>
-                            )}
-                          </span>
-
-                          {/* Popover trigger */}
-                          <div style={{ position: 'relative' }}>
-                            <button
-                              type="button"
-                              className={`aff-col-filter-btn ${isColFiltered('nama') ? 'is-active' : ''}`}
-                              onClick={(e) => toggleColumnFilter('nama', e)}
-                              title="Filter Nama Produk"
-                            >
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                              </svg>
-                            </button>
-
-                            {openColFilter === 'nama' && (
-                              <div className="aff-col-filter-popover" onClick={(e) => e.stopPropagation()}>
-                                <div className="aff-col-popover-title">
-                                  <span>Filter Nama Produk</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setOpenColFilter(null)}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px' }}
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                                <input
-                                  type="text"
-                                  value={colSearchNama}
-                                  onChange={(e) => setColSearchNama(e.target.value)}
-                                  placeholder="Cari nama produk..."
-                                  className="aff-col-popover-search"
-                                  autoFocus
-                                />
-                                <div className="aff-col-popover-actions">
-                                  <button
-                                    type="button"
-                                    className="aff-col-popover-btn-clear"
-                                    onClick={() => setColSearchNama('')}
-                                  >
-                                    Reset
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="aff-col-popover-btn-close"
-                                    onClick={() => setOpenColFilter(null)}
-                                  >
-                                    Terapkan
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </th>
-
                       {/* Column: SKU */}
-                      <th style={{ width: '220px' }}>
+                      <th style={{ width: '260px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                           <span
                             onClick={() => handleSort('sku')}
@@ -1413,6 +1348,34 @@ export default function StokMarketplacePage() {
                               {rowNum}
                             </td>
 
+                            {/* Gambar */}
+                            <td style={{ textAlign: 'center', width: '70px', padding: '6px 4px' }}>
+                              {item.gambar ? (
+                                <img
+                                  src={item.gambar}
+                                  alt={item.namaProduk || item.sku}
+                                  referrerPolicy="no-referrer"
+                                  style={{
+                                    width: '42px',
+                                    height: '42px',
+                                    objectFit: 'cover',
+                                    borderRadius: '6px',
+                                    border: '1px solid #E2E8F0',
+                                    cursor: 'pointer',
+                                    verticalAlign: 'middle',
+                                    background: '#F8FAFC',
+                                    transition: 'transform 0.15s ease',
+                                  }}
+                                  loading="lazy"
+                                  title="Klik untuk memperbesar gambar"
+                                  onClick={() => setPreviewModalImage({ url: item.gambar, alt: item.namaProduk || item.sku })}
+                                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                                />
+                              ) : (
+                                <span style={{ color: '#CBD5E1', fontSize: '11px' }}>—</span>
+                              )}
+                            </td>
+
                             {/* Kode Produk */}
                             <td style={{ fontFamily: 'monospace', fontSize: '12px', color: '#1E293B' }}>
                               <span
@@ -1443,24 +1406,72 @@ export default function StokMarketplacePage() {
                               </span>
                             </td>
 
-                            {/* Nama Produk */}
-                            <td style={{ color: '#1C1917', fontWeight: 600, fontSize: '13px', lineHeight: 1.4 }}>
-                              {item.namaProduk}
-                            </td>
+                            {/* SKU with copy-able tooltip for Nama Produk */}
+                            <td style={{ fontFamily: 'monospace', fontSize: '12.5px', color: '#334155' }}>
+                              <div className="sku-cell-container">
+                                <span
+                                  style={{
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    display: 'inline-block',
+                                    cursor: 'default',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {item.sku}
+                                </span>
 
-                            {/* SKU */}
-                            <td style={{ fontFamily: 'monospace', fontSize: '12.5px', color: '#334155', letterSpacing: '-0.01em' }}>
-                              <span
-                                style={{
-                                  background: '#F8FAFC',
-                                  border: '1px solid #E2E8F0',
-                                  padding: '2px 6px',
-                                  borderRadius: '4px',
-                                  display: 'inline-block',
-                                }}
-                              >
-                                {item.sku}
-                              </span>
+                                {/* Tooltip on hover containing copy-able Nama Produk */}
+                                <div className="sku-hover-tooltip" onClick={(e) => e.stopPropagation()}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '5px' }}>
+                                    <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748B', fontWeight: 700 }}>
+                                      Nama Produk
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        if (item.namaProduk && navigator.clipboard?.writeText) {
+                                          navigator.clipboard.writeText(item.namaProduk)
+                                          showToast('Nama produk berhasil disalin!')
+                                        }
+                                      }}
+                                      style={{
+                                        fontSize: '11px',
+                                        padding: '2px 7px',
+                                        borderRadius: '4px',
+                                        border: '1px solid #CBD5E1',
+                                        background: '#F1F5F9',
+                                        color: '#1E293B',
+                                        cursor: 'pointer',
+                                        fontWeight: 600,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '3px',
+                                      }}
+                                      title="Salin nama produk ke clipboard"
+                                    >
+                                      📋 Salin
+                                    </button>
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '12px',
+                                      color: '#0F172A',
+                                      lineHeight: 1.45,
+                                      fontFamily: 'system-ui, -apple-system, sans-serif',
+                                      fontWeight: 500,
+                                      userSelect: 'text',
+                                      cursor: 'text',
+                                      wordBreak: 'break-word',
+                                    }}
+                                  >
+                                    {item.namaProduk || '—'}
+                                  </div>
+                                </div>
+                              </div>
                             </td>
 
                             {/* Stok */}
@@ -1613,6 +1624,116 @@ export default function StokMarketplacePage() {
             <span>{toastMessage}</span>
           </div>
         )}
+
+        {/* Image Zoom Preview Modal */}
+        {previewModalImage && (
+          <div
+            onClick={() => setPreviewModalImage(null)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 10000,
+              background: 'rgba(15, 23, 42, 0.75)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1.5rem',
+              animation: 'affDropdownFade 0.15s ease-out',
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: '#FFFFFF',
+                borderRadius: '14px',
+                padding: '1.25rem',
+                maxWidth: '440px',
+                width: '100%',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+                textAlign: 'center',
+                position: 'relative',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setPreviewModalImage(null)}
+                style={{
+                  position: 'absolute',
+                  top: '10px',
+                  right: '12px',
+                  background: '#F1F5F9',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  color: '#475569',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                ✕
+              </button>
+              <img
+                src={previewModalImage.url}
+                alt={previewModalImage.alt}
+                referrerPolicy="no-referrer"
+                style={{
+                  width: '100%',
+                  maxHeight: '380px',
+                  objectFit: 'contain',
+                  borderRadius: '8px',
+                  background: '#F8FAFC',
+                }}
+              />
+              <p style={{ margin: '12px 0 0', fontSize: '13px', fontWeight: 600, color: '#1E293B', lineHeight: 1.4 }}>
+                {previewModalImage.alt}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Global styles for SKU hover tooltip */}
+        <style>{`
+          .sku-cell-container {
+            position: relative;
+            display: inline-block;
+          }
+          .sku-hover-tooltip {
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 0;
+            z-index: 99;
+            width: 290px;
+            max-width: 320px;
+            background: #FFFFFF;
+            border: 1px solid #CBD5E1;
+            border-radius: 8px;
+            padding: 8px 10px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.18), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.15s ease, visibility 0.15s ease;
+          }
+          .sku-hover-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            height: 10px;
+          }
+          .sku-cell-container:hover .sku-hover-tooltip,
+          .sku-hover-tooltip:hover {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+          }
+        `}</style>
       </div>
     </AuthGate>
   )

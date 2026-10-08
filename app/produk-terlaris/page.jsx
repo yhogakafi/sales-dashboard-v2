@@ -236,14 +236,38 @@ function enrichWithStock(rows, stockLookup, category) {
   })
 }
 
-// ─── MP Stock enrichment (stock marketplace dari file gambar SKU) ─────────────
+// ─── MP Stock & Gambar enrichment (dari data Stok Marketplace) ───────────────
+// Mencocokkan NAMA BARANG (Produk Terlaris) dengan SKU (Stok Marketplace).
 // Ditambahkan sebagai field di tiap baris (bukan dihitung ulang tiap render)
 // supaya bisa difilter & diurutkan persis seperti kolom lain.
-function enrichWithMpStock(rows, skuIndex) {
-  if (!skuIndex) return rows.map(r => ({ ...r, mpStock: null, hasMpStockData: false }))
+function lookupMpItem(row, mpLookup) {
+  if (!row || !mpLookup) return null
+  const nama = String(row.namaBarang || '').trim().toLowerCase()
+  const normSpace = nama.replace(/\s+/g, ' ')
+  const clean = nama.replace(/[^a-z0-9]/g, '')
+  const kode = String(row.kodeBarang || '').trim().toLowerCase()
+  const cleanKode = kode.replace(/[^a-z0-9]/g, '')
+
+  if (nama && mpLookup.has(nama)) return mpLookup.get(nama)
+  if (normSpace && mpLookup.has(normSpace)) return mpLookup.get(normSpace)
+  if (clean && mpLookup.has(clean)) return mpLookup.get(clean)
+  if (kode && mpLookup.has(kode)) return mpLookup.get(kode)
+  if (cleanKode && mpLookup.has(cleanKode)) return mpLookup.get(cleanKode)
+  return null
+}
+
+function enrichWithMpStock(rows, mpLookup) {
+  if (!mpLookup || mpLookup.size === 0) {
+    return rows.map(r => ({ ...r, mpStock: null, hasMpStockData: false, gambar: null }))
+  }
   return rows.map(r => {
-    const entry = lookupSkuEntry(r, skuIndex)
-    return { ...r, mpStock: entry?.stock ?? null, hasMpStockData: !!entry }
+    const matched = lookupMpItem(r, mpLookup)
+    return {
+      ...r,
+      mpStock: matched != null ? (matched.stok ?? 0) : null,
+      hasMpStockData: matched != null,
+      gambar: matched?.gambar || null,
+    }
   })
 }
 
@@ -268,6 +292,7 @@ function groupByParentSku(rows) {
         ...r,
         tipe: 'tunggal',
         variantCount: 1,
+        gambar: r.gambar || null,
         variantCodes: kode ? [{ kode, namaBarang: r.namaBarang }] : [],
         variants: [{
           kodeBarang: kode,
@@ -281,6 +306,7 @@ function groupByParentSku(rows) {
           totalHpp: r.totalHpp || 0,
           unit: r.unit || '',
           brand: r.brand,
+          gambar: r.gambar || null,
         }],
       })
       return
@@ -295,6 +321,7 @@ function groupByParentSku(rows) {
         bestNama: r.namaBarang, bestKuantitas: -1,
         unit: r.unit || '',
         mpStock: 0, hasMpStockData: false,
+        gambar: null,
         variantCodes: [],
         variants: [],
       }
@@ -316,6 +343,7 @@ function groupByParentSku(rows) {
       existing.stock += r.stock || 0
       existing.hasStockData = existing.hasStockData || r.hasStockData
       existing.ssr = existing.kuantitas > 0 ? existing.stock / existing.kuantitas : null
+      if (r.gambar && !existing.gambar) existing.gambar = r.gambar
     } else {
       g.variants.push({
         kodeBarang: kode,
@@ -329,12 +357,16 @@ function groupByParentSku(rows) {
         totalHpp: r.totalHpp || 0,
         unit: r.unit || '',
         brand: r.brand,
+        gambar: r.gambar || null,
       })
     }
 
     if (r.hasMpStockData) {
       g.mpStock += r.mpStock || 0
       g.hasMpStockData = true
+    }
+    if (r.gambar && !g.gambar) {
+      g.gambar = r.gambar
     }
     if (!g.unit && r.unit) g.unit = r.unit
     if (r.kuantitas > g.bestKuantitas) {
@@ -354,6 +386,7 @@ function groupByParentSku(rows) {
       unit: g.unit, hpp, totalHpp: g.totalHpp, ssr, hasStockData: g.hasStockData,
       tipe: 'gabungan', variantCount: g.variantCount,
       mpStock: g.hasMpStockData ? g.mpStock : null, hasMpStockData: g.hasMpStockData,
+      gambar: g.gambar || null,
       variantCodes: g.variantCodes,
       variants: sortedVariants,
     }
@@ -1201,6 +1234,7 @@ function ImagePreviewModal({ url, alt, onClose }) {
         <img
           src={url}
           alt={alt}
+          referrerPolicy="no-referrer"
           style={{
             maxWidth: '100%', maxHeight: '75vh', width: 'auto', height: 'auto',
             objectFit: 'contain', borderRadius: 8, display: 'block', margin: '0 auto',
@@ -4280,7 +4314,7 @@ const ALL_VISIBLE_COLS = [
   { key: 'totalHpp', label: 'Total HPP' },
   { key: 'ssr', label: 'SSR' },
 ]
-const DEFAULT_HIDDEN_COLS = new Set(['gambar', 'mpStock'])
+const DEFAULT_HIDDEN_COLS = new Set([])
 
 function BestSellerTable({
   rows, loading, sortBy, sortDir, onSortChange,
@@ -4288,8 +4322,7 @@ function BestSellerTable({
   colFilters, onColFilterChange,
   stockLookup, brandOptions,
   groupMode, onGroupModeChange,
-  imageIndex, imageMeta, imageError, imageUploadError, imageUploading,
-  onImageFile,
+  mpStockItems,
   notes, notesError, savingNoteFor, onSaveNote, onDeleteNote,
   exportOptions,
   onPageRowsChange,
@@ -4302,7 +4335,7 @@ function BestSellerTable({
   const ssrGrand = totalKuantitas > 0 ? totalStockPcs / totalKuantitas : null      // Stock PCS / Terjual
   const ssrHppGrand = totalHppTerjual > 0 ? totalHpp / totalHppTerjual : null       // Total HPP / Σ(HPP × Terjual)
   const hasStock = stockLookup !== null
-  const hasImages = imageMeta?.count > 0
+  const hasMpData = (mpStockItems && mpStockItems.length > 0) || rows.some(r => r.gambar || r.hasMpStockData)
 
   // ── Column visibility state ──
   const [visibleCols, setVisibleCols] = useState(() => {
@@ -4323,20 +4356,17 @@ function BestSellerTable({
     return () => document.removeEventListener('mousedown', handle)
   }, [colPickerOpen])
 
-  const showImageCol = visibleCols.has('gambar') && hasImages
-
   // Kolom yang relevan untuk mode dan data saat ini
   const availableCols = ALL_VISIBLE_COLS.filter(({ key }) => {
     if (key === 'tipe' && groupMode !== 'induk') return false
     if (['brand', 'stock', 'unit', 'hpp', 'totalHpp', 'ssr'].includes(key) && !hasStock) return false
-    if (['gambar', 'mpStock'].includes(key) && !hasImages) return false
+    if (['gambar', 'mpStock'].includes(key) && !hasMpData) return false
     return true
   })
   const activeColCount = availableCols.filter(c => visibleCols.has(c.key)).length
 
   const colHeaderProps = { sortBy, sortDir, onSortChange, colFilters, onColFilterChange, brandOptions }
 
-  const imageInputRef = useRef(null)
   const [previewImage, setPreviewImage] = useState(null) // { url, alt } | null
   const [selectedGabunganRow, setSelectedGabunganRow] = useState(null) // row | null
 
@@ -4506,41 +4536,6 @@ function BestSellerTable({
         )}
       </div>
 
-      {/* ── Upload gambar SKU ── */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <input
-          ref={imageInputRef}
-          type="file"
-          accept=".xlsx,.xls"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) onImageFile(file)
-            e.target.value = '' // biar bisa upload file yang sama lagi kalau perlu
-          }}
-        />
-        <button
-          type="button"
-          className="pill-btn"
-          onClick={() => imageInputRef.current?.click()}
-          disabled={imageUploading}
-          title="Upload file .xlsx berisi kolom SKU dan IMAGE (link CDN gambar produk)"
-        >
-          {imageUploading ? 'Mengupload…' : (hasImages ? '📤 Ganti File Gambar SKU' : '📤 Upload Gambar SKU')}
-        </button>
-        {hasImages && (
-          <span className="muted" style={{ fontSize: 12.5 }}>
-            {imageMeta.count.toLocaleString('id-ID')} SKU tersimpan di server
-            {imageMeta.savedAt ? ` · diupdate ${new Date(imageMeta.savedAt).toLocaleString('id-ID')}` : ''}
-          </span>
-        )}
-      </div>
-      {imageError && (
-        <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {imageError}</p>
-      )}
-      {imageUploadError && (
-        <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {imageUploadError}</p>
-      )}
       {notesError && (
         <p className="upload-error" style={{ marginTop: 0, marginBottom: '0.75rem' }}>⚠️ {notesError}</p>
       )}
@@ -4814,13 +4809,13 @@ function BestSellerTable({
                   <th style={{ width: 44 }}>#</th>
                   {visibleCols.has('kodeBarang') && <ColHeader col="kodeBarang" label="Kode Barang" align="left"  {...colHeaderProps} />}
                   {groupMode === 'induk' && visibleCols.has('tipe') && <ColHeader col="tipe" label="Tipe" align="left" {...colHeaderProps} />}
-                  {showImageCol && visibleCols.has('gambar') && <th style={{ width: 60, textAlign: 'center' }}>Gambar</th>}
+                  {visibleCols.has('gambar') && <th style={{ width: 60, textAlign: 'center' }}>Gambar</th>}
                   {visibleCols.has('namaBarang') && <ColHeader col="namaBarang" label="Nama Barang" align="left"  {...colHeaderProps} />}
                   {hasStock && visibleCols.has('brand') && <ColHeader col="brand" label="Brand" align="left"  {...colHeaderProps} />}
                   {visibleCols.has('kuantitas') && <ColHeader col="kuantitas" label="Terjual" align="right" {...colHeaderProps} />}
                   {hasStock && visibleCols.has('hpp') && <ColHeader col="hpp" label="HPP PCS" align="right" {...colHeaderProps} />}
                   {hasStock && visibleCols.has('stock') && <ColHeader col="stock" label="Stock" align="right" {...colHeaderProps} />}
-                  {showImageCol && visibleCols.has('mpStock') && <ColHeader col="mpStock" label="MP Stock" align="right" {...colHeaderProps} />}
+                  {visibleCols.has('mpStock') && <ColHeader col="mpStock" label="MP Stock" align="right" {...colHeaderProps} />}
                   {hasStock && visibleCols.has('unit') && <ColHeader col="unit" label="Unit" align="left" {...colHeaderProps} />}
                   {visibleCols.has('hargaProduk') && <ColHeader col="hargaProduk" label="TOTAL TERJUAL" align="right" {...colHeaderProps} />}
                   {hasStock && visibleCols.has('totalHpp') && <ColHeader col="totalHpp" label="Total HPP" align="right" {...colHeaderProps} />}
@@ -4830,7 +4825,7 @@ function BestSellerTable({
               <tbody>
                 {pageRows.length === 0 && (
                   <tr>
-                    <td colSpan={(hasStock ? 10 : 5) + (groupMode === 'induk' ? 2 : 0) + (showImageCol ? 2 : 0) + 1} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                    <td colSpan={activeColCount + (groupMode === 'induk' ? 3 : 2)} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
                       <p className="upload-title" style={{ margin: '0 0 4px' }}>Tidak ada produk ditemukan</p>
                       <p className="upload-sub" style={{ margin: 0 }}>
                         {searchQuery
@@ -4920,25 +4915,24 @@ function BestSellerTable({
                             : <span className="mono" style={{ fontSize: 12.5 }}>Tunggal</span>}
                         </td>
                       )}
-                      {showImageCol && visibleCols.has('gambar') && (() => {
-                        const entry = lookupSkuEntry(row, imageIndex)
-                        const proxiedUrl = entry?.image ? `/api/image-proxy?url=${encodeURIComponent(entry.image)}` : null
-                        return (
-                          <td style={{ textAlign: 'center' }}>
-                            {proxiedUrl
-                              ? <img
-                                src={proxiedUrl}
-                                alt={row.namaBarang || row.kodeBarang || ''}
-                                style={{ height: 40, width: 'auto', borderRadius: 4, objectFit: 'cover', verticalAlign: 'middle', cursor: 'pointer' }}
-                                loading="lazy"
-                                title="Klik untuk memperbesar"
-                                onClick={() => setPreviewImage({ url: proxiedUrl, alt: row.namaBarang || row.kodeBarang || '' })}
-                                onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
-                              />
-                              : <span className="muted">—</span>}
-                          </td>
-                        )
-                      })()}
+                      {visibleCols.has('gambar') && (
+                        <td style={{ textAlign: 'center', width: 60, padding: '4px' }}>
+                          {row.gambar ? (
+                            <img
+                              src={row.gambar}
+                              alt={row.namaBarang || row.kodeBarang || ''}
+                              referrerPolicy="no-referrer"
+                              style={{ height: 40, width: 'auto', borderRadius: 4, objectFit: 'cover', verticalAlign: 'middle', cursor: 'pointer' }}
+                              loading="lazy"
+                              title="Klik untuk memperbesar gambar"
+                              onClick={() => setPreviewImage({ url: row.gambar, alt: row.namaBarang || row.kodeBarang || '' })}
+                              onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
+                            />
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                      )}
                       {visibleCols.has('namaBarang') && (
                         <td style={{ fontWeight: 500 }}>
                           <HighlightText text={row.namaBarang} query={searchQuery} />
@@ -4970,7 +4964,7 @@ function BestSellerTable({
                             : <span className="muted">0</span>}
                         </td>
                       )}
-                      {showImageCol && visibleCols.has('mpStock') && (
+                      {visibleCols.has('mpStock') && (
                         <td className="mono" style={{ textAlign: 'right' }}>
                           {row.hasMpStockData
                             ? <span style={{ color: row.mpStock === 0 ? 'var(--accent, #D85A30)' : 'inherit' }}>
@@ -5126,20 +5120,41 @@ export default function ProdukTerlarisPage() {
   const [stockLookup, setStockLookup] = useState(null)
   const [stockError, setStockError] = useState(null)
 
-  // Gambar per SKU — { kode: urlGambar } — disimpan di server (Vercel Blob) lewat
-  // /api/sku-images & /api/upload-sku-images, jadi sekali upload langsung
-  // kelihatan di semua browser/device, bukan cuma tersimpan lokal di sesi ini.
-  const [imageLookup, setImageLookup] = useState(null)       // null = belum dimuat dari server
-  const [imageMeta, setImageMeta] = useState({ count: 0, savedAt: null, exists: false })
-  const [imageError, setImageError] = useState(null)         // gagal MEMUAT mapping dari server
-  const [imageUploadError, setImageUploadError] = useState(null) // gagal UPLOAD file baru
-  const [imageUploading, setImageUploading] = useState(false)
-  const [showImages, setShowImages] = useState(false) // default: sembunyi
+  // Data Stok Marketplace (untuk kolom MP STOCK dan GAMBAR)
+  const [mpStockItems, setMpStockItems] = useState([])
 
-  // Index dengan key sudah dinormalisasi (uppercase, spasi dirapikan) — dibangun
-  // sekali tiap kali mapping gambar berubah, dipakai baik buat enrichment
-  // (mpStock, biar bisa difilter/diurutkan) maupun buat render kolom Gambar.
-  const imageIndex = useMemo(() => buildSkuIndex(imageLookup), [imageLookup])
+  // Lookup map stok marketplace untuk mencocokkan Nama Barang dengan SKU di Stok Marketplace
+  const mpItemLookup = useMemo(() => {
+    const map = new Map()
+    for (const item of mpStockItems) {
+      if (!item || !item.sku) continue
+      const rawSku = String(item.sku).trim().toLowerCase()
+      if (!map.has(rawSku)) map.set(rawSku, item)
+      const normSpace = rawSku.replace(/\s+/g, ' ')
+      if (!map.has(normSpace)) map.set(normSpace, item)
+      const cleanSku = rawSku.replace(/[^a-z0-9]/g, '')
+      if (cleanSku && !map.has(cleanSku)) map.set(cleanSku, item)
+      if (item.namaProduk) {
+        const normNama = String(item.namaProduk).trim().toLowerCase()
+        if (!map.has(normNama)) map.set(normNama, item)
+      }
+    }
+    return map
+  }, [mpStockItems])
+
+  const loadMarketplaceStock = useCallback(async () => {
+    try {
+      const res = await fetch('/api/stok-marketplace/data?customer=all', { cache: 'no-store' })
+      if (res.ok) {
+        const json = await res.json()
+        if (json.data?.items) {
+          setMpStockItems(json.data.items)
+        }
+      }
+    } catch (err) {
+      console.error('Error loading marketplace stock in Produk Terlaris:', err)
+    }
+  }, [])
 
   // Catatan per baris (kodeBarang) — { [kodeBarang]: { text, updatedAt } },
   // disimpan di server (Vercel Blob) lewat /api/notes, jadi persist & kelihatan
@@ -5190,53 +5205,6 @@ export default function ProdukTerlarisPage() {
   }, [])
 
   const deleteNote = useCallback((kodeBarang) => saveNote(kodeBarang, ''), [saveNote])
-
-  const loadSkuImages = useCallback(async () => {
-    setImageError(null)
-    try {
-      const res = await fetch('/api/sku-images', { cache: 'no-store' })
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Gagal memuat data gambar SKU (${res.status})`)
-      const data = await res.json()
-      setImageLookup(data.bySku || {})
-      setImageMeta({ count: data.count ?? 0, savedAt: data.savedAt ?? null, exists: !!data.exists })
-    } catch (err) {
-      setImageError(err.message)
-      setImageLookup({})
-    }
-  }, [])
-
-  const handleImageFile = useCallback((file) => {
-    setImageUploading(true)
-    setImageUploadError(null)
-      ; (async () => {
-        try {
-          // File-nya di-PARSE DI BROWSER dulu (bukan dikirim mentah ke server) —
-          // hasil parsing (JSON) jauh lebih kecil daripada file .xlsx aslinya,
-          // supaya tidak kena batas 4.5MB ukuran body request di Vercel Functions
-          // (file dengan belasan-puluhan ribu baris SKU bisa >4MB dalam bentuk
-          // .xlsx mentah dan gagal terkirim tanpa pesan error yang jelas).
-          const arrayBuffer = await file.arrayBuffer()
-          const { bySku, count } = parseSkuImageFile(arrayBuffer)
-
-          const res = await fetch('/api/upload-sku-images', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bySku, count }),
-          })
-          if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Gagal mengupload file (${res.status})`)
-          await loadSkuImages()
-          setShowImages(true) // langsung nyalakan toggle setelah upload berhasil
-        } catch (err) {
-          setImageUploadError(err.message || 'Gagal mengupload file gambar SKU.')
-        } finally {
-          setImageUploading(false)
-        }
-      })()
-  }, [loadSkuImages])
-
-  const handleToggleShowImages = useCallback(() => {
-    setShowImages(v => !v)
-  }, [])
 
   const handleColFilterChange = useCallback((col, f) => {
     setColFilters(prev => ({ ...prev, [col]: f }))
@@ -5299,7 +5267,7 @@ export default function ProdukTerlarisPage() {
         if (!res.ok) return
         setLoggedIn(true)
         loadStock()
-        loadSkuImages()
+        loadMarketplaceStock()
         loadNotes()
 
         // Default halaman pertama kali dibuka: "30 hari terakhir" (gabungan semua
@@ -5431,14 +5399,14 @@ export default function ProdukTerlarisPage() {
       await loadPeriods()
       await loadData('')
       loadStock()
-      loadSkuImages()
+      loadMarketplaceStock()
       loadNotes()
     } catch (err) {
       setLoginError(err.message)
     } finally {
       setLoginLoading(false)
     }
-  }, [password, loadPeriods, loadData, loadStock, loadSkuImages, loadNotes])
+  }, [password, loadPeriods, loadData, loadStock, loadMarketplaceStock, loadNotes])
 
   // ── Derived data ──────────────────────────────────────────────────────────────
   const analysis = payload?.analysis
@@ -5467,12 +5435,11 @@ export default function ProdukTerlarisPage() {
     // 2. merge in brand/stock so they can be filtered & sorted like any other column
     rows = enrichWithStock(rows, stockLookup, filters.category)
 
-    // 3. merge in MP Stock (stock marketplace dari file gambar SKU) — sama
-    //    alasannya, biar bisa difilter & diurutkan seperti kolom lain.
-    rows = enrichWithMpStock(rows, imageIndex)
+    // 3. merge in MP Stock (stock marketplace & gambar dari Stok Marketplace)
+    rows = enrichWithMpStock(rows, mpItemLookup)
 
     return rows
-  }, [rawRows, filters, stockLookup, imageIndex])
+  }, [rawRows, filters, stockLookup, mpItemLookup])
 
   // Semua brand yang ada untuk periode/filter tanggal saat ini — dipakai buat
   // checklist di kolom Brand. Diambil SEBELUM search/kolom-filter lain supaya
@@ -5701,12 +5668,7 @@ export default function ProdukTerlarisPage() {
             brandOptions={brandOptions}
             groupMode={groupMode}
             onGroupModeChange={handleGroupModeChange}
-            imageIndex={imageIndex}
-            imageMeta={imageMeta}
-            imageError={imageError}
-            imageUploadError={imageUploadError}
-            imageUploading={imageUploading}
-            onImageFile={handleImageFile}
+            mpStockItems={mpStockItems}
             notes={notes}
             notesError={notesError}
             savingNoteFor={savingNoteFor}
