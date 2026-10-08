@@ -262,7 +262,25 @@ function groupByParentSku(rows) {
     const hasDot = kode.includes('.')
 
     if (!kode || !hasDot) {
-      standalone.push({ ...r, tipe: 'tunggal', variantCount: 1, variantCodes: kode ? [{ kode, namaBarang: r.namaBarang }] : [] })
+      standalone.push({
+        ...r,
+        tipe: 'tunggal',
+        variantCount: 1,
+        variantCodes: kode ? [{ kode, namaBarang: r.namaBarang }] : [],
+        variants: [{
+          kodeBarang: kode,
+          namaBarang: r.namaBarang,
+          kuantitas: r.kuantitas,
+          hargaProduk: r.hargaProduk,
+          stock: r.stock || 0,
+          hasStockData: r.hasStockData,
+          ssr: r.ssr,
+          hpp: r.hpp || 0,
+          totalHpp: r.totalHpp || 0,
+          unit: r.unit || '',
+          brand: r.brand,
+        }],
+      })
       return
     }
 
@@ -276,6 +294,7 @@ function groupByParentSku(rows) {
         unit: r.unit || '',
         mpStock: 0, hasMpStockData: false,
         variantCodes: [],
+        variants: [],
       }
     }
     const g = groups[parent]
@@ -286,6 +305,31 @@ function groupByParentSku(rows) {
     g.variantCount += 1
     g.hasStockData = g.hasStockData || r.hasStockData
     g.variantCodes.push({ kode, namaBarang: r.namaBarang })
+
+    // Track variant data
+    const existing = g.variants.find(v => v.kodeBarang === kode)
+    if (existing) {
+      existing.kuantitas += r.kuantitas
+      existing.hargaProduk += r.hargaProduk
+      existing.stock += r.stock || 0
+      existing.hasStockData = existing.hasStockData || r.hasStockData
+      existing.ssr = existing.kuantitas > 0 ? existing.stock / existing.kuantitas : null
+    } else {
+      g.variants.push({
+        kodeBarang: kode,
+        namaBarang: r.namaBarang,
+        kuantitas: r.kuantitas,
+        hargaProduk: r.hargaProduk,
+        stock: r.stock || 0,
+        hasStockData: r.hasStockData,
+        ssr: r.ssr,
+        hpp: r.hpp || 0,
+        totalHpp: r.totalHpp || 0,
+        unit: r.unit || '',
+        brand: r.brand,
+      })
+    }
+
     if (r.hasMpStockData) {
       g.mpStock += r.mpStock || 0
       g.hasMpStockData = true
@@ -301,6 +345,7 @@ function groupByParentSku(rows) {
   const groupRows = Object.values(groups).map(g => {
     const hpp = g.stock > 0 ? g.totalHpp / g.stock : 0
     const ssr = g.kuantitas > 0 ? g.stock / g.kuantitas : null
+    const sortedVariants = [...g.variants].sort((a, b) => (b.kuantitas || 0) - (a.kuantitas || 0) || a.kodeBarang.localeCompare(b.kodeBarang))
     return {
       kodeBarang: g.kodeBarang, namaBarang: g.bestNama, brand: g.brand,
       kuantitas: g.kuantitas, hargaProduk: g.hargaProduk, stock: g.stock,
@@ -308,6 +353,7 @@ function groupByParentSku(rows) {
       tipe: 'gabungan', variantCount: g.variantCount,
       mpStock: g.hasMpStockData ? g.mpStock : null, hasMpStockData: g.hasMpStockData,
       variantCodes: g.variantCodes,
+      variants: sortedVariants,
     }
   })
 
@@ -1163,6 +1209,602 @@ function ImagePreviewModal({ url, alt, onClose }) {
   ), document.body)
 }
 
+// ── Modal daftar varian SKU Gabungan (klik indikator Gabungan di kolom Tipe) ─────
+
+function GabunganVariantsModal({ row, hasStock, onClose }) {
+  const [modalSearch, setModalSearch] = useState('')
+  const [modalSortBy, setModalSortBy] = useState('kuantitas')
+  const [modalSortDir, setModalSortDir] = useState('desc')
+  const [copied, setCopied] = useState(false)
+
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [])
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [onClose])
+
+  const variants = row?.variants || []
+  const totalKuantitas = row?.kuantitas ?? variants.reduce((s, v) => s + (v.kuantitas || 0), 0)
+  const totalStock = row?.stock ?? variants.reduce((s, v) => s + (v.stock || 0), 0)
+  const ssrParent = row?.ssr != null ? row.ssr : (totalKuantitas > 0 ? totalStock / totalKuantitas : null)
+
+  // Filtered variants
+  const filteredVariants = useMemo(() => {
+    const q = modalSearch.trim().toLowerCase()
+    if (!q) return variants
+    const words = q.split(/\s+/).filter(Boolean)
+    return variants.filter(v => {
+      const name = String(v.namaBarang || '').toLowerCase()
+      const code = String(v.kodeBarang || '').toLowerCase()
+      return words.every(w => name.includes(w) || code.includes(w))
+    })
+  }, [variants, modalSearch])
+
+  // Sorted variants
+  const sortedVariants = useMemo(() => {
+    const mult = modalSortDir === 'asc' ? 1 : -1
+    return [...filteredVariants].sort((a, b) => {
+      if (modalSortBy === 'namaBarang') {
+        return String(a.namaBarang || '').localeCompare(String(b.namaBarang || ''), 'id') * mult
+      }
+      if (modalSortBy === 'kodeBarang') {
+        return String(a.kodeBarang || '').localeCompare(String(b.kodeBarang || ''), 'id') * mult
+      }
+      if (modalSortBy === 'stock') {
+        const valA = a.stock || 0
+        const valB = b.stock || 0
+        return (valA - valB) * mult
+      }
+      if (modalSortBy === 'ssr') {
+        const valA = a.ssr ?? -Infinity
+        const valB = b.ssr ?? -Infinity
+        return (valA - valB) * mult
+      }
+      // default: kuantitas
+      const valA = a.kuantitas || 0
+      const valB = b.kuantitas || 0
+      return (valA - valB) * mult
+    })
+  }, [filteredVariants, modalSortBy, modalSortDir])
+
+  const handleSort = (col) => {
+    if (modalSortBy === col) {
+      setModalSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setModalSortBy(col)
+      setModalSortDir(['namaBarang', 'kodeBarang'].includes(col) ? 'asc' : 'desc')
+    }
+  }
+
+  const renderSortIndicator = (col) => {
+    if (modalSortBy !== col) {
+      return <span style={{ opacity: 0.3, marginLeft: 4, fontSize: 10 }}>⇅</span>
+    }
+    return (
+      <span style={{ color: 'var(--primary, #3B3A8C)', marginLeft: 4, fontWeight: 'bold' }}>
+        {modalSortDir === 'asc' ? '▲' : '▼'}
+      </span>
+    )
+  }
+
+  const handleCopyTable = () => {
+    const headers = hasStock
+      ? ['No', 'Kode Barang', 'Nama Barang', 'Terjual', 'Stock', 'SSR']
+      : ['No', 'Kode Barang', 'Nama Barang', 'Terjual']
+    const rowsData = sortedVariants.map((v, i) => {
+      const ssrStr = v.ssr != null ? v.ssr.toFixed(2) : '-'
+      const stockStr = v.hasStockData ? (v.stock || 0) : 0
+      return hasStock
+        ? [i + 1, v.kodeBarang || '-', v.namaBarang || '-', v.kuantitas || 0, stockStr, ssrStr]
+        : [i + 1, v.kodeBarang || '-', v.namaBarang || '-', v.kuantitas || 0]
+    })
+    const tsv = [headers.join('\t'), ...rowsData.map(r => r.join('\t'))].join('\n')
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(tsv).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }).catch(() => {})
+    }
+  }
+
+  const renderSsrBadge = (ssrVal) => {
+    if (ssrVal == null) return <span className="muted">—</span>
+    if (ssrVal < 1) {
+      return (
+        <span
+          style={{
+            display: 'inline-block',
+            padding: '2px 7px',
+            borderRadius: 4,
+            fontSize: 12,
+            fontWeight: 700,
+            background: 'rgb(255, 215, 215)',
+            color: '#b91c1c',
+            border: '1px solid rgb(254, 178, 178)',
+          }}
+          title="SSR < 1 (stok tidak cukup 1 bulan)"
+        >
+          {ssrVal.toFixed(2)}
+        </span>
+      )
+    }
+    if (ssrVal <= 2) {
+      return (
+        <span
+          style={{
+            display: 'inline-block',
+            padding: '2px 7px',
+            borderRadius: 4,
+            fontSize: 12,
+            fontWeight: 700,
+            background: 'rgb(254, 243, 199)',
+            color: '#92400e',
+            border: '1px solid rgb(253, 230, 138)',
+          }}
+          title="SSR 1–2 (stok menipis, segera restock)"
+        >
+          {ssrVal.toFixed(2)}
+        </span>
+      )
+    }
+    return (
+      <span
+        style={{
+          display: 'inline-block',
+          padding: '2px 7px',
+          borderRadius: 4,
+          fontSize: 12,
+          fontWeight: 600,
+          background: '#f0fdf4',
+          color: '#166534',
+          border: '1px solid #bbf7d0',
+        }}
+      >
+        {ssrVal.toFixed(2)}
+      </span>
+    )
+  }
+
+  return createPortal((
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        background: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1.25rem',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--surface, #fff)',
+          borderRadius: 14,
+          maxWidth: 'min(94vw, 920px)',
+          width: '100%',
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.35)',
+          border: '1px solid var(--border, #e2e8f0)',
+          overflow: 'hidden',
+          animation: 'modalFadeIn 0.16s ease-out',
+        }}
+      >
+        {/* ── Modal Header ── */}
+        <div style={{
+          padding: '1.1rem 1.4rem',
+          borderBottom: '1px solid var(--border, #e5e3dc)',
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 16,
+          background: 'var(--bg, #fafaf8)',
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 5 }}>
+              <span style={{
+                fontSize: 11,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: 0.6,
+                color: 'var(--primary, #3B3A8C)',
+                background: 'var(--primary-light, #EEEDFE)',
+                padding: '2px 8px',
+                borderRadius: 4,
+              }}>
+                SKU GABUNGAN
+              </span>
+              <span className="mono" style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink, #1C1B19)' }}>
+                {row?.kodeBarang || '—'}
+              </span>
+              {row?.brand && row.brand !== '—' && (
+                <span className="badge-brand">{row.brand}</span>
+              )}
+              <span style={{
+                fontSize: 11.5,
+                fontWeight: 600,
+                color: 'var(--ink-muted, #6B6A66)',
+                background: 'var(--surface-2, #f0eefc)',
+                padding: '2px 7px',
+                borderRadius: 4,
+              }}>
+                {variants.length} Varian
+              </span>
+            </div>
+            <h2 style={{
+              margin: 0,
+              fontSize: 15.5,
+              fontWeight: 600,
+              color: 'var(--ink, #1C1B19)',
+              lineHeight: 1.35,
+            }}>
+              {row?.namaBarang || '—'}
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Tutup modal"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              fontSize: 22,
+              lineHeight: 1,
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--ink-muted, #6B6A66)',
+              transition: 'all 0.15s ease',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; e.currentTarget.style.color = 'var(--ink, #111)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--ink-muted, #6B6A66)' }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* ── Summary KPI Cards ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+          gap: 10,
+          padding: '0.85rem 1.4rem',
+          background: 'var(--surface, #fff)',
+          borderBottom: '1px solid var(--border, #e5e3dc)',
+        }}>
+          <div style={{ background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+            <p className="muted" style={{ fontSize: 11, margin: 0, textTransform: 'uppercase', letterSpacing: 0.3, fontWeight: 600 }}>Total Terjual</p>
+            <p className="mono" style={{ fontSize: 16, fontWeight: 700, margin: '2px 0 0', color: 'var(--primary, #3B3A8C)' }}>
+              {totalKuantitas.toLocaleString('id-ID')} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-muted)' }}>pcs</span>
+            </p>
+          </div>
+          {hasStock && (
+            <>
+              <div style={{ background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+                <p className="muted" style={{ fontSize: 11, margin: 0, textTransform: 'uppercase', letterSpacing: 0.3, fontWeight: 600 }}>Total Stock</p>
+                <p className="mono" style={{ fontSize: 16, fontWeight: 700, margin: '2px 0 0' }}>
+                  {totalStock.toLocaleString('id-ID')} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-muted)' }}>pcs</span>
+                </p>
+              </div>
+              <div style={{ background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+                <p className="muted" style={{ fontSize: 11, margin: 0, textTransform: 'uppercase', letterSpacing: 0.3, fontWeight: 600 }}>SSR Gabungan</p>
+                <p className="mono" style={{ fontSize: 16, fontWeight: 700, margin: '2px 0 0' }}>
+                  {ssrParent != null ? ssrParent.toFixed(2) : '—'}
+                </p>
+              </div>
+            </>
+          )}
+          <div style={{ background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+            <p className="muted" style={{ fontSize: 11, margin: 0, textTransform: 'uppercase', letterSpacing: 0.3, fontWeight: 600 }}>Jumlah Varian</p>
+            <p className="mono" style={{ fontSize: 16, fontWeight: 700, margin: '2px 0 0' }}>
+              {variants.length} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-muted)' }}>item</span>
+            </p>
+          </div>
+        </div>
+
+        {/* ── Search & Filter Bar within Modal ── */}
+        <div style={{
+          padding: '0.65rem 1.4rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          background: 'var(--bg, #fafaf8)',
+          borderBottom: '1px solid var(--border, #e5e3dc)',
+          flexWrap: 'wrap',
+        }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+            <span style={{
+              position: 'absolute',
+              left: '0.7rem',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: 13,
+              color: 'var(--muted, #888)',
+              pointerEvents: 'none',
+            }}>🔍</span>
+            <input
+              type="text"
+              placeholder="Cari nama barang atau kode varian…"
+              value={modalSearch}
+              onChange={e => setModalSearch(e.target.value)}
+              style={{
+                width: '100%',
+                height: 34,
+                boxSizing: 'border-box',
+                paddingLeft: '2.1rem',
+                paddingRight: modalSearch ? '2rem' : '0.75rem',
+                fontSize: 12.5,
+                borderRadius: 6,
+                border: '1px solid var(--border, #ddd)',
+                background: 'var(--surface, #fff)',
+                color: 'var(--ink, #1C1B19)',
+                outline: 'none',
+              }}
+            />
+            {modalSearch && (
+              <button
+                type="button"
+                onClick={() => setModalSearch('')}
+                style={{
+                  position: 'absolute',
+                  right: '0.5rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  color: 'var(--muted, #888)',
+                  padding: 2,
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12, color: 'var(--ink-muted)', whiteSpace: 'nowrap' }}>
+              {modalSearch ? `Menampilkan ${sortedVariants.length} dari ${variants.length} varian` : `${variants.length} varian terdaftar`}
+            </span>
+            <button
+              type="button"
+              onClick={handleCopyTable}
+              className="pill-btn"
+              style={{
+                fontSize: 11.5,
+                padding: '4px 9px',
+                borderRadius: 5,
+                border: '1px solid var(--border, #ddd)',
+                background: 'var(--surface, #fff)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                color: 'var(--ink, #1C1B19)',
+              }}
+              title="Salin data tabel varian ke clipboard"
+            >
+              <span>{copied ? '✓ Disalin!' : '📋 Salin Tabel'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ── Variants Table ── */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'auto',
+          maxHeight: 'calc(90vh - 270px)',
+          minHeight: 180,
+        }}>
+          <table className="data-table" style={{ width: '100%', margin: 0, borderCollapse: 'collapse' }}>
+            <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface, #fff)' }}>
+              <tr>
+                <th style={{ width: 40, textAlign: 'center' }}>#</th>
+                <th
+                  onClick={() => handleSort('kodeBarang')}
+                  style={{ cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap', userSelect: 'none', width: 140 }}
+                  title="Klik untuk mengurutkan kode barang"
+                >
+                  Kode Barang {renderSortIndicator('kodeBarang')}
+                </th>
+                <th
+                  onClick={() => handleSort('namaBarang')}
+                  style={{ cursor: 'pointer', textAlign: 'left', userSelect: 'none' }}
+                  title="Klik untuk mengurutkan nama barang"
+                >
+                  Nama Barang {renderSortIndicator('namaBarang')}
+                </th>
+                <th
+                  onClick={() => handleSort('kuantitas')}
+                  style={{ cursor: 'pointer', textAlign: 'right', whiteSpace: 'nowrap', userSelect: 'none', width: 110 }}
+                  title="Klik untuk mengurutkan jumlah terjual"
+                >
+                  Terjual {renderSortIndicator('kuantitas')}
+                </th>
+                {hasStock && (
+                  <>
+                    <th
+                      onClick={() => handleSort('stock')}
+                      style={{ cursor: 'pointer', textAlign: 'right', whiteSpace: 'nowrap', userSelect: 'none', width: 110 }}
+                      title="Klik untuk mengurutkan stock"
+                    >
+                      Stock {renderSortIndicator('stock')}
+                    </th>
+                    <th
+                      onClick={() => handleSort('ssr')}
+                      style={{ cursor: 'pointer', textAlign: 'right', whiteSpace: 'nowrap', userSelect: 'none', width: 95 }}
+                      title="Klik untuk mengurutkan SSR"
+                    >
+                      SSR {renderSortIndicator('ssr')}
+                    </th>
+                  </>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedVariants.length === 0 && (
+                <tr>
+                  <td colSpan={hasStock ? 6 : 4} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                    <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                      {modalSearch ? `Tidak ada varian yang cocok dengan "${modalSearch}".` : 'Belum ada data varian untuk SKU ini.'}
+                    </p>
+                  </td>
+                </tr>
+              )}
+              {sortedVariants.map((v, idx) => {
+                const lowSsr = hasStock && v.ssr != null && v.ssr < 1
+                const restockSoonSsr = hasStock && v.ssr != null && v.ssr >= 1 && v.ssr <= 2
+                const rowBg = lowSsr
+                  ? 'rgba(255, 162, 162, 0.22)'
+                  : restockSoonSsr
+                    ? 'rgba(255, 235, 156, 0.28)'
+                    : undefined
+
+                return (
+                  <tr
+                    key={v.kodeBarang || idx}
+                    style={{ background: rowBg }}
+                  >
+                    <td className="mono" style={{ textAlign: 'center', fontSize: 12, color: 'var(--ink-muted)' }}>
+                      {idx + 1}
+                    </td>
+                    <td className="mono" style={{ whiteSpace: 'nowrap', fontWeight: 600, fontSize: 12.5 }}>
+                      <HighlightText text={v.kodeBarang || '—'} query={modalSearch} />
+                    </td>
+                    <td style={{ fontWeight: 500, fontSize: 13 }}>
+                      <HighlightText text={v.namaBarang || '—'} query={modalSearch} />
+                    </td>
+                    <td className="mono" style={{ textAlign: 'right', fontWeight: 600, fontSize: 13 }}>
+                      {(v.kuantitas || 0).toLocaleString('id-ID')}
+                    </td>
+                    {hasStock && (
+                      <>
+                        <td className="mono" style={{ textAlign: 'right', fontSize: 13 }}>
+                          {v.hasStockData
+                            ? (
+                              <span style={{ color: (v.stock || 0) === 0 ? 'var(--accent, #D85A30)' : 'inherit', fontWeight: (v.stock || 0) === 0 ? 600 : 400 }}>
+                                {(v.stock || 0).toLocaleString('id-ID')}
+                              </span>
+                            )
+                            : <span className="muted">0</span>}
+                        </td>
+                        <td className="mono" style={{ textAlign: 'right', fontSize: 12.5 }}>
+                          {renderSsrBadge(v.ssr)}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                )
+              })}
+            </tbody>
+            {sortedVariants.length > 0 && (
+              <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 1, background: 'var(--surface-2, #f5f5f5)', fontWeight: 700 }}>
+                <tr style={{ borderTop: '2px solid var(--border, #ddd)' }}>
+                  <td colSpan={3} style={{ textAlign: 'right', padding: '9px 12px', fontSize: 13 }}>
+                    Total Gabungan ({sortedVariants.length} varian):
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right', padding: '9px 12px', fontSize: 13, color: 'var(--primary, #3B3A8C)' }}>
+                    {sortedVariants.reduce((s, v) => s + (v.kuantitas || 0), 0).toLocaleString('id-ID')}
+                  </td>
+                  {hasStock && (
+                    <>
+                      <td className="mono" style={{ textAlign: 'right', padding: '9px 12px', fontSize: 13 }}>
+                        {sortedVariants.reduce((s, v) => s + (v.stock || 0), 0).toLocaleString('id-ID')}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right', padding: '9px 12px', fontSize: 13 }}>
+                        {(() => {
+                          const subKuantitas = sortedVariants.reduce((s, v) => s + (v.kuantitas || 0), 0)
+                          const subStock = sortedVariants.reduce((s, v) => s + (v.stock || 0), 0)
+                          const subSsr = subKuantitas > 0 ? subStock / subKuantitas : null
+                          return subSsr != null ? subSsr.toFixed(2) : '—'
+                        })()}
+                      </td>
+                    </>
+                  )}
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+
+        {/* ── Modal Footer ── */}
+        <div style={{
+          padding: '0.85rem 1.4rem',
+          borderTop: '1px solid var(--border, #e5e3dc)',
+          background: 'var(--bg, #fafaf8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 10,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 12 }}>
+            {hasStock ? (
+              <>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgb(255, 162, 162)', display: 'inline-block' }} />
+                  SSR &lt; 1 (kritis, stok &lt; 1 bln)
+                </span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgb(255, 235, 156)', display: 'inline-block' }} />
+                  SSR 1–2 (menipis, segera restock)
+                </span>
+              </>
+            ) : (
+              <span className="muted" style={{ fontSize: 12 }}>
+                ℹ️ Data stock belum diunggah. Nilai Stock dan SSR akan muncul jika file master stock tersedia.
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="pill-btn"
+            style={{
+              padding: '6px 18px',
+              borderRadius: 6,
+              border: '1px solid var(--border, #ddd)',
+              background: 'var(--surface, #fff)',
+              color: 'var(--ink, #1C1B19)',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: 13,
+            }}
+          >
+            Tutup
+          </button>
+        </div>
+      </div>
+    </div>
+  ), document.body)
+}
+
 // ── Main table component ──────────────────────────────────────────────────────
 
 const PAGE_SIZE_OPTIONS = [
@@ -1375,6 +2017,7 @@ function BestSellerTable({
 
   const imageInputRef = useRef(null)
   const [previewImage, setPreviewImage] = useState(null) // { url, alt } | null
+  const [selectedGabunganRow, setSelectedGabunganRow] = useState(null) // row | null
 
   // ── Pagination (client-side; slices the already-filtered `rows`) ──
   const [pageSize, setPageSize] = useState(50)
@@ -1789,7 +2432,21 @@ function BestSellerTable({
                       {groupMode === 'induk' && visibleCols.has('tipe') && (
                         <td style={{ whiteSpace: 'nowrap' }}>
                           {row.tipe === 'gabungan'
-                            ? <span className="badge-brand" style={{ background: 'var(--surface-2, #f0eefc)' }}>Gabungan ({row.variantCount}x)</span>
+                            ? (
+                              <button
+                                type="button"
+                                className="badge-brand badge-gabungan-btn"
+                                onClick={() => setSelectedGabunganRow(row)}
+                                title="Klik untuk melihat detail varian (Nama Barang, Terjual, Stock, SSR)"
+                              >
+                                <span>Gabungan ({row.variantCount}x)</span>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                  <polyline points="15 3 21 3 21 9" />
+                                  <line x1="10" y1="14" x2="21" y2="3" />
+                                </svg>
+                              </button>
+                            )
                             : <span className="mono" style={{ fontSize: 12.5 }}>Tunggal</span>}
                         </td>
                       )}
@@ -1905,6 +2562,13 @@ function BestSellerTable({
           url={previewImage.url}
           alt={previewImage.alt}
           onClose={() => setPreviewImage(null)}
+        />
+      )}
+      {selectedGabunganRow && (
+        <GabunganVariantsModal
+          row={selectedGabunganRow}
+          hasStock={hasStock}
+          onClose={() => setSelectedGabunganRow(null)}
         />
       )}
     </>

@@ -3667,3 +3667,56 @@ section {
   gap: 14px;
   margin-bottom: 1.5rem;
 }
+
+/* --- Gabungan indicator button in TIPE column & variant modal --- */
+.badge-gabungan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface-2, #f0eefc);
+  color: var(--primary, #3B3A8C);
+  border: 1px solid rgba(59, 58, 140, 0.25);
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  line-height: 1.3;
+}
+
+.badge-gabungan-btn:hover {
+  background: var(--primary, #3B3A8C);
+  color: #ffffff;
+  border-color: var(--primary, #3B3A8C);
+  box-shadow: 0 2px 6px rgba(59, 58, 140, 0.25);
+  transform: translateY(-1px);
+}
+
+.badge-gabungan-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.badge-gabungan-btn svg {
+  opacity: 0.75;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.badge-gabungan-btn:hover svg {
+  opacity: 1;
+  transform: translate(1px, -1px);
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
