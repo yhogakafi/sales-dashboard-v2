@@ -1805,6 +1805,1116 @@ function GabunganVariantsModal({ row, hasStock, onClose }) {
   ), document.body)
 }
 
+// ── Modal Pembagian Promo (Acak varian SKU Gabungan ke N periode campaign) ────
+
+const PROMO_PERIOD_COLORS = [
+  { bg: '#EEEDFE', text: '#3B3A8C', border: '#C7D2FE' },
+  { bg: '#E0F2FE', text: '#0369A1', border: '#BAE6FD' },
+  { bg: '#D1FAE5', text: '#047857', border: '#A7F3D0' },
+  { bg: '#FEF3C7', text: '#B45309', border: '#FDE68A' },
+  { bg: '#FFE4E6', text: '#BE123C', border: '#FECDD3' },
+  { bg: '#EDE9FE', text: '#6D28D9', border: '#DDD6FE' },
+  { bg: '#CFFAFE', text: '#0E7490', border: '#A5F3FC' },
+  { bg: '#FCE7F3', text: '#9D174D', border: '#FBCFE8' },
+  { bg: '#FEF9C3', text: '#854D0E', border: '#FEF08A' },
+  { bg: '#E2E8F0', text: '#334155', border: '#CBD5E1' },
+]
+
+function shuffleArray(arr) {
+  const result = [...arr]
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+  return result
+}
+
+function PembagianPromoModal({
+  isOpen,
+  onClose,
+  selectedRows: initialSelectedRows,
+  allRows = [],
+  onSelectRows,
+  hasStock = false,
+}) {
+  const [step, setStep] = useState('config') // 'config' | 'result'
+  const [periodCount, setPeriodCount] = useState(3)
+  const [selectedCodes, setSelectedCodes] = useState(() => new Set(initialSelectedRows.map(r => r.kodeBarang).filter(Boolean)))
+  const [distributedVariants, setDistributedVariants] = useState([])
+  const [activePeriodFilter, setActivePeriodFilter] = useState('all') // 'all' | number (0, 1, ...)
+  const [promoSearch, setPromoSearch] = useState('')
+  const [promoSortBy, setPromoSortBy] = useState('periodIndex')
+  const [promoSortDir, setPromoSortDir] = useState('asc')
+  const [copied, setCopied] = useState(false)
+
+  // Sync selectedCodes if initialSelectedRows change
+  useEffect(() => {
+    setSelectedCodes(new Set(initialSelectedRows.map(r => r.kodeBarang).filter(Boolean)))
+  }, [initialSelectedRows])
+
+  // Lock body scroll
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [])
+
+  // Close on Escape
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [onClose])
+
+  // Selectable rows available in dataset (all gabungan rows plus any currently selected rows)
+  const selectableModalRows = useMemo(() => {
+    const set = new Set()
+    const list = []
+    allRows.forEach(r => {
+      if (!r.kodeBarang) return
+      if (r.tipe === 'gabungan' || selectedCodes.has(r.kodeBarang)) {
+        if (!set.has(r.kodeBarang)) {
+          set.add(r.kodeBarang)
+          list.push(r)
+        }
+      }
+    })
+    return list.length > 0 ? list : allRows
+  }, [allRows, selectedCodes])
+
+  // Current selected rows
+  const selectedRows = useMemo(() => {
+    return allRows.filter(r => r.kodeBarang && selectedCodes.has(r.kodeBarang))
+  }, [allRows, selectedCodes])
+
+  // Total variants in selection
+  const totalVariantsInSelection = useMemo(() => {
+    return selectedRows.reduce((sum, r) => sum + (r.variants?.length || 1), 0)
+  }, [selectedRows])
+
+  const handleToggleCode = (kode) => {
+    setSelectedCodes(prev => {
+      const next = new Set(prev)
+      if (next.has(kode)) next.delete(kode)
+      else next.add(kode)
+      if (onSelectRows) onSelectRows(next)
+      return next
+    })
+  }
+
+  const handleSelectAllInModal = () => {
+    const next = new Set(selectableModalRows.map(r => r.kodeBarang).filter(Boolean))
+    setSelectedCodes(next)
+    if (onSelectRows) onSelectRows(next)
+  }
+
+  const handleClearSelectedCodes = () => {
+    const next = new Set()
+    setSelectedCodes(next)
+    if (onSelectRows) onSelectRows(next)
+  }
+
+  // Distribution generator
+  const runDistribution = useCallback((N) => {
+    const count = Math.max(2, Math.min(20, N || periodCount))
+    const distributed = []
+
+    selectedRows.forEach(parent => {
+      const rawVariants = parent.variants && parent.variants.length > 0
+        ? [...parent.variants]
+        : [{
+            kodeBarang: parent.kodeBarang,
+            namaBarang: parent.namaBarang,
+            kuantitas: parent.kuantitas || 0,
+            stock: parent.stock || 0,
+            hasStockData: parent.hasStockData,
+            ssr: parent.ssr,
+          }]
+
+      // Shuffle variants of this parent SKU so each assignment is random
+      const shuffledVariants = shuffleArray(rawVariants)
+      // Random starting period index offset for fair distribution
+      const offset = Math.floor(Math.random() * count)
+
+      shuffledVariants.forEach((v, idx) => {
+        const periodIdx = (idx + offset) % count
+        distributed.push({
+          ...v,
+          parentKode: parent.kodeBarang,
+          parentNama: parent.namaBarang,
+          parentBrand: parent.brand,
+          periodIndex: periodIdx,
+          periodePromo: `Periode ${periodIdx + 1}`,
+        })
+      })
+    })
+
+    // Sort by periodIndex asc, then by kuantitas desc
+    distributed.sort((a, b) => a.periodIndex - b.periodIndex || (b.kuantitas || 0) - (a.kuantitas || 0))
+    setDistributedVariants(distributed)
+    setActivePeriodFilter('all')
+    setPromoSearch('')
+    setStep('result')
+  }, [selectedRows, periodCount])
+
+  // Filtered variants in Result step
+  const filteredPromoVariants = useMemo(() => {
+    let list = distributedVariants
+    if (activePeriodFilter !== 'all') {
+      list = list.filter(v => v.periodIndex === activePeriodFilter)
+    }
+    if (promoSearch.trim()) {
+      const words = promoSearch.trim().toLowerCase().split(/\s+/).filter(Boolean)
+      list = list.filter(v => {
+        const name = String(v.namaBarang || '').toLowerCase()
+        const code = String(v.kodeBarang || '').toLowerCase()
+        const parent = String(v.parentKode || '').toLowerCase()
+        const period = String(v.periodePromo || '').toLowerCase()
+        return words.every(w => name.includes(w) || code.includes(w) || parent.includes(w) || period.includes(w))
+      })
+    }
+    return list
+  }, [distributedVariants, activePeriodFilter, promoSearch])
+
+  // Sorted variants in Result step
+  const sortedPromoVariants = useMemo(() => {
+    const mult = promoSortDir === 'asc' ? 1 : -1
+    return [...filteredPromoVariants].sort((a, b) => {
+      if (promoSortBy === 'periodIndex') {
+        if (a.periodIndex !== b.periodIndex) return (a.periodIndex - b.periodIndex) * mult
+        return (b.kuantitas || 0) - (a.kuantitas || 0)
+      }
+      if (promoSortBy === 'namaBarang') {
+        return String(a.namaBarang || '').localeCompare(String(b.namaBarang || ''), 'id') * mult
+      }
+      if (promoSortBy === 'kodeBarang') {
+        return String(a.kodeBarang || '').localeCompare(String(b.kodeBarang || ''), 'id') * mult
+      }
+      if (promoSortBy === 'stock') {
+        return ((a.stock || 0) - (b.stock || 0)) * mult
+      }
+      if (promoSortBy === 'ssr') {
+        const valA = a.ssr ?? -Infinity
+        const valB = b.ssr ?? -Infinity
+        return (valA - valB) * mult
+      }
+      // kuantitas
+      return ((a.kuantitas || 0) - (b.kuantitas || 0)) * mult
+    })
+  }, [filteredPromoVariants, promoSortBy, promoSortDir])
+
+  const handleSort = (col) => {
+    if (promoSortBy === col) {
+      setPromoSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setPromoSortBy(col)
+      setPromoSortDir(['namaBarang', 'kodeBarang'].includes(col) ? 'asc' : (col === 'periodIndex' ? 'asc' : 'desc'))
+    }
+  }
+
+  const renderSortIndicator = (col) => {
+    if (promoSortBy !== col) {
+      return <span style={{ opacity: 0.3, marginLeft: 4, fontSize: 10 }}>⇅</span>
+    }
+    return (
+      <span style={{ color: 'var(--primary, #3B3A8C)', marginLeft: 4, fontWeight: 'bold' }}>
+        {promoSortDir === 'asc' ? '▲' : '▼'}
+      </span>
+    )
+  }
+
+  const handleCopyTable = () => {
+    const headers = hasStock
+      ? ['No', 'Periode Promo', 'Kode Barang', 'Nama Barang', 'Terjual', 'Stock', 'SSR']
+      : ['No', 'Periode Promo', 'Kode Barang', 'Nama Barang', 'Terjual']
+    const rowsData = sortedPromoVariants.map((v, i) => {
+      const ssrStr = v.ssr != null ? v.ssr.toFixed(2) : '-'
+      const stockStr = v.hasStockData ? (v.stock || 0) : 0
+      return hasStock
+        ? [i + 1, v.periodePromo, v.kodeBarang || '-', v.namaBarang || '-', v.kuantitas || 0, stockStr, ssrStr]
+        : [i + 1, v.periodePromo, v.kodeBarang || '-', v.namaBarang || '-', v.kuantitas || 0]
+    })
+    const tsv = [headers.join('\t'), ...rowsData.map(r => r.join('\t'))].join('\n')
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(tsv).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }).catch(() => {})
+    }
+  }
+
+  const renderSsrBadge = (ssrVal) => {
+    if (ssrVal == null) return <span className="muted">—</span>
+    if (ssrVal < 1) {
+      return (
+        <span
+          style={{
+            display: 'inline-block',
+            padding: '2px 7px',
+            borderRadius: 4,
+            fontSize: 12,
+            fontWeight: 700,
+            background: 'rgb(255, 215, 215)',
+            color: '#b91c1c',
+            border: '1px solid rgb(254, 178, 178)',
+          }}
+          title="SSR < 1 (stok tidak cukup 1 bulan)"
+        >
+          {ssrVal.toFixed(2)}
+        </span>
+      )
+    }
+    if (ssrVal <= 2) {
+      return (
+        <span
+          style={{
+            display: 'inline-block',
+            padding: '2px 7px',
+            borderRadius: 4,
+            fontSize: 12,
+            fontWeight: 700,
+            background: 'rgb(254, 243, 199)',
+            color: '#92400e',
+            border: '1px solid rgb(253, 230, 138)',
+          }}
+          title="SSR 1–2 (stok menipis, segera restock)"
+        >
+          {ssrVal.toFixed(2)}
+        </span>
+      )
+    }
+    return (
+      <span
+        style={{
+          display: 'inline-block',
+          padding: '2px 7px',
+          borderRadius: 4,
+          fontSize: 12,
+          fontWeight: 600,
+          background: '#f0fdf4',
+          color: '#166534',
+          border: '1px solid #bbf7d0',
+        }}
+      >
+        {ssrVal.toFixed(2)}
+      </span>
+    )
+  }
+
+  return createPortal((
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        background: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1.25rem',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--surface, #fff)',
+          borderRadius: 14,
+          maxWidth: 'min(96vw, 980px)',
+          width: '100%',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.35)',
+          border: '1px solid var(--border, #e2e8f0)',
+          overflow: 'hidden',
+          animation: 'modalFadeIn 0.16s ease-out',
+        }}
+      >
+        {/* ── Modal Header ── */}
+        <div style={{
+          padding: '1.1rem 1.4rem',
+          borderBottom: '1px solid var(--border, #e5e3dc)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          background: 'var(--bg, #fafaf8)',
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+              <span style={{
+                fontSize: 11,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: 0.6,
+                color: 'var(--primary, #3B3A8C)',
+                background: 'var(--primary-light, #EEEDFE)',
+                padding: '2px 8px',
+                borderRadius: 4,
+              }}>
+                PROMO CAMPAIGN
+              </span>
+              <h2 style={{
+                margin: 0,
+                fontSize: 16,
+                fontWeight: 700,
+                color: 'var(--ink, #1C1B19)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}>
+                Pembagian Promo SKU Gabungan
+              </h2>
+            </div>
+            <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>
+              {step === 'config'
+                ? 'Tentukan jumlah periode promo (N) untuk membagi seluruh varian SKU gabungan secara merata dan acak.'
+                : `Distribusi seluruh varian SKU gabungan ke dalam ${periodCount} periode promo/campaign.`}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Tutup modal"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              fontSize: 22,
+              lineHeight: 1,
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--ink-muted, #6B6A66)',
+              transition: 'all 0.15s ease',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; e.currentTarget.style.color = 'var(--ink, #111)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--ink-muted, #6B6A66)' }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* ── STEP 1: CONFIGURATION ── */}
+        {step === 'config' && (
+          <div style={{ padding: '1.4rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {/* Warning if 0 SKU selected */}
+            {selectedRows.length === 0 ? (
+              <div style={{
+                padding: '1rem',
+                borderRadius: 10,
+                background: 'var(--accent-light, #FAECE7)',
+                border: '1px solid rgba(216, 90, 48, 0.25)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 18 }}>⚠️</span>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: 13.5, color: 'var(--accent, #D85A30)' }}>
+                      Belum ada SKU yang dicentang di tabel
+                    </p>
+                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: 'var(--ink-muted)' }}>
+                      Pilih SKU gabungan yang ingin dimasukkan ke pembagian promo di bawah ini atau centang langsung dari tabel.
+                    </p>
+                  </div>
+                </div>
+                {availableGabunganRows.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleSelectAllGabungan}
+                    className="pill-btn"
+                    style={{
+                      alignSelf: 'flex-start',
+                      background: 'var(--primary, #3B3A8C)',
+                      color: '#fff',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      padding: '5px 12px',
+                    }}
+                  >
+                    ✓ Pilih Semua SKU Gabungan ({availableGabunganRows.length} SKU)
+                  </button>
+                )}
+              </div>
+            ) : (
+              /* Selected summary */
+              <div style={{
+                padding: '0.85rem 1rem',
+                borderRadius: 10,
+                background: 'var(--surface-2, #f5f5f5)',
+                border: '1px solid var(--border, #e5e3dc)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 10,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div>
+                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink-muted)' }}>SKU Terpilih</span>
+                    <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--primary, #3B3A8C)' }}>
+                      {selectedRows.length} SKU Induk
+                    </p>
+                  </div>
+                  <div style={{ height: 28, width: 1, background: 'var(--border, #ddd)' }} />
+                  <div>
+                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink-muted)' }}>Total Varian</span>
+                    <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--ink, #1C1B19)' }}>
+                      {totalVariantsInSelection} Varian
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {selectableModalRows.length > selectedRows.length && (
+                    <button
+                      type="button"
+                      onClick={handleSelectAllInModal}
+                      style={{ fontSize: 11.5, background: 'none', border: '1px solid var(--border, #ddd)', padding: '4px 8px', borderRadius: 5, cursor: 'pointer', color: 'var(--ink-muted)' }}
+                    >
+                      Pilih Semua ({selectableModalRows.length})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleClearSelectedCodes}
+                    style={{ fontSize: 11.5, background: 'none', border: '1px solid var(--border, #ddd)', padding: '4px 8px', borderRadius: 5, cursor: 'pointer', color: 'var(--ink-muted)' }}
+                  >
+                    Kosongkan
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* List of selectable SKUs */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink, #1C1B19)' }}>
+                Daftar SKU yang akan diacak:
+              </span>
+              <div style={{
+                maxHeight: 160,
+                overflowY: 'auto',
+                border: '1px solid var(--border, #e5e3dc)',
+                borderRadius: 8,
+                padding: '6px 8px',
+                background: 'var(--surface, #fff)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+              }}>
+                {selectableModalRows.map(row => {
+                  const isChecked = selectedCodes.has(row.kodeBarang)
+                  return (
+                    <label
+                      key={row.kodeBarang}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 10,
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        background: isChecked ? 'var(--primary-light, #EEEDFE)' : 'transparent',
+                        cursor: 'pointer',
+                        fontSize: 12.5,
+                        userSelect: 'none',
+                        transition: 'background 0.1s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleCode(row.kodeBarang)}
+                          style={{ cursor: 'pointer', accentColor: 'var(--primary, #3B3A8C)' }}
+                        />
+                        <span className="mono" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{row.kodeBarang}</span>
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isChecked ? 'var(--ink)' : 'var(--ink-muted)' }}>
+                          {row.namaBarang}
+                        </span>
+                      </div>
+                      <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-muted)', flexShrink: 0 }}>
+                        {row.variants?.length || row.variantCount || 1} varian
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Period Count Selector (N) */}
+            <div style={{
+              background: 'var(--surface-2, #f5f5f5)',
+              borderRadius: 10,
+              padding: '1.1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              border: '1px solid var(--border, #e5e3dc)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                  <label htmlFor="period-count-input" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ink, #1C1B19)', display: 'block' }}>
+                    Jumlah Periode Promo / Campaign (N):
+                  </label>
+                  <p className="muted" style={{ margin: '2px 0 0', fontSize: 12 }}>
+                    Varian dari setiap SKU gabungan akan didistribusikan secara acak ke dalam N periode.
+                  </p>
+                </div>
+
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--surface, #fff)', border: '1px solid var(--border, #ddd)', borderRadius: 8, padding: '3px 6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setPeriodCount(c => Math.max(2, c - 1))}
+                    disabled={periodCount <= 2}
+                    style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: 'var(--surface-2, #eee)', cursor: periodCount <= 2 ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 15, opacity: periodCount <= 2 ? 0.4 : 1 }}
+                  >
+                    –
+                  </button>
+                  <input
+                    id="period-count-input"
+                    type="number"
+                    min="2"
+                    max="20"
+                    value={periodCount}
+                    onChange={e => {
+                      const val = parseInt(e.target.value, 10)
+                      if (!isNaN(val)) setPeriodCount(Math.max(2, Math.min(20, val)))
+                    }}
+                    style={{ width: 44, textAlign: 'center', border: 'none', outline: 'none', fontSize: 15, fontWeight: 700, fontFamily: 'inherit', color: 'var(--ink, #1C1B19)' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPeriodCount(c => Math.min(20, c + 1))}
+                    disabled={periodCount >= 20}
+                    style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: 'var(--surface-2, #eee)', cursor: periodCount >= 20 ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 15, opacity: periodCount >= 20 ? 0.4 : 1 }}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--ink-muted)', fontWeight: 500 }}>Preset cepat:</span>
+                {[2, 3, 4, 5, 6].map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setPeriodCount(n)}
+                    className="pill-btn"
+                    style={{
+                      fontSize: 12,
+                      padding: '3px 10px',
+                      borderRadius: 6,
+                      background: periodCount === n ? 'var(--primary, #3B3A8C)' : 'var(--surface, #fff)',
+                      color: periodCount === n ? '#fff' : 'var(--ink, #1C1B19)',
+                      borderColor: periodCount === n ? 'transparent' : 'var(--border, #ddd)',
+                      fontWeight: periodCount === n ? 700 : 500,
+                    }}
+                  >
+                    {n} Periode
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Action button: Buat Pembagian Promo */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={onClose}
+                className="pill-btn"
+                style={{
+                  padding: '7px 18px',
+                  borderRadius: 6,
+                  border: '1px solid var(--border, #ddd)',
+                  background: 'var(--surface, #fff)',
+                  color: 'var(--ink-muted)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => runDistribution(periodCount)}
+                disabled={selectedRows.length === 0}
+                className="btn-export"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 22px',
+                  borderRadius: 8,
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  cursor: selectedRows.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: selectedRows.length === 0 ? 0.5 : 1,
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                }}
+              >
+                <span>⚡ Buat Pembagian Promo</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 2: RESULT TABLE ── */}
+        {step === 'result' && (
+          <>
+            {/* Summary bar */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+              gap: 10,
+              padding: '0.85rem 1.4rem',
+              background: 'var(--surface, #fff)',
+              borderBottom: '1px solid var(--border, #e5e3dc)',
+            }}>
+              <div style={{ background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+                <p className="muted" style={{ fontSize: 11, margin: 0, textTransform: 'uppercase', letterSpacing: 0.3, fontWeight: 600 }}>Periode Promo</p>
+                <p className="mono" style={{ fontSize: 16, fontWeight: 700, margin: '2px 0 0', color: 'var(--primary, #3B3A8C)' }}>
+                  {periodCount} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-muted)' }}>periode</span>
+                </p>
+              </div>
+              <div style={{ background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+                <p className="muted" style={{ fontSize: 11, margin: 0, textTransform: 'uppercase', letterSpacing: 0.3, fontWeight: 600 }}>SKU Induk</p>
+                <p className="mono" style={{ fontSize: 16, fontWeight: 700, margin: '2px 0 0' }}>
+                  {selectedRows.length} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-muted)' }}>SKU</span>
+                </p>
+              </div>
+              <div style={{ background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+                <p className="muted" style={{ fontSize: 11, margin: 0, textTransform: 'uppercase', letterSpacing: 0.3, fontWeight: 600 }}>Total Varian</p>
+                <p className="mono" style={{ fontSize: 16, fontWeight: 700, margin: '2px 0 0' }}>
+                  {distributedVariants.length} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-muted)' }}>item</span>
+                </p>
+              </div>
+              <div style={{ background: 'var(--surface-2, #f5f5f5)', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+                <p className="muted" style={{ fontSize: 11, margin: 0, textTransform: 'uppercase', letterSpacing: 0.3, fontWeight: 600 }}>Total Terjual</p>
+                <p className="mono" style={{ fontSize: 16, fontWeight: 700, margin: '2px 0 0', color: 'var(--primary, #3B3A8C)' }}>
+                  {distributedVariants.reduce((s, v) => s + (v.kuantitas || 0), 0).toLocaleString('id-ID')} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-muted)' }}>pcs</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Filter Tabs for Periods */}
+            <div style={{
+              padding: '0.55rem 1.4rem',
+              display: 'flex',
+              gap: 6,
+              overflowX: 'auto',
+              background: 'var(--bg, #fafaf8)',
+              borderBottom: '1px solid var(--border, #e5e3dc)',
+              alignItems: 'center',
+            }}>
+              <button
+                type="button"
+                onClick={() => setActivePeriodFilter('all')}
+                className="pill-btn"
+                style={{
+                  fontSize: 12,
+                  padding: '3px 11px',
+                  borderRadius: 6,
+                  background: activePeriodFilter === 'all' ? 'var(--primary, #3B3A8C)' : 'var(--surface, #fff)',
+                  color: activePeriodFilter === 'all' ? '#fff' : 'var(--ink, #1C1B19)',
+                  borderColor: activePeriodFilter === 'all' ? 'transparent' : 'var(--border, #ddd)',
+                  fontWeight: activePeriodFilter === 'all' ? 700 : 500,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Semua Periode ({distributedVariants.length})
+              </button>
+              {Array.from({ length: periodCount }, (_, i) => {
+                const countInPeriod = distributedVariants.filter(v => v.periodIndex === i).length
+                const color = PROMO_PERIOD_COLORS[i % PROMO_PERIOD_COLORS.length]
+                const isActive = activePeriodFilter === i
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setActivePeriodFilter(i)}
+                    className="pill-btn"
+                    style={{
+                      fontSize: 12,
+                      padding: '3px 11px',
+                      borderRadius: 6,
+                      background: isActive ? color.text : color.bg,
+                      color: isActive ? '#fff' : color.text,
+                      borderColor: isActive ? 'transparent' : color.border,
+                      fontWeight: isActive ? 700 : 600,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Periode {i + 1} ({countInPeriod})
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Search and Action Toolbar */}
+            <div style={{
+              padding: '0.65rem 1.4rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              background: 'var(--surface, #fff)',
+              borderBottom: '1px solid var(--border, #e5e3dc)',
+              flexWrap: 'wrap',
+            }}>
+              <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+                <span style={{
+                  position: 'absolute',
+                  left: '0.7rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  fontSize: 13,
+                  color: 'var(--muted, #888)',
+                  pointerEvents: 'none',
+                }}>🔍</span>
+                <input
+                  type="text"
+                  placeholder="Cari nama barang atau kode varian…"
+                  value={promoSearch}
+                  onChange={e => setPromoSearch(e.target.value)}
+                  style={{
+                    width: '100%',
+                    height: 34,
+                    boxSizing: 'border-box',
+                    paddingLeft: '2.1rem',
+                    paddingRight: promoSearch ? '2rem' : '0.75rem',
+                    fontSize: 12.5,
+                    borderRadius: 6,
+                    border: '1px solid var(--border, #ddd)',
+                    background: 'var(--surface, #fff)',
+                    color: 'var(--ink, #1C1B19)',
+                    outline: 'none',
+                  }}
+                />
+                {promoSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setPromoSearch('')}
+                    style={{
+                      position: 'absolute',
+                      right: '0.5rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      color: 'var(--muted, #888)',
+                      padding: 2,
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => runDistribution(periodCount)}
+                  className="pill-btn"
+                  style={{
+                    fontSize: 12,
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    border: '1px solid var(--border, #ddd)',
+                    background: 'var(--surface-2, #f5f5f5)',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    color: 'var(--ink, #1C1B19)',
+                    fontWeight: 500,
+                  }}
+                  title="Acak ulang pembagian varian ke periode"
+                >
+                  <span>🎲 Acak Ulang</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep('config')}
+                  className="pill-btn"
+                  style={{
+                    fontSize: 12,
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    border: '1px solid var(--border, #ddd)',
+                    background: 'var(--surface-2, #f5f5f5)',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    color: 'var(--ink, #1C1B19)',
+                    fontWeight: 500,
+                  }}
+                  title="Ubah jumlah periode atau pilihan SKU"
+                >
+                  <span>⚙️ Ubah Periode</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyTable}
+                  className="pill-btn"
+                  style={{
+                    fontSize: 12,
+                    padding: '4px 11px',
+                    borderRadius: 6,
+                    border: '1px solid var(--primary, #3B3A8C)',
+                    background: copied ? '#dcfce7' : 'var(--primary-light, #EEEDFE)',
+                    color: copied ? '#15803d' : 'var(--primary, #3B3A8C)',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontWeight: 600,
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Salin tabel pembagian promo ke clipboard (format Excel/TSV)"
+                >
+                  <span>{copied ? '✓ Disalin!' : '📋 Salin Tabel'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Table Area */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              overflowX: 'auto',
+              maxHeight: 'calc(92vh - 310px)',
+              minHeight: 200,
+            }}>
+              <table className="data-table" style={{ width: '100%', margin: 0, borderCollapse: 'collapse' }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface, #fff)' }}>
+                  <tr>
+                    <th style={{ width: 38, textAlign: 'center' }}>#</th>
+                    <th
+                      onClick={() => handleSort('periodIndex')}
+                      style={{ cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap', userSelect: 'none', width: 130 }}
+                      title="Klik untuk mengurutkan periode promo"
+                    >
+                      Periode Promo {renderSortIndicator('periodIndex')}
+                    </th>
+                    <th
+                      onClick={() => handleSort('kodeBarang')}
+                      style={{ cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap', userSelect: 'none', width: 135 }}
+                      title="Klik untuk mengurutkan kode barang"
+                    >
+                      Kode Barang {renderSortIndicator('kodeBarang')}
+                    </th>
+                    <th
+                      onClick={() => handleSort('namaBarang')}
+                      style={{ cursor: 'pointer', textAlign: 'left', userSelect: 'none' }}
+                      title="Klik untuk mengurutkan nama barang"
+                    >
+                      Nama Barang {renderSortIndicator('namaBarang')}
+                    </th>
+                    <th
+                      onClick={() => handleSort('kuantitas')}
+                      style={{ cursor: 'pointer', textAlign: 'right', whiteSpace: 'nowrap', userSelect: 'none', width: 105 }}
+                      title="Klik untuk mengurutkan jumlah terjual"
+                    >
+                      Terjual {renderSortIndicator('kuantitas')}
+                    </th>
+                    {hasStock && (
+                      <>
+                        <th
+                          onClick={() => handleSort('stock')}
+                          style={{ cursor: 'pointer', textAlign: 'right', whiteSpace: 'nowrap', userSelect: 'none', width: 105 }}
+                          title="Klik untuk mengurutkan stock"
+                        >
+                          Stock {renderSortIndicator('stock')}
+                        </th>
+                        <th
+                          onClick={() => handleSort('ssr')}
+                          style={{ cursor: 'pointer', textAlign: 'right', whiteSpace: 'nowrap', userSelect: 'none', width: 90 }}
+                          title="Klik untuk mengurutkan SSR"
+                        >
+                          SSR {renderSortIndicator('ssr')}
+                        </th>
+                      </>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedPromoVariants.length === 0 && (
+                    <tr>
+                      <td colSpan={hasStock ? 7 : 5} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                          {promoSearch ? `Tidak ada varian yang cocok dengan "${promoSearch}".` : 'Belum ada data varian untuk ditampilkan.'}
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+                  {sortedPromoVariants.map((v, idx) => {
+                    const lowSsr = hasStock && v.ssr != null && v.ssr < 1
+                    const restockSoonSsr = hasStock && v.ssr != null && v.ssr >= 1 && v.ssr <= 2
+                    const rowBg = lowSsr
+                      ? 'rgba(255, 162, 162, 0.18)'
+                      : restockSoonSsr
+                        ? 'rgba(255, 235, 156, 0.22)'
+                        : undefined
+
+                    const color = PROMO_PERIOD_COLORS[v.periodIndex % PROMO_PERIOD_COLORS.length]
+
+                    return (
+                      <tr key={`${v.kodeBarang}-${idx}`} style={{ background: rowBg }}>
+                        <td className="mono" style={{ textAlign: 'center', fontSize: 12, color: 'var(--ink-muted)' }}>
+                          {idx + 1}
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              background: color.bg,
+                              color: color.text,
+                              border: `1px solid ${color.border}`,
+                              borderRadius: 5,
+                              padding: '2px 8px',
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {v.periodePromo}
+                          </span>
+                        </td>
+                        <td className="mono" style={{ whiteSpace: 'nowrap', fontWeight: 600, fontSize: 12.5 }}>
+                          <HighlightText text={v.kodeBarang || '—'} query={promoSearch} />
+                        </td>
+                        <td style={{ fontWeight: 500, fontSize: 13 }}>
+                          <HighlightText text={v.namaBarang || '—'} query={promoSearch} />
+                        </td>
+                        <td className="mono" style={{ textAlign: 'right', fontWeight: 600, fontSize: 13 }}>
+                          {(v.kuantitas || 0).toLocaleString('id-ID')}
+                        </td>
+                        {hasStock && (
+                          <>
+                            <td className="mono" style={{ textAlign: 'right', fontSize: 13 }}>
+                              {v.hasStockData
+                                ? (
+                                  <span style={{ color: (v.stock || 0) === 0 ? 'var(--accent, #D85A30)' : 'inherit', fontWeight: (v.stock || 0) === 0 ? 600 : 400 }}>
+                                    {(v.stock || 0).toLocaleString('id-ID')}
+                                  </span>
+                                )
+                                : <span className="muted">0</span>}
+                            </td>
+                            <td className="mono" style={{ textAlign: 'right', fontSize: 12.5 }}>
+                              {renderSsrBadge(v.ssr)}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                {sortedPromoVariants.length > 0 && (
+                  <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 1, background: 'var(--surface-2, #f5f5f5)', fontWeight: 700 }}>
+                    <tr style={{ borderTop: '2px solid var(--border, #ddd)' }}>
+                      <td colSpan={4} style={{ textAlign: 'right', padding: '9px 12px', fontSize: 13 }}>
+                        Total ({sortedPromoVariants.length} varian):
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right', padding: '9px 12px', fontSize: 13, color: 'var(--primary, #3B3A8C)' }}>
+                        {sortedPromoVariants.reduce((s, v) => s + (v.kuantitas || 0), 0).toLocaleString('id-ID')}
+                      </td>
+                      {hasStock && (
+                        <>
+                          <td className="mono" style={{ textAlign: 'right', padding: '9px 12px', fontSize: 13 }}>
+                            {sortedPromoVariants.reduce((s, v) => s + (v.stock || 0), 0).toLocaleString('id-ID')}
+                          </td>
+                          <td className="mono" style={{ textAlign: 'right', padding: '9px 12px', fontSize: 13 }}>
+                            {(() => {
+                              const subKuantitas = sortedPromoVariants.reduce((s, v) => s + (v.kuantitas || 0), 0)
+                              const subStock = sortedPromoVariants.reduce((s, v) => s + (v.stock || 0), 0)
+                              const subSsr = subKuantitas > 0 ? subStock / subKuantitas : null
+                              return subSsr != null ? subSsr.toFixed(2) : '—'
+                            })()}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '0.85rem 1.4rem',
+              borderTop: '1px solid var(--border, #e5e3dc)',
+              background: 'var(--bg, #fafaf8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 10,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 12 }}>
+                {hasStock ? (
+                  <>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgb(255, 162, 162)', display: 'inline-block' }} />
+                      SSR &lt; 1 (kritis)
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgb(255, 235, 156)', display: 'inline-block' }} />
+                      SSR 1–2 (menipis)
+                    </span>
+                  </>
+                ) : (
+                  <span className="muted">
+                    ℹ️ Data stock belum diunggah. Nilai Stock dan SSR akan muncul jika file master stock tersedia.
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="pill-btn"
+                style={{
+                  padding: '6px 18px',
+                  borderRadius: 6,
+                  border: '1px solid var(--border, #ddd)',
+                  background: 'var(--surface, #fff)',
+                  color: 'var(--ink, #1C1B19)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                Tutup
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  ), document.body)
+}
+
 // ── Main table component ──────────────────────────────────────────────────────
 
 const PAGE_SIZE_OPTIONS = [
@@ -2019,6 +3129,17 @@ function BestSellerTable({
   const [previewImage, setPreviewImage] = useState(null) // { url, alt } | null
   const [selectedGabunganRow, setSelectedGabunganRow] = useState(null) // row | null
 
+  // ── Row selection & Pembagian Promo modal (khusus mode 'induk') ──
+  const [selectedSkuKeys, setSelectedSkuKeys] = useState(() => new Set())
+  const [pembagianPromoOpen, setPembagianPromoOpen] = useState(false)
+
+  // Reset pilihan jika mode tampilan berganti dari 'induk'
+  useEffect(() => {
+    if (groupMode !== 'induk') {
+      setSelectedSkuKeys(new Set())
+    }
+  }, [groupMode])
+
   // ── Pagination (client-side; slices the already-filtered `rows`) ──
   const [pageSize, setPageSize] = useState(50)
   const [page, setPage] = useState(1)
@@ -2040,28 +3161,138 @@ function BestSellerTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageRows, onPageRowsChange])
 
+  // Baris yang bisa dipilih di halaman ini
+  const pageSelectableRows = useMemo(() => {
+    return pageRows.filter(r => r.kodeBarang)
+  }, [pageRows])
+
+  const isAllPageSelected = pageSelectableRows.length > 0 && pageSelectableRows.every(r => selectedSkuKeys.has(r.kodeBarang))
+  const isSomePageSelected = pageSelectableRows.some(r => selectedSkuKeys.has(r.kodeBarang)) && !isAllPageSelected
+
+  const headerCheckboxRef = useRef(null)
+  useEffect(() => {
+    if (headerCheckboxRef.current) {
+      headerCheckboxRef.current.indeterminate = isSomePageSelected
+    }
+  }, [isSomePageSelected])
+
+  const handleToggleSelectAllPage = () => {
+    setSelectedSkuKeys(prev => {
+      const next = new Set(prev)
+      if (isAllPageSelected) {
+        pageSelectableRows.forEach(r => next.delete(r.kodeBarang))
+      } else {
+        pageSelectableRows.forEach(r => next.add(r.kodeBarang))
+      }
+      return next
+    })
+  }
+
+  const handleToggleSelectRow = (kode) => {
+    if (!kode) return
+    setSelectedSkuKeys(prev => {
+      const next = new Set(prev)
+      if (next.has(kode)) next.delete(kode)
+      else next.add(kode)
+      return next
+    })
+  }
+
+  const handleOpenPembagianPromo = () => {
+    if (selectedSkuKeys.size === 0) {
+      // Jika belum ada yang dicentang manual, defaultkan ke semua SKU gabungan agar langsung siap diacak
+      const allGabungan = new Set(rows.filter(r => r.tipe === 'gabungan' && r.kodeBarang).map(r => r.kodeBarang))
+      if (allGabungan.size > 0) {
+        setSelectedSkuKeys(allGabungan)
+      }
+    }
+    setPembagianPromoOpen(true)
+  }
+
+  const selectedRowsForPromo = useMemo(() => {
+    return rows.filter(r => r.kodeBarang && selectedSkuKeys.has(r.kodeBarang))
+  }, [rows, selectedSkuKeys])
+
   return (
     <>
       {/* ── Mode tampilan: per varian vs per SKU induk (gabungan) ── */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: '0.75rem' }}>
-        <button
-          type="button"
-          className="pill-btn"
-          onClick={() => onGroupModeChange('variant')}
-          title="Tampilkan setiap varian SKU sebagai baris terpisah (perilaku biasa)"
-          style={groupMode === 'variant' ? { background: 'var(--primary, #3B3A8C)', color: '#fff', borderColor: 'transparent' } : undefined}
-        >
-          Per Varian
-        </button>
-        <button
-          type="button"
-          className="pill-btn"
-          onClick={() => onGroupModeChange('induk')}
-          title="Gabungkan varian dengan kode yang sama sebelum titik (mis. 105132.3.02) ke SKU induknya (105132). Kode tanpa titik tetap tampil sendiri."
-          style={groupMode === 'induk' ? { background: 'var(--primary, #3B3A8C)', color: '#fff', borderColor: 'transparent' } : undefined}
-        >
-          Per SKU Gabungan
-        </button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            className="pill-btn"
+            onClick={() => onGroupModeChange('variant')}
+            title="Tampilkan setiap varian SKU sebagai baris terpisah (perilaku biasa)"
+            style={groupMode === 'variant' ? { background: 'var(--primary, #3B3A8C)', color: '#fff', borderColor: 'transparent' } : undefined}
+          >
+            Per Varian
+          </button>
+          <button
+            type="button"
+            className="pill-btn"
+            onClick={() => onGroupModeChange('induk')}
+            title="Gabungkan varian dengan kode yang sama sebelum titik (mis. 105132.3.02) ke SKU induknya (105132). Kode tanpa titik tetap tampil sendiri."
+            style={groupMode === 'induk' ? { background: 'var(--primary, #3B3A8C)', color: '#fff', borderColor: 'transparent' } : undefined}
+          >
+            Per SKU Gabungan
+          </button>
+        </div>
+
+        {groupMode === 'induk' && (
+          <>
+            <div style={{ height: 18, width: 1, background: 'var(--border, #ddd)', margin: '0 2px' }} />
+            <button
+              type="button"
+              className="pill-btn"
+              onClick={handleOpenPembagianPromo}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: selectedSkuKeys.size > 0 ? 'var(--primary, #3B3A8C)' : 'var(--surface, #fff)',
+                color: selectedSkuKeys.size > 0 ? '#fff' : 'var(--primary, #3B3A8C)',
+                borderColor: selectedSkuKeys.size > 0 ? 'transparent' : 'var(--primary, #3B3A8C)',
+                fontWeight: 600,
+                boxShadow: selectedSkuKeys.size > 0 ? '0 1px 3px rgba(59, 58, 140, 0.3)' : 'none',
+              }}
+              title="Buka modal Pembagian Promo untuk mendistribusikan varian ke N periode campaign"
+            >
+              <span>🎯 Pembagian Promo</span>
+              {selectedSkuKeys.size > 0 && (
+                <span
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.25)',
+                    color: '#fff',
+                    borderRadius: 10,
+                    padding: '1px 6px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                >
+                  {selectedSkuKeys.size} terpilih
+                </span>
+              )}
+            </button>
+            {selectedSkuKeys.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedSkuKeys(new Set())}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--ink-muted, #666)',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  padding: '4px 6px',
+                  textDecoration: 'underline',
+                }}
+                title="Batal pilih semua SKU"
+              >
+                Batal pilih
+              </button>
+            )}
+          </>
+        )}
       </div>
 
       {/* ── Upload gambar SKU ── */}
@@ -2356,6 +3587,18 @@ function BestSellerTable({
             <table className="data-table">
               <thead>
                 <tr>
+                  {groupMode === 'induk' && (
+                    <th style={{ width: 38, textAlign: 'center', padding: '8px 4px' }} title="Pilih semua SKU di halaman ini">
+                      <input
+                        ref={headerCheckboxRef}
+                        type="checkbox"
+                        checked={isAllPageSelected}
+                        onChange={handleToggleSelectAllPage}
+                        style={{ cursor: 'pointer', accentColor: 'var(--primary, #3B3A8C)', width: 15, height: 15 }}
+                        aria-label="Pilih semua SKU di halaman ini"
+                      />
+                    </th>
+                  )}
                   <th style={{ width: 40 }} title="Catatan">📝</th>
                   <th style={{ width: 44 }}>#</th>
                   {visibleCols.has('kodeBarang') && <ColHeader col="kodeBarang" label="Kode Barang" align="left"  {...colHeaderProps} />}
@@ -2376,7 +3619,7 @@ function BestSellerTable({
               <tbody>
                 {pageRows.length === 0 && (
                   <tr>
-                    <td colSpan={(hasStock ? 10 : 5) + (groupMode === 'induk' ? 1 : 0) + (showImageCol ? 2 : 0) + 1} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                    <td colSpan={(hasStock ? 10 : 5) + (groupMode === 'induk' ? 2 : 0) + (showImageCol ? 2 : 0) + 1} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
                       <p className="upload-title" style={{ margin: '0 0 4px' }}>Tidak ada produk ditemukan</p>
                       <p className="upload-sub" style={{ margin: 0 }}>
                         {searchQuery
@@ -2387,19 +3630,24 @@ function BestSellerTable({
                   </tr>
                 )}
                 {pageRows.map((row) => {
+                  const isRowSelected = groupMode === 'induk' && row.kodeBarang && selectedSkuKeys.has(row.kodeBarang)
                   const si = hasStock ? { brand: row.brand, stock: row.stock, hasData: row.hasStockData } : null
                   const lowSsr = hasStock && row.ssr != null && row.ssr < 1
                   const restockSoonSsr = hasStock && row.ssr != null && row.ssr >= 1 && row.ssr <= 2
-                  const rowStyle = lowSsr
-                    ? { background: 'rgb(255, 162, 162)' }
-                    : restockSoonSsr
-                      ? { background: 'rgb(255, 235, 156)' }
-                      : undefined
-                  const rowTitle = lowSsr
-                    ? 'SSR < 1 — stock lebih sedikit dari yang terjual'
-                    : restockSoonSsr
-                      ? 'SSR 1–2 — stock menipis, pertimbangkan untuk restock'
-                      : undefined
+                  const rowStyle = isRowSelected
+                    ? { background: 'rgba(238, 237, 254, 0.7)' }
+                    : lowSsr
+                      ? { background: 'rgb(255, 162, 162)' }
+                      : restockSoonSsr
+                        ? { background: 'rgb(255, 235, 156)' }
+                        : undefined
+                  const rowTitle = isRowSelected
+                    ? 'SKU terpilih untuk Pembagian Promo'
+                    : lowSsr
+                      ? 'SSR < 1 — stock lebih sedikit dari yang terjual'
+                      : restockSoonSsr
+                        ? 'SSR 1–2 — stock menipis, pertimbangkan untuk restock'
+                        : undefined
                   // Di tampilan "Per SKU Gabungan", tarik & tampilkan juga catatan yang
                   // sebelumnya ditulis per-varian (di tampilan "Per Varian") — supaya
                   // tidak "hilang"/ketutup di balik baris gabungan.
@@ -2415,6 +3663,17 @@ function BestSellerTable({
                       style={rowStyle}
                       title={rowTitle}
                     >
+                      {groupMode === 'induk' && (
+                        <td style={{ textAlign: 'center', width: 38, padding: '8px 4px' }} onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={!!isRowSelected}
+                            onChange={() => handleToggleSelectRow(row.kodeBarang)}
+                            style={{ cursor: 'pointer', accentColor: 'var(--primary, #3B3A8C)', width: 15, height: 15 }}
+                            aria-label={`Pilih SKU ${row.kodeBarang}`}
+                          />
+                        </td>
+                      )}
                       <NoteCell
                         kodeBarang={row.kodeBarang}
                         note={notes?.[row.kodeBarang]}
@@ -2569,6 +3828,16 @@ function BestSellerTable({
           row={selectedGabunganRow}
           hasStock={hasStock}
           onClose={() => setSelectedGabunganRow(null)}
+        />
+      )}
+      {pembagianPromoOpen && (
+        <PembagianPromoModal
+          isOpen={pembagianPromoOpen}
+          onClose={() => setPembagianPromoOpen(false)}
+          selectedRows={selectedRowsForPromo}
+          allRows={rows}
+          onSelectRows={(newSet) => setSelectedSkuKeys(newSet)}
+          hasStock={hasStock}
         />
       )}
     </>
