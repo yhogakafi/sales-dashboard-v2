@@ -1841,11 +1841,17 @@ function PembagianPromoModal({
   const [periodCount, setPeriodCount] = useState(3)
   const [selectedCodes, setSelectedCodes] = useState(() => new Set(initialSelectedRows.map(r => r.kodeBarang).filter(Boolean)))
   const [distributedVariants, setDistributedVariants] = useState([])
-  const [activePeriodFilter, setActivePeriodFilter] = useState('all') // 'all' | number (0, 1, ...)
+  const [activePeriodFilter, setActivePeriodFilter] = useState('all') // 'all' | number (0, 1, ...) | 'excluded'
   const [promoSearch, setPromoSearch] = useState('')
   const [promoSortBy, setPromoSortBy] = useState('periodIndex')
   const [promoSortDir, setPromoSortDir] = useState('asc')
   const [copied, setCopied] = useState(false)
+
+  // ── Syarat & Kriteria Varian Promo ──
+  const [minStock, setMinStock] = useState(10)
+  const [excludeKode, setExcludeKode] = useState('OB')
+  const [excludeNama, setExcludeNama] = useState('grosir')
+  const [showExcludedPreview, setShowExcludedPreview] = useState(false)
 
   // Sync selectedCodes if initialSelectedRows change
   useEffect(() => {
@@ -1918,14 +1924,54 @@ function PembagianPromoModal({
     if (onSelectRows) onSelectRows(next)
   }
 
-  // Distribution generator
-  const runDistribution = useCallback((N) => {
-    const count = Math.max(2, Math.min(20, N || periodCount))
-    const distributed = []
+  // Keywords filter parsed from comma-separated criteria
+  const excludeKodeKeywords = useMemo(() => {
+    return excludeKode.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+  }, [excludeKode])
+
+  const excludeNamaKeywords = useMemo(() => {
+    return excludeNama.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+  }, [excludeNama])
+
+  // Evaluasi kelayakan 1 varian terhadap syarat promo
+  const checkVariantEligibility = useCallback((v) => {
+    // 1. Min Stock (hanya dicek jika master stock tersedia dan minStock > 0)
+    if (hasStock && minStock > 0) {
+      const currentStock = v.hasStockData ? (v.stock || 0) : (v.stock || 0)
+      if (currentStock < minStock) {
+        return { eligible: false, reason: `Stok ${currentStock} < min ${minStock}` }
+      }
+    }
+
+    // 2. Exclude Kode Barang (No Barang)
+    if (excludeKodeKeywords.length > 0) {
+      const code = String(v.kodeBarang || '').toLowerCase()
+      const match = excludeKodeKeywords.find(kw => code.includes(kw))
+      if (match) {
+        return { eligible: false, reason: `Kode mengandung "${match}"` }
+      }
+    }
+
+    // 3. Exclude Nama Barang
+    if (excludeNamaKeywords.length > 0) {
+      const name = String(v.namaBarang || '').toLowerCase()
+      const match = excludeNamaKeywords.find(kw => name.includes(kw))
+      if (match) {
+        return { eligible: false, reason: `Nama mengandung "${match}"` }
+      }
+    }
+
+    return { eligible: true }
+  }, [hasStock, minStock, excludeKodeKeywords, excludeNamaKeywords])
+
+  // Klasifikasikan varian dari SKU terpilih: yang lolos vs yang dikecualikan
+  const { eligibleVariantsList, excludedVariantsList } = useMemo(() => {
+    const eligible = []
+    const excluded = []
 
     selectedRows.forEach(parent => {
       const rawVariants = parent.variants && parent.variants.length > 0
-        ? [...parent.variants]
+        ? parent.variants
         : [{
             kodeBarang: parent.kodeBarang,
             namaBarang: parent.namaBarang,
@@ -1935,8 +1981,51 @@ function PembagianPromoModal({
             ssr: parent.ssr,
           }]
 
-      // Shuffle variants of this parent SKU so each assignment is random
-      const shuffledVariants = shuffleArray(rawVariants)
+      rawVariants.forEach(v => {
+        const check = checkVariantEligibility(v)
+        const enriched = {
+          ...v,
+          parentKode: parent.kodeBarang,
+          parentNama: parent.namaBarang,
+          parentBrand: parent.brand,
+        }
+        if (check.eligible) {
+          eligible.push(enriched)
+        } else {
+          excluded.push({
+            ...enriched,
+            excludeReason: check.reason,
+          })
+        }
+      })
+    })
+
+    return { eligibleVariantsList: eligible, excludedVariantsList: excluded }
+  }, [selectedRows, checkVariantEligibility])
+
+  // Distribution generator
+  const runDistribution = useCallback((N) => {
+    const count = Math.max(2, Math.min(20, N || periodCount))
+    const distributed = []
+
+    selectedRows.forEach(parent => {
+      const rawVariants = parent.variants && parent.variants.length > 0
+        ? parent.variants
+        : [{
+            kodeBarang: parent.kodeBarang,
+            namaBarang: parent.namaBarang,
+            kuantitas: parent.kuantitas || 0,
+            stock: parent.stock || 0,
+            hasStockData: parent.hasStockData,
+            ssr: parent.ssr,
+          }]
+
+      // Filter hanya varian yang memenuhi syarat promo
+      const eligibleVariants = rawVariants.filter(v => checkVariantEligibility(v).eligible)
+      if (eligibleVariants.length === 0) return
+
+      // Shuffle varian yang lolos dari parent SKU ini
+      const shuffledVariants = shuffleArray(eligibleVariants)
       // Random starting period index offset for fair distribution
       const offset = Math.floor(Math.random() * count)
 
@@ -1959,12 +2048,12 @@ function PembagianPromoModal({
     setActivePeriodFilter('all')
     setPromoSearch('')
     setStep('result')
-  }, [selectedRows, periodCount])
+  }, [selectedRows, periodCount, checkVariantEligibility])
 
   // Filtered variants in Result step
   const filteredPromoVariants = useMemo(() => {
-    let list = distributedVariants
-    if (activePeriodFilter !== 'all') {
+    let list = activePeriodFilter === 'excluded' ? excludedVariantsList : distributedVariants
+    if (activePeriodFilter !== 'all' && activePeriodFilter !== 'excluded') {
       list = list.filter(v => v.periodIndex === activePeriodFilter)
     }
     if (promoSearch.trim()) {
@@ -1974,11 +2063,12 @@ function PembagianPromoModal({
         const code = String(v.kodeBarang || '').toLowerCase()
         const parent = String(v.parentKode || '').toLowerCase()
         const period = String(v.periodePromo || '').toLowerCase()
-        return words.every(w => name.includes(w) || code.includes(w) || parent.includes(w) || period.includes(w))
+        const reason = String(v.excludeReason || '').toLowerCase()
+        return words.every(w => name.includes(w) || code.includes(w) || parent.includes(w) || period.includes(w) || reason.includes(w))
       })
     }
     return list
-  }, [distributedVariants, activePeriodFilter, promoSearch])
+  }, [distributedVariants, excludedVariantsList, activePeriodFilter, promoSearch])
 
   // Sorted variants in Result step
   const sortedPromoVariants = useMemo(() => {
@@ -2028,15 +2118,21 @@ function PembagianPromoModal({
   }
 
   const handleCopyTable = () => {
-    const headers = hasStock
-      ? ['No', 'Periode Promo', 'Kode Barang', 'Nama Barang', 'Terjual', 'Stock', 'SSR']
-      : ['No', 'Periode Promo', 'Kode Barang', 'Nama Barang', 'Terjual']
+    const isExcluded = activePeriodFilter === 'excluded'
+    const headers = isExcluded
+      ? (hasStock
+          ? ['No', 'Alasan Dikecualikan', 'Kode Barang', 'Nama Barang', 'Terjual', 'Stock', 'SSR']
+          : ['No', 'Alasan Dikecualikan', 'Kode Barang', 'Nama Barang', 'Terjual'])
+      : (hasStock
+          ? ['No', 'Periode Promo', 'Kode Barang', 'Nama Barang', 'Terjual', 'Stock', 'SSR']
+          : ['No', 'Periode Promo', 'Kode Barang', 'Nama Barang', 'Terjual'])
     const rowsData = sortedPromoVariants.map((v, i) => {
       const ssrStr = v.ssr != null ? v.ssr.toFixed(2) : '-'
       const stockStr = v.hasStockData ? (v.stock || 0) : 0
+      const col2Val = isExcluded ? (v.excludeReason || 'Dikecualikan') : v.periodePromo
       return hasStock
-        ? [i + 1, v.periodePromo, v.kodeBarang || '-', v.namaBarang || '-', v.kuantitas || 0, stockStr, ssrStr]
-        : [i + 1, v.periodePromo, v.kodeBarang || '-', v.namaBarang || '-', v.kuantitas || 0]
+        ? [i + 1, col2Val, v.kodeBarang || '-', v.namaBarang || '-', v.kuantitas || 0, stockStr, ssrStr]
+        : [i + 1, col2Val, v.kodeBarang || '-', v.namaBarang || '-', v.kuantitas || 0]
     })
     const tsv = [headers.join('\t'), ...rowsData.map(r => r.join('\t'))].join('\n')
     if (navigator.clipboard?.writeText) {
@@ -2316,6 +2412,8 @@ function PembagianPromoModal({
               }}>
                 {selectableModalRows.map(row => {
                   const isChecked = selectedCodes.has(row.kodeBarang)
+                  const rowVariants = row.variants && row.variants.length > 0 ? row.variants : [row]
+                  const rowEligibleCount = rowVariants.filter(v => checkVariantEligibility(v).eligible).length
                   return (
                     <label
                       key={row.kodeBarang}
@@ -2345,13 +2443,232 @@ function PembagianPromoModal({
                           {row.namaBarang}
                         </span>
                       </div>
-                      <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-muted)', flexShrink: 0 }}>
-                        {row.variants?.length || row.variantCount || 1} varian
+                      <span className="mono" style={{ fontSize: 11.5, color: rowEligibleCount === 0 ? '#b91c1c' : 'var(--ink-muted)', flexShrink: 0 }}>
+                        {rowEligibleCount}/{rowVariants.length} lolos
                       </span>
                     </label>
                   )
                 })}
               </div>
+            </div>
+
+            {/* Syarat & Kriteria Varian Promo */}
+            <div style={{
+              background: 'var(--surface-2, #fafaf9)',
+              borderRadius: 10,
+              padding: '1.1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              border: '1px solid var(--border, #e5e3dc)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--ink, #1C1B19)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>⚖️ Syarat &amp; Kriteria Varian Promo</span>
+                  </h4>
+                  <p className="muted" style={{ margin: '2px 0 0', fontSize: 12 }}>
+                    Tentukan syarat varian yang berhak diikutsertakan ke dalam pembagian periode promo.
+                  </p>
+                </div>
+
+                {/* Filter eligibility counter badge */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: '3px 9px',
+                    borderRadius: 6,
+                    background: eligibleVariantsList.length > 0 ? '#dcfce7' : '#fee2e2',
+                    color: eligibleVariantsList.length > 0 ? '#15803d' : '#b91c1c',
+                    border: eligibleVariantsList.length > 0 ? '1px solid #bbf7d0' : '1px solid #fecaca',
+                  }}>
+                    {eligibleVariantsList.length} dari {totalVariantsInSelection} varian lolos
+                  </span>
+                  {excludedVariantsList.length > 0 && (
+                    <span style={{
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      background: '#fef3c7',
+                      color: '#b45309',
+                      border: '1px solid #fde68a',
+                    }}>
+                      {excludedVariantsList.length} dikecualikan
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Grid 3 inputs */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: 12,
+              }}>
+                {/* 1. Min Stock */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label htmlFor="promo-min-stock" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink, #1C1B19)' }}>
+                    Minimal Stok Varian:
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="promo-min-stock"
+                      type="number"
+                      min="0"
+                      value={minStock}
+                      onChange={e => {
+                        const val = parseInt(e.target.value, 10)
+                        setMinStock(isNaN(val) ? 0 : Math.max(0, val))
+                      }}
+                      style={{
+                        width: '100%',
+                        height: 36,
+                        boxSizing: 'border-box',
+                        padding: '0 3rem 0 0.75rem',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        borderRadius: 6,
+                        border: '1px solid var(--border, #ddd)',
+                        background: 'var(--surface, #fff)',
+                        color: 'var(--ink, #1C1B19)',
+                        outline: 'none',
+                      }}
+                    />
+                    <span style={{
+                      position: 'absolute',
+                      right: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      fontSize: 12,
+                      color: 'var(--ink-muted)',
+                      pointerEvents: 'none',
+                    }}>
+                      pcs
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--ink-muted)' }}>
+                    {hasStock ? 'Hanya varian dengan stok ≥ nilai ini (default: 10)' : '⚠️ Master stok belum ada (diabaikan)'}
+                  </span>
+                </div>
+
+                {/* 2. Exclude Kode Barang */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label htmlFor="promo-exclude-kode" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink, #1C1B19)' }}>
+                    Kecualikan Kode Barang (No Barang):
+                  </label>
+                  <input
+                    id="promo-exclude-kode"
+                    type="text"
+                    value={excludeKode}
+                    onChange={e => setExcludeKode(e.target.value)}
+                    placeholder="Contoh: OB, SAMPLE, REJECT"
+                    style={{
+                      width: '100%',
+                      height: 36,
+                      boxSizing: 'border-box',
+                      padding: '0 0.75rem',
+                      fontSize: 12.5,
+                      borderRadius: 6,
+                      border: '1px solid var(--border, #ddd)',
+                      background: 'var(--surface, #fff)',
+                      color: 'var(--ink, #1C1B19)',
+                      outline: 'none',
+                    }}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--ink-muted)' }}>
+                    Pisahkan dengan koma (default: OB)
+                  </span>
+                </div>
+
+                {/* 3. Exclude Nama Barang */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label htmlFor="promo-exclude-nama" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink, #1C1B19)' }}>
+                    Kecualikan Nama Barang:
+                  </label>
+                  <input
+                    id="promo-exclude-nama"
+                    type="text"
+                    value={excludeNama}
+                    onChange={e => setExcludeNama(e.target.value)}
+                    placeholder="Contoh: grosir, bundle, paket"
+                    style={{
+                      width: '100%',
+                      height: 36,
+                      boxSizing: 'border-box',
+                      padding: '0 0.75rem',
+                      fontSize: 12.5,
+                      borderRadius: 6,
+                      border: '1px solid var(--border, #ddd)',
+                      background: 'var(--surface, #fff)',
+                      color: 'var(--ink, #1C1B19)',
+                      outline: 'none',
+                    }}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--ink-muted)' }}>
+                    Pisahkan dengan koma (default: grosir)
+                  </span>
+                </div>
+              </div>
+
+              {/* Collapsible preview of excluded variants if any */}
+              {excludedVariantsList.length > 0 && (
+                <div style={{
+                  borderTop: '1px dashed var(--border, #ddd)',
+                  paddingTop: 8,
+                  fontSize: 11.5,
+                  color: 'var(--ink-muted)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                    <span>
+                      ℹ️ <strong>{excludedVariantsList.length} varian</strong> tidak diikutsertakan karena tidak memenuhi kriteria di atas:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowExcludedPreview(v => !v)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--primary, #3B3A8C)',
+                        cursor: 'pointer',
+                        padding: 0,
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      {showExcludedPreview ? 'Sembunyikan detail' : 'Lihat daftar varian dikecualikan'}
+                    </button>
+                  </div>
+
+                  {showExcludedPreview && (
+                    <div style={{
+                      marginTop: 6,
+                      maxHeight: 120,
+                      overflowY: 'auto',
+                      background: 'var(--surface, #fff)',
+                      border: '1px solid var(--border, #eee)',
+                      borderRadius: 6,
+                      padding: '6px 8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                    }}>
+                      {excludedVariantsList.map((ex, i) => (
+                        <div key={`${ex.kodeBarang}-${i}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 11.5 }}>
+                          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <strong className="mono">{ex.kodeBarang}</strong> — {ex.namaBarang}
+                          </span>
+                          <span style={{ color: '#b45309', fontWeight: 600, flexShrink: 0, background: '#fef3c7', padding: '1px 6px', borderRadius: 4 }}>
+                            {ex.excludeReason}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Period Count Selector (N) */}
@@ -2370,7 +2687,7 @@ function PembagianPromoModal({
                     Jumlah Periode Promo / Campaign (N):
                   </label>
                   <p className="muted" style={{ margin: '2px 0 0', fontSize: 12 }}>
-                    Varian dari setiap SKU gabungan akan didistribusikan secara acak ke dalam N periode.
+                    Varian dari setiap SKU gabungan yang memenuhi syarat akan didistribusikan secara acak ke dalam N periode.
                   </p>
                 </div>
 
@@ -2452,7 +2769,7 @@ function PembagianPromoModal({
               <button
                 type="button"
                 onClick={() => runDistribution(periodCount)}
-                disabled={selectedRows.length === 0}
+                disabled={selectedRows.length === 0 || eligibleVariantsList.length === 0}
                 className="btn-export"
                 style={{
                   display: 'inline-flex',
@@ -2462,13 +2779,14 @@ function PembagianPromoModal({
                   borderRadius: 8,
                   fontSize: 13.5,
                   fontWeight: 600,
-                  cursor: selectedRows.length === 0 ? 'not-allowed' : 'pointer',
-                  opacity: selectedRows.length === 0 ? 0.5 : 1,
+                  cursor: (selectedRows.length === 0 || eligibleVariantsList.length === 0) ? 'not-allowed' : 'pointer',
+                  opacity: (selectedRows.length === 0 || eligibleVariantsList.length === 0) ? 0.5 : 1,
                   background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
                   color: '#fff',
                   border: 'none',
                   boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
                 }}
+                title={selectedRows.length === 0 ? 'Pilih minimal 1 SKU' : eligibleVariantsList.length === 0 ? 'Tidak ada varian yang memenuhi kriteria syarat promo' : ''}
               >
                 <span>⚡ Buat Pembagian Promo</span>
               </button>
@@ -2512,6 +2830,35 @@ function PembagianPromoModal({
                   {distributedVariants.reduce((s, v) => s + (v.kuantitas || 0), 0).toLocaleString('id-ID')} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-muted)' }}>pcs</span>
                 </p>
               </div>
+            </div>
+
+            {/* Condition Info Banner */}
+            <div style={{
+              padding: '0.45rem 1.4rem',
+              background: 'var(--surface-2, #fafaf9)',
+              borderBottom: '1px solid var(--border, #e5e3dc)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexWrap: 'wrap',
+              fontSize: 11.5,
+              color: 'var(--ink-muted)',
+            }}>
+              <span style={{ fontWeight: 600, color: 'var(--ink, #1C1B19)' }}>Kriteria Aktif:</span>
+              <span style={{ background: '#f1f5f9', color: '#334155', padding: '1px 7px', borderRadius: 4, border: '1px solid #cbd5e1' }}>
+                Stok Min: <strong>{hasStock ? (minStock > 0 ? `${minStock} pcs` : 'Semua') : '—'}</strong>
+              </span>
+              <span style={{ background: '#fef2f2', color: '#991b1b', padding: '1px 7px', borderRadius: 4, border: '1px solid #fecaca' }}>
+                Exclude Kode: <strong>{excludeKodeKeywords.length > 0 ? excludeKodeKeywords.join(', ') : '—'}</strong>
+              </span>
+              <span style={{ background: '#fffbeb', color: '#92400e', padding: '1px 7px', borderRadius: 4, border: '1px solid #fde68a' }}>
+                Exclude Nama: <strong>{excludeNamaKeywords.length > 0 ? excludeNamaKeywords.join(', ') : '—'}</strong>
+              </span>
+              {excludedVariantsList.length > 0 && (
+                <span style={{ marginLeft: 'auto', fontWeight: 600, color: '#b45309' }}>
+                  ({excludedVariantsList.length} varian dikecualikan)
+                </span>
+              )}
             </div>
 
             {/* Filter Tabs for Periods */}
@@ -2566,6 +2913,27 @@ function PembagianPromoModal({
                   </button>
                 )
               })}
+              {excludedVariantsList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActivePeriodFilter('excluded')}
+                  className="pill-btn"
+                  style={{
+                    fontSize: 12,
+                    padding: '3px 11px',
+                    borderRadius: 6,
+                    background: activePeriodFilter === 'excluded' ? '#b45309' : '#fef3c7',
+                    color: activePeriodFilter === 'excluded' ? '#fff' : '#b45309',
+                    borderColor: activePeriodFilter === 'excluded' ? 'transparent' : '#fde68a',
+                    fontWeight: activePeriodFilter === 'excluded' ? 700 : 600,
+                    whiteSpace: 'nowrap',
+                    marginLeft: 'auto',
+                  }}
+                  title="Lihat daftar varian yang dikecualikan dari promo"
+                >
+                  ⚠️ Dikecualikan ({excludedVariantsList.length})
+                </button>
+              )}
             </div>
 
             {/* Search and Action Toolbar */}
@@ -2669,9 +3037,9 @@ function PembagianPromoModal({
                     color: 'var(--ink, #1C1B19)',
                     fontWeight: 500,
                   }}
-                  title="Ubah jumlah periode atau pilihan SKU"
+                  title="Ubah kriteria syarat promo atau jumlah periode"
                 >
-                  <span>⚙️ Ubah Periode</span>
+                  <span>⚙️ Ubah Kriteria &amp; Periode</span>
                 </button>
                 <button
                   type="button"
@@ -2712,10 +3080,10 @@ function PembagianPromoModal({
                     <th style={{ width: 38, textAlign: 'center' }}>#</th>
                     <th
                       onClick={() => handleSort('periodIndex')}
-                      style={{ cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap', userSelect: 'none', width: 130 }}
-                      title="Klik untuk mengurutkan periode promo"
+                      style={{ cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap', userSelect: 'none', width: activePeriodFilter === 'excluded' ? 180 : 130 }}
+                      title="Klik untuk mengurutkan"
                     >
-                      Periode Promo {renderSortIndicator('periodIndex')}
+                      {activePeriodFilter === 'excluded' ? 'Alasan Dikecualikan' : 'Periode Promo'} {renderSortIndicator('periodIndex')}
                     </th>
                     <th
                       onClick={() => handleSort('kodeBarang')}
@@ -2785,22 +3153,41 @@ function PembagianPromoModal({
                           {idx + 1}
                         </td>
                         <td style={{ whiteSpace: 'nowrap' }}>
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              background: color.bg,
-                              color: color.text,
-                              border: `1px solid ${color.border}`,
-                              borderRadius: 5,
-                              padding: '2px 8px',
-                              fontSize: 11.5,
-                              fontWeight: 700,
-                            }}
-                          >
-                            {v.periodePromo}
-                          </span>
+                          {activePeriodFilter === 'excluded' ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                background: '#fef3c7',
+                                color: '#b45309',
+                                border: '1px solid #fde68a',
+                                borderRadius: 5,
+                                padding: '2px 8px',
+                                fontSize: 11.5,
+                                fontWeight: 600,
+                              }}
+                            >
+                              {v.excludeReason || 'Dikecualikan'}
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                background: color.bg,
+                                color: color.text,
+                                border: `1px solid ${color.border}`,
+                                borderRadius: 5,
+                                padding: '2px 8px',
+                                fontSize: 11.5,
+                                fontWeight: 700,
+                              }}
+                            >
+                              {v.periodePromo}
+                            </span>
+                          )}
                         </td>
                         <td className="mono" style={{ whiteSpace: 'nowrap', fontWeight: 600, fontSize: 12.5 }}>
                           <HighlightText text={v.kodeBarang || '—'} query={promoSearch} />
