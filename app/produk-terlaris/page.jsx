@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom'
 import { formatRupiah, formatDateLabel } from '@/lib/parseBarangTerlaris'
 import { exportBarangTerlaris } from '@/lib/exportExcel'
 import { lookupSkuEntry, buildSkuIndex, parseSkuImageFile } from '@/lib/parseSkuImage'
+import * as XLSX from 'xlsx'
+import JSZip from 'jszip'
 
 // ─── Stock lookup helper ───────────────────────────────────────────────────────
 
@@ -1853,6 +1855,201 @@ function PembagianPromoModal({
   const [excludeNama, setExcludeNama] = useState('grosir')
   const [showExcludedPreview, setShowExcludedPreview] = useState(false)
 
+  // ── Integrasi Stok Marketplace & Diskon Promo ──
+  const [discountPct, setDiscountPct] = useState(10)
+  const [mpCustomers, setMpCustomers] = useState([])
+  const [selectedMpCustomer, setSelectedMpCustomer] = useState('')
+  const [mpStockItems, setMpStockItems] = useState([])
+  const [isExportingZip, setIsExportingZip] = useState(false)
+  const [zipSuccessToast, setZipSuccessToast] = useState(false)
+
+  // Muat daftar toko dari stok marketplace
+  useEffect(() => {
+    let isMounted = true
+    async function loadMpIndex() {
+      try {
+        const res = await fetch('/api/stok-marketplace/index')
+        if (res.ok) {
+          const json = await res.json()
+          const list = json.customers || []
+          if (isMounted) {
+            setMpCustomers(list)
+            if (list.length > 0) {
+              setSelectedMpCustomer(list[0].id)
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching marketplace stock index:', err)
+      }
+    }
+    loadMpIndex()
+    return () => { isMounted = false }
+  }, [])
+
+  // Muat data stok marketplace dari toko terpilih
+  useEffect(() => {
+    if (!selectedMpCustomer) return
+    let isMounted = true
+    async function loadMpData() {
+      try {
+        const res = await fetch(`/api/stok-marketplace/data?customer=${encodeURIComponent(selectedMpCustomer)}`)
+        if (res.ok) {
+          const json = await res.json()
+          if (isMounted && json.data?.items) {
+            setMpStockItems(json.data.items)
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching marketplace stock items:', err)
+      }
+    }
+    loadMpData()
+    return () => { isMounted = false }
+  }, [selectedMpCustomer])
+
+  // Lookup map stok marketplace untuk matching: SKU di Stok MP vs Nama Barang di Produk Terlaris
+  const mpLookupMap = useMemo(() => {
+    const map = new Map()
+    for (const item of mpStockItems) {
+      if (!item || !item.sku) continue
+      const rawSku = String(item.sku).trim()
+      const normSku = rawSku.toLowerCase()
+      map.set(normSku, item)
+
+      // Versi alphanumeric tanpa spasi dan simbol untuk toleransi variasi penulisan
+      const cleanSku = normSku.replace(/[^a-z0-9]/g, '')
+      if (cleanSku && !map.has(cleanSku)) {
+        map.set(cleanSku, item)
+      }
+
+      // Juga simpan namaProduk jika tersedia
+      if (item.namaProduk) {
+        const normNama = String(item.namaProduk).trim().toLowerCase()
+        if (!map.has(normNama)) map.set(normNama, item)
+      }
+    }
+    return map
+  }, [mpStockItems])
+
+  // Helper pencocokan: "match the Nama Barang in produk terlaris with SKU in stok marketplace"
+  const getMatchedMpItem = useCallback((v) => {
+    if (!v) return null
+    const nama = String(v.namaBarang || '').trim().toLowerCase()
+    const cleanNama = nama.replace(/[^a-z0-9]/g, '')
+    const kode = String(v.kodeBarang || '').trim().toLowerCase()
+    const cleanKode = kode.replace(/[^a-z0-9]/g, '')
+
+    // 1. Match Nama Barang di Produk Terlaris dengan SKU di Stok Marketplace
+    if (mpLookupMap.has(nama)) return mpLookupMap.get(nama)
+    if (cleanNama && mpLookupMap.has(cleanNama)) return mpLookupMap.get(cleanNama)
+
+    // 2. Match Kode Barang dengan SKU di Stok Marketplace
+    if (mpLookupMap.has(kode)) return mpLookupMap.get(kode)
+    if (cleanKode && mpLookupMap.has(cleanKode)) return mpLookupMap.get(cleanKode)
+
+    return null
+  }, [mpLookupMap])
+
+  // Helper info promo lengkap untuk 1 varian
+  const getVariantPromoDetails = useCallback((v, discount) => {
+    const matched = getMatchedMpItem(v)
+    const diskonVal = Math.max(0, Math.min(100, Number(discount) || 0))
+
+    // Harga normal dari stok marketplace, jika kosong fallback ke harga jual rata-rata
+    const hargaNormal = (matched?.harga && matched.harga > 0)
+      ? matched.harga
+      : (v.hargaProduk && v.kuantitas ? Math.round(v.hargaProduk / v.kuantitas) : 0)
+
+    // Harga diskon: Harga normal dikurangi persentase diskon
+    const hargaDiskon = Math.max(0, Math.round(hargaNormal * (1 - (diskonVal / 100))))
+
+    return {
+      namaVariasi: v.namaBarang || '-',
+      kodeProduk: matched?.kodeProduk || v.kodeBarang || '-',
+      kodeVariasi: matched?.kodeVariasi || '-',
+      hargaDiskon,
+      hargaNormal,
+      hasMatch: !!matched,
+    }
+  }, [getMatchedMpItem])
+
+  // Hitung jumlah varian terdistribusi yang cocok dengan data Stok Marketplace
+  const matchedVariantsCount = useMemo(() => {
+    return distributedVariants.filter(v => getMatchedMpItem(v) !== null).length
+  }, [distributedVariants, getMatchedMpItem])
+
+  // Handler ekspor Excel per periode dikemas dalam file ZIP
+  const handleExportPromoZip = async () => {
+    if (!distributedVariants.length) {
+      alert('Belum ada data varian promo yang didistribusikan.')
+      return
+    }
+
+    setIsExportingZip(true)
+    try {
+      const zip = new JSZip()
+      const diskonVal = Math.max(0, Math.min(100, Number(discountPct) || 0))
+
+      // Buat file Excel terpisah untuk setiap periode promo (Periode 1, Periode 2, ... Periode N)
+      for (let p = 0; p < periodCount; p++) {
+        const periodNum = p + 1
+        const periodVariants = distributedVariants.filter(v => v.periodIndex === p)
+
+        // Header sesuai template spesifik permintaan user:
+        // Column A (Nama Variasi) : Nama Barang dari pembagian campaign
+        // Column B (Kode Produk) : Kode Produk dari Stok Marketplace (match Nama Barang dgn SKU)
+        // Column C (Kode Variasi) : Kode Variasi dari Stok Marketplace (match Nama Barang dgn SKU)
+        // Column D (Harga diskon) : Harga dari Stok Marketplace substract with discount
+        // Column E (Harga normal) : Harga dari Stok Marketplace
+        const headers = ['Nama Variasi', 'Kode Produk', 'Kode Variasi', 'Harga diskon', 'Harga normal']
+        const rows = periodVariants.map(v => {
+          const det = getVariantPromoDetails(v, diskonVal)
+          return [
+            det.namaVariasi,
+            det.kodeProduk,
+            det.kodeVariasi,
+            det.hargaDiskon,
+            det.hargaNormal,
+          ]
+        })
+
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+        ws['!cols'] = [
+          { wch: 44 }, // Nama Variasi
+          { wch: 22 }, // Kode Produk
+          { wch: 22 }, // Kode Variasi
+          { wch: 18 }, // Harga diskon
+          { wch: 18 }, // Harga normal
+        ]
+
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, `Periode ${periodNum}`)
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+        zip.file(`Periode ${periodNum}.xlsx`, excelBuffer)
+      }
+
+      // Kemas seluruh file Excel ke dalam berkas .zip
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(zipBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Pembagian_Promo_${periodCount}_Periode_Diskon_${diskonVal}pct_${new Date().toISOString().slice(0, 10)}.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      setZipSuccessToast(true)
+      setTimeout(() => setZipSuccessToast(false), 3000)
+    } catch (err) {
+      console.error('Error generating promo zip export:', err)
+      alert('Gagal mengemas dan mengunduh berkas promo .zip: ' + (err.message || 'Error'))
+    } finally {
+      setIsExportingZip(false)
+    }
+  }
+
   // Sync selectedCodes if initialSelectedRows change
   useEffect(() => {
     setSelectedCodes(new Set(initialSelectedRows.map(r => r.kodeBarang).filter(Boolean)))
@@ -2119,20 +2316,22 @@ function PembagianPromoModal({
 
   const handleCopyTable = () => {
     const isExcluded = activePeriodFilter === 'excluded'
+    const diskonVal = Math.max(0, Math.min(100, Number(discountPct) || 0))
     const headers = isExcluded
       ? (hasStock
-          ? ['No', 'Alasan Dikecualikan', 'Kode Barang', 'Nama Barang', 'Terjual', 'Stock', 'SSR']
-          : ['No', 'Alasan Dikecualikan', 'Kode Barang', 'Nama Barang', 'Terjual'])
+          ? ['No', 'Alasan Dikecualikan', 'Kode Barang', 'Nama Barang', 'Kode Produk (MP)', 'Kode Variasi (MP)', 'Terjual', 'Stock', 'SSR', `Harga Diskon (${diskonVal}%)`, 'Harga Normal']
+          : ['No', 'Alasan Dikecualikan', 'Kode Barang', 'Nama Barang', 'Kode Produk (MP)', 'Kode Variasi (MP)', 'Terjual', `Harga Diskon (${diskonVal}%)`, 'Harga Normal'])
       : (hasStock
-          ? ['No', 'Periode Promo', 'Kode Barang', 'Nama Barang', 'Terjual', 'Stock', 'SSR']
-          : ['No', 'Periode Promo', 'Kode Barang', 'Nama Barang', 'Terjual'])
+          ? ['No', 'Periode Promo', 'Kode Barang', 'Nama Barang', 'Kode Produk (MP)', 'Kode Variasi (MP)', 'Terjual', 'Stock', 'SSR', `Harga Diskon (${diskonVal}%)`, 'Harga Normal']
+          : ['No', 'Periode Promo', 'Kode Barang', 'Nama Barang', 'Kode Produk (MP)', 'Kode Variasi (MP)', 'Terjual', `Harga Diskon (${diskonVal}%)`, 'Harga Normal'])
     const rowsData = sortedPromoVariants.map((v, i) => {
       const ssrStr = v.ssr != null ? v.ssr.toFixed(2) : '-'
       const stockStr = v.hasStockData ? (v.stock || 0) : 0
       const col2Val = isExcluded ? (v.excludeReason || 'Dikecualikan') : v.periodePromo
+      const det = getVariantPromoDetails(v, diskonVal)
       return hasStock
-        ? [i + 1, col2Val, v.kodeBarang || '-', v.namaBarang || '-', v.kuantitas || 0, stockStr, ssrStr]
-        : [i + 1, col2Val, v.kodeBarang || '-', v.namaBarang || '-', v.kuantitas || 0]
+        ? [i + 1, col2Val, v.kodeBarang || '-', v.namaBarang || '-', det.kodeProduk, det.kodeVariasi, v.kuantitas || 0, stockStr, ssrStr, det.hargaDiskon, det.hargaNormal]
+        : [i + 1, col2Val, v.kodeBarang || '-', v.namaBarang || '-', det.kodeProduk, det.kodeVariasi, v.kuantitas || 0, det.hargaDiskon, det.hargaNormal]
     })
     const tsv = [headers.join('\t'), ...rowsData.map(r => r.join('\t'))].join('\n')
     if (navigator.clipboard?.writeText) {
@@ -2936,6 +3135,173 @@ function PembagianPromoModal({
               )}
             </div>
 
+            {/* ── Promo Discount & Marketplace Stock Integration Toolbar ── */}
+            <div style={{
+              padding: '0.65rem 1.4rem',
+              background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+              borderBottom: '1px solid #bbf7d0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 12,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                {/* Source Marketplace Info */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                    🏪 Stok MP:
+                  </span>
+                  {mpCustomers.length > 1 ? (
+                    <select
+                      value={selectedMpCustomer}
+                      onChange={e => setSelectedMpCustomer(e.target.value)}
+                      style={{
+                        fontSize: 12,
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        border: '1px solid #86efac',
+                        background: '#fff',
+                        color: '#166534',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {mpCustomers.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: '#15803d',
+                      background: '#dcfce7',
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      border: '1px solid #86efac',
+                    }}>
+                      {mpCustomers[0]?.name || 'SHOPEE / SCELTA'}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 11.5, color: '#15803d', opacity: 0.85 }}>
+                    ({matchedVariantsCount}/{distributedVariants.length} varian cocok)
+                  </span>
+                </div>
+
+                {/* Discount Percentage Input Box */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: '#fff',
+                  border: '1px solid #86efac',
+                  borderRadius: 8,
+                  padding: '3px 8px',
+                }}>
+                  <label htmlFor="promo-discount-input" style={{ fontSize: 12.5, fontWeight: 700, color: '#166534' }}>
+                    Diskon Promo:
+                  </label>
+                  <input
+                    id="promo-discount-input"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={discountPct}
+                    onChange={e => {
+                      const val = parseInt(e.target.value, 10)
+                      setDiscountPct(isNaN(val) ? 0 : Math.max(0, Math.min(100, val)))
+                    }}
+                    style={{
+                      width: 48,
+                      textAlign: 'center',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      border: 'none',
+                      outline: 'none',
+                      color: '#166534',
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                  <span style={{ fontWeight: 800, fontSize: 13, color: '#166534' }}>%</span>
+
+                  {/* Quick presets */}
+                  <div style={{ display: 'flex', gap: 4, marginLeft: 2 }}>
+                    {[10, 15, 20].map(p => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setDiscountPct(p)}
+                        style={{
+                          fontSize: 11,
+                          fontWeight: discountPct === p ? 700 : 500,
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          border: 'none',
+                          background: discountPct === p ? '#15803d' : '#f0fdf4',
+                          color: discountPct === p ? '#fff' : '#166534',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {p}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons: ZIP Export & feedback */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {zipSuccessToast && (
+                  <span style={{ fontSize: 12, color: '#15803d', fontWeight: 700 }}>
+                    ✓ Berhasil diunduh!
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleExportPromoZip}
+                  disabled={isExportingZip || distributedVariants.length === 0}
+                  style={{
+                    background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '7px 16px',
+                    borderRadius: 8,
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: (isExportingZip || distributedVariants.length === 0) ? 'not-allowed' : 'pointer',
+                    opacity: (isExportingZip || distributedVariants.length === 0) ? 0.6 : 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    boxShadow: '0 3px 10px rgba(16, 185, 129, 0.35)',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title={`Ekspor ${periodCount} file Excel periode ke dalam file ZIP`}
+                >
+                  {isExportingZip ? (
+                    <>
+                      <span className="spinner-sm" style={{ width: 14, height: 14, border: '2px solid #fff', borderTopColor: 'transparent' }} />
+                      <span>Mengemas ZIP…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>📦 Unduh Excel Promo (.zip)</span>
+                      <span style={{
+                        fontSize: 11,
+                        background: 'rgba(255, 255, 255, 0.25)',
+                        padding: '1px 6px',
+                        borderRadius: 4,
+                        fontWeight: 600,
+                      }}>
+                        {periodCount} File
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
             {/* Search and Action Toolbar */}
             <div style={{
               padding: '0.65rem 1.4rem',
@@ -3124,12 +3490,18 @@ function PembagianPromoModal({
                         </th>
                       </>
                     )}
+                    <th style={{ width: 140, textAlign: 'right', whiteSpace: 'nowrap', color: '#047857' }}>
+                      Harga Diskon ({discountPct}%)
+                    </th>
+                    <th style={{ width: 120, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      Harga Normal
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedPromoVariants.length === 0 && (
                     <tr>
-                      <td colSpan={hasStock ? 7 : 5} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                      <td colSpan={hasStock ? 9 : 7} style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
                         <p className="muted" style={{ margin: 0, fontSize: 13 }}>
                           {promoSearch ? `Tidak ada varian yang cocok dengan "${promoSearch}".` : 'Belum ada data varian untuk ditampilkan.'}
                         </p>
@@ -3146,6 +3518,7 @@ function PembagianPromoModal({
                         : undefined
 
                     const color = PROMO_PERIOD_COLORS[v.periodIndex % PROMO_PERIOD_COLORS.length]
+                    const promoDetails = getVariantPromoDetails(v, discountPct)
 
                     return (
                       <tr key={`${v.kodeBarang}-${idx}`} style={{ background: rowBg }}>
@@ -3194,6 +3567,14 @@ function PembagianPromoModal({
                         </td>
                         <td style={{ fontWeight: 500, fontSize: 13 }}>
                           <HighlightText text={v.namaBarang || '—'} query={promoSearch} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, fontSize: 11, color: 'var(--ink-muted)' }}>
+                            <span style={{ fontFamily: 'monospace', background: '#f8fafc', padding: '1px 5px', borderRadius: 3, border: '1px solid #e2e8f0' }} title="Kode Produk dari Stok Marketplace">
+                              Kode: {promoDetails.kodeProduk}
+                            </span>
+                            <span style={{ fontFamily: 'monospace', background: '#f8fafc', padding: '1px 5px', borderRadius: 3, border: '1px solid #e2e8f0' }} title="Kode Variasi dari Stok Marketplace">
+                              Var: {promoDetails.kodeVariasi}
+                            </span>
+                          </div>
                         </td>
                         <td className="mono" style={{ textAlign: 'right', fontWeight: 600, fontSize: 13 }}>
                           {(v.kuantitas || 0).toLocaleString('id-ID')}
@@ -3214,6 +3595,12 @@ function PembagianPromoModal({
                             </td>
                           </>
                         )}
+                        <td className="mono" style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#047857' }}>
+                          Rp {promoDetails.hargaDiskon.toLocaleString('id-ID')}
+                        </td>
+                        <td className="mono" style={{ textAlign: 'right', fontSize: 12.5, color: 'var(--ink-muted)' }}>
+                          Rp {promoDetails.hargaNormal.toLocaleString('id-ID')}
+                        </td>
                       </tr>
                     )
                   })}
@@ -3242,6 +3629,12 @@ function PembagianPromoModal({
                           </td>
                         </>
                       )}
+                      <td className="mono" style={{ textAlign: 'right', padding: '9px 12px', fontSize: 13, color: '#047857' }}>
+                        Rp {sortedPromoVariants.reduce((s, v) => s + getVariantPromoDetails(v, discountPct).hargaDiskon, 0).toLocaleString('id-ID')}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right', padding: '9px 12px', fontSize: 13, color: 'var(--ink-muted)' }}>
+                        Rp {sortedPromoVariants.reduce((s, v) => s + getVariantPromoDetails(v, discountPct).hargaNormal, 0).toLocaleString('id-ID')}
+                      </td>
                     </tr>
                   </tfoot>
                 )}

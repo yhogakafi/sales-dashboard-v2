@@ -19,12 +19,14 @@ export default function StokMarketplacePage() {
   // ─── Filters & Search ───────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL' | 'available' | 'low' | 'empty'
+  const [colSearchKodeProduk, setColSearchKodeProduk] = useState('')
+  const [colSearchKodeVariasi, setColSearchKodeVariasi] = useState('')
   const [colSearchNama, setColSearchNama] = useState('')
   const [colSearchSku, setColSearchSku] = useState('')
   const [colStokRange, setColStokRange] = useState('ALL') // 'ALL' | '0' | '1-5' | '6-20' | '>20'
 
   // Popover state for column filters
-  const [openColFilter, setOpenColFilter] = useState(null) // null | 'nama' | 'sku' | 'stok' | 'status'
+  const [openColFilter, setOpenColFilter] = useState(null) // null | 'kodeProduk' | 'kodeVariasi' | 'nama' | 'sku' | 'stok' | 'status'
 
   // ─── Sorting & Pagination ──────────────────────────────────────────────────
   const [sortField, setSortField] = useState('stok') // default sort by stok
@@ -166,6 +168,7 @@ export default function StokMarketplacePage() {
     return {
       totalItems: s.totalItems || 0,
       totalStock: s.totalStock || 0,
+      totalNilaiStok: s.totalNilaiStok || 0,
       availableStockCount: s.availableStockCount || 0,
       availableStockPct: s.availableStockPct || 0,
       emptyStockCount: s.emptyStockCount || 0,
@@ -185,6 +188,10 @@ export default function StokMarketplacePage() {
   // Helper: check if a specific column is currently filtered
   const isColFiltered = (colKey) => {
     switch (colKey) {
+      case 'kodeProduk':
+        return colSearchKodeProduk.trim() !== ''
+      case 'kodeVariasi':
+        return colSearchKodeVariasi.trim() !== ''
       case 'nama':
         return colSearchNama.trim() !== ''
       case 'sku':
@@ -220,6 +227,20 @@ export default function StokMarketplacePage() {
         clear: () => setStatusFilter('ALL'),
       })
     }
+    if (colSearchKodeProduk.trim()) {
+      list.push({
+        id: 'col_kode_produk',
+        label: `Kode Produk: "${colSearchKodeProduk}"`,
+        clear: () => setColSearchKodeProduk(''),
+      })
+    }
+    if (colSearchKodeVariasi.trim()) {
+      list.push({
+        id: 'col_kode_variasi',
+        label: `Kode Variasi: "${colSearchKodeVariasi}"`,
+        clear: () => setColSearchKodeVariasi(''),
+      })
+    }
     if (colSearchNama.trim()) {
       list.push({
         id: 'col_nama',
@@ -248,14 +269,16 @@ export default function StokMarketplacePage() {
       })
     }
     return list
-  }, [searchQuery, statusFilter, colSearchNama, colSearchSku, colStokRange])
+  }, [searchQuery, statusFilter, colSearchKodeProduk, colSearchKodeVariasi, colSearchNama, colSearchSku, colStokRange])
 
   const resetAllFilters = () => {
     setSearchQuery('')
     setStatusFilter('ALL')
+    setColSearchKodeProduk('')
+    setColSearchKodeVariasi('')
     setColSearchNama('')
     setColSearchSku('')
-    setColStokRange('')
+    setColStokRange('ALL')
     setSortField('stok')
     setSortDir('desc')
     setCurrentPage(1)
@@ -266,12 +289,14 @@ export default function StokMarketplacePage() {
   // Filter records
   const filteredItems = useMemo(() => {
     return rawItems.filter((item) => {
-      // 1. Global Search
+      // 1. Global Search (matches Nama, SKU, Kode Produk, Kode Variasi)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
         const matchNama = (item.namaProduk || '').toLowerCase().includes(q)
         const matchSku = (item.sku || '').toLowerCase().includes(q)
-        if (!matchNama && !matchSku) return false
+        const matchKodeProduk = (item.kodeProduk || '').toLowerCase().includes(q)
+        const matchKodeVariasi = (item.kodeVariasi || '').toLowerCase().includes(q)
+        if (!matchNama && !matchSku && !matchKodeProduk && !matchKodeVariasi) return false
       }
 
       // 2. Status Filter
@@ -279,19 +304,31 @@ export default function StokMarketplacePage() {
       if (statusFilter === 'low' && (item.stok < 1 || item.stok > 5)) return false
       if (statusFilter === 'empty' && item.stok !== 0) return false
 
-      // 3. Column Nama Search
+      // 3. Column Kode Produk Search
+      if (colSearchKodeProduk.trim()) {
+        const q = colSearchKodeProduk.toLowerCase()
+        if (!(item.kodeProduk || '').toLowerCase().includes(q)) return false
+      }
+
+      // 4. Column Kode Variasi Search
+      if (colSearchKodeVariasi.trim()) {
+        const q = colSearchKodeVariasi.toLowerCase()
+        if (!(item.kodeVariasi || '').toLowerCase().includes(q)) return false
+      }
+
+      // 5. Column Nama Search
       if (colSearchNama.trim()) {
         const q = colSearchNama.toLowerCase()
         if (!(item.namaProduk || '').toLowerCase().includes(q)) return false
       }
 
-      // 4. Column SKU Search
+      // 6. Column SKU Search
       if (colSearchSku.trim()) {
         const q = colSearchSku.toLowerCase()
         if (!(item.sku || '').toLowerCase().includes(q)) return false
       }
 
-      // 5. Column Stok Range
+      // 7. Column Stok Range
       if (colStokRange === '0' && item.stok !== 0) return false
       if (colStokRange === '1-5' && (item.stok < 1 || item.stok > 5)) return false
       if (colStokRange === '6-20' && (item.stok < 6 || item.stok > 20)) return false
@@ -299,7 +336,7 @@ export default function StokMarketplacePage() {
 
       return true
     })
-  }, [rawItems, searchQuery, statusFilter, colSearchNama, colSearchSku, colStokRange])
+  }, [rawItems, searchQuery, statusFilter, colSearchKodeProduk, colSearchKodeVariasi, colSearchNama, colSearchSku, colStokRange])
 
   // Sort records
   const sortedItems = useMemo(() => {
@@ -307,10 +344,25 @@ export default function StokMarketplacePage() {
     const dir = sortDir === 'asc' ? 1 : -1
 
     return [...filteredItems].sort((a, b) => {
+      if (sortField === 'kodeProduk') {
+        const sa = String(a.kodeProduk || '').toLowerCase()
+        const sb = String(b.kodeProduk || '').toLowerCase()
+        return sa.localeCompare(sb) * dir
+      }
+      if (sortField === 'kodeVariasi') {
+        const sa = String(a.kodeVariasi || '').toLowerCase()
+        const sb = String(b.kodeVariasi || '').toLowerCase()
+        return sa.localeCompare(sb) * dir
+      }
       if (sortField === 'stok') {
         const na = a.stok ?? 0
         const nb = b.stok ?? 0
         return (na - nb) * dir
+      }
+      if (sortField === 'harga') {
+        const ha = a.harga ?? 0
+        const hb = b.harga ?? 0
+        return (ha - hb) * dir
       }
       if (sortField === 'namaProduk') {
         const sa = String(a.namaProduk || '').toLowerCase()
@@ -334,7 +386,7 @@ export default function StokMarketplacePage() {
   // Reset page when any filter or sort changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, statusFilter, colSearchNama, colSearchSku, colStokRange, sortField, sortDir, activeCustomerId])
+  }, [searchQuery, statusFilter, colSearchKodeProduk, colSearchKodeVariasi, colSearchNama, colSearchSku, colStokRange, sortField, sortDir, activeCustomerId])
 
   // Pagination slice
   const totalPages = pageSize === -1 ? 1 : Math.ceil(sortedItems.length / pageSize) || 1
@@ -377,6 +429,7 @@ export default function StokMarketplacePage() {
       ['METRIK STOK MARKETPLACE', 'NILAI', 'KETERANGAN'],
       ['Nama Pelanggan / Toko', custName, 'Marketplace Channel'],
       ['Total Stok Fisik', recap.totalStock, 'Total unit produk'],
+      ['Estimasi Nilai Stok', recap.totalNilaiStok ? `Rp ${recap.totalNilaiStok.toLocaleString('id-ID')}` : 'Rp 0', 'Berdasarkan harga normal x unit stok'],
       ['Total SKU / Varian', recap.totalItems, 'Varian aktif terdaftar'],
       ['Stok Tersedia', recap.availableStockCount, `${recap.availableStockPct}% dari total varian (> 0 pcs)`],
       ['Stok Kosong / Habis', recap.emptyStockCount, `${recap.emptyStockPct}% dari total varian (0 pcs)`],
@@ -390,10 +443,19 @@ export default function StokMarketplacePage() {
 
     // Sheet 2: Products Table
     const detailRows = [
-      ['No', 'Nama Produk', 'SKU', 'Stok', 'Status Stok'],
+      ['No', 'Kode Produk', 'Kode Variasi', 'Nama Produk', 'SKU', 'Stok', 'Harga', 'Status Stok'],
       ...sortedItems.map((item, i) => {
         const statusLabel = item.stok === 0 ? 'Habis / Kosong' : item.stok <= 5 ? 'Menipis' : 'Tersedia'
-        return [i + 1, item.namaProduk, item.sku, item.stok, statusLabel]
+        return [
+          i + 1,
+          item.kodeProduk || '-',
+          item.kodeVariasi || '-',
+          item.namaProduk,
+          item.sku,
+          item.stok,
+          item.harga || 0,
+          statusLabel,
+        ]
       }),
     ]
     const wsDetail = XLSX.utils.aoa_to_sheet(detailRows)
@@ -862,6 +924,146 @@ export default function StokMarketplacePage() {
                         </div>
                       </th>
 
+                      {/* Column: Kode Produk */}
+                      <th style={{ width: '160px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                          <span
+                            onClick={() => handleSort('kodeProduk')}
+                            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            title="Urutkan berdasarkan Kode Produk"
+                          >
+                            <span>Kode Produk</span>
+                            {sortField === 'kodeProduk' && (
+                              <span style={{ fontSize: '10px', color: '#EAB308' }}>
+                                {sortDir === 'asc' ? '▲' : '▼'}
+                              </span>
+                            )}
+                          </span>
+
+                          <div style={{ position: 'relative' }}>
+                            <button
+                              type="button"
+                              className={`aff-col-filter-btn ${isColFiltered('kodeProduk') ? 'is-active' : ''}`}
+                              onClick={(e) => toggleColumnFilter('kodeProduk', e)}
+                              title="Filter Kode Produk"
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                              </svg>
+                            </button>
+
+                            {openColFilter === 'kodeProduk' && (
+                              <div className="aff-col-filter-popover" onClick={(e) => e.stopPropagation()}>
+                                <div className="aff-col-popover-title">
+                                  <span>Filter Kode Produk</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setOpenColFilter(null)}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px' }}
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                                <input
+                                  type="text"
+                                  value={colSearchKodeProduk}
+                                  onChange={(e) => setColSearchKodeProduk(e.target.value)}
+                                  placeholder="Ketik kode produk..."
+                                  className="aff-col-popover-search"
+                                  autoFocus
+                                />
+                                <div className="aff-col-popover-actions">
+                                  <button
+                                    type="button"
+                                    className="aff-col-popover-btn-clear"
+                                    onClick={() => setColSearchKodeProduk('')}
+                                  >
+                                    Reset
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="aff-col-popover-btn-close"
+                                    onClick={() => setOpenColFilter(null)}
+                                  >
+                                    Terapkan
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </th>
+
+                      {/* Column: Kode Variasi */}
+                      <th style={{ width: '160px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                          <span
+                            onClick={() => handleSort('kodeVariasi')}
+                            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            title="Urutkan berdasarkan Kode Variasi"
+                          >
+                            <span>Kode Variasi</span>
+                            {sortField === 'kodeVariasi' && (
+                              <span style={{ fontSize: '10px', color: '#EAB308' }}>
+                                {sortDir === 'asc' ? '▲' : '▼'}
+                              </span>
+                            )}
+                          </span>
+
+                          <div style={{ position: 'relative' }}>
+                            <button
+                              type="button"
+                              className={`aff-col-filter-btn ${isColFiltered('kodeVariasi') ? 'is-active' : ''}`}
+                              onClick={(e) => toggleColumnFilter('kodeVariasi', e)}
+                              title="Filter Kode Variasi"
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                              </svg>
+                            </button>
+
+                            {openColFilter === 'kodeVariasi' && (
+                              <div className="aff-col-filter-popover" onClick={(e) => e.stopPropagation()}>
+                                <div className="aff-col-popover-title">
+                                  <span>Filter Kode Variasi</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setOpenColFilter(null)}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px' }}
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                                <input
+                                  type="text"
+                                  value={colSearchKodeVariasi}
+                                  onChange={(e) => setColSearchKodeVariasi(e.target.value)}
+                                  placeholder="Ketik kode variasi..."
+                                  className="aff-col-popover-search"
+                                  autoFocus
+                                />
+                                <div className="aff-col-popover-actions">
+                                  <button
+                                    type="button"
+                                    className="aff-col-popover-btn-clear"
+                                    onClick={() => setColSearchKodeVariasi('')}
+                                  >
+                                    Reset
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="aff-col-popover-btn-close"
+                                    onClick={() => setOpenColFilter(null)}
+                                  >
+                                    Terapkan
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </th>
+
                       {/* Column: Nama Produk */}
                       <th>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
@@ -1087,6 +1289,24 @@ export default function StokMarketplacePage() {
                         </div>
                       </th>
 
+                      {/* Column: Harga */}
+                      <th style={{ width: '140px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                          <span
+                            onClick={() => handleSort('harga')}
+                            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            title="Urutkan berdasarkan Harga"
+                          >
+                            <span>Harga</span>
+                            {sortField === 'harga' && (
+                              <span style={{ fontSize: '10px', color: '#EAB308' }}>
+                                {sortDir === 'asc' ? '▲' : '▼'}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </th>
+
                       {/* Column: Status */}
                       <th style={{ width: '140px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
@@ -1175,7 +1395,7 @@ export default function StokMarketplacePage() {
                   <tbody>
                     {displayedItems.length === 0 ? (
                       <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', padding: '3rem 1rem', color: '#78716C' }}>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '3rem 1rem', color: '#78716C' }}>
                           Tidak ada produk yang cocok dengan filter yang dipilih.
                         </td>
                       </tr>
@@ -1191,6 +1411,36 @@ export default function StokMarketplacePage() {
                             {/* No */}
                             <td style={{ textAlign: 'center', color: '#94A3B8', fontSize: '12px' }}>
                               {rowNum}
+                            </td>
+
+                            {/* Kode Produk */}
+                            <td style={{ fontFamily: 'monospace', fontSize: '12px', color: '#1E293B' }}>
+                              <span
+                                style={{
+                                  background: '#F8FAFC',
+                                  border: '1px solid #E2E8F0',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  display: 'inline-block',
+                                }}
+                              >
+                                {item.kodeProduk || '-'}
+                              </span>
+                            </td>
+
+                            {/* Kode Variasi */}
+                            <td style={{ fontFamily: 'monospace', fontSize: '12px', color: '#475569' }}>
+                              <span
+                                style={{
+                                  background: '#F8FAFC',
+                                  border: '1px solid #E2E8F0',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  display: 'inline-block',
+                                }}
+                              >
+                                {item.kodeVariasi || '-'}
+                              </span>
                             </td>
 
                             {/* Nama Produk */}
@@ -1222,6 +1472,11 @@ export default function StokMarketplacePage() {
                               >
                                 {item.stok.toLocaleString('id-ID')}
                               </span>
+                            </td>
+
+                            {/* Harga */}
+                            <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '13px', color: '#0F172A', fontFamily: 'monospace' }}>
+                              Rp {(item.harga || 0).toLocaleString('id-ID')}
                             </td>
 
                             {/* Status Stok */}
