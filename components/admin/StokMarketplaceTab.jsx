@@ -621,16 +621,25 @@ export default function StokMarketplaceTab() {
                   <thead>
                     <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
                       <th style={{ padding: '6px 10px' }}>No</th>
+                      <th style={{ padding: '6px 10px' }}>Kode Produk</th>
+                      <th style={{ padding: '6px 10px' }}>Kode Variasi</th>
                       <th style={{ padding: '6px 10px' }}>Nama Produk</th>
                       <th style={{ padding: '6px 10px' }}>SKU</th>
                       <th style={{ padding: '6px 10px', textAlign: 'right' }}>Stok</th>
+                      <th style={{ padding: '6px 10px', textAlign: 'right' }}>Harga</th>
                     </tr>
                   </thead>
                   <tbody>
                     {previewData.items.slice(0, 5).map((it, idx) => (
                       <tr key={it.sku || idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
                         <td style={{ padding: '6px 10px', color: '#94A3B8' }}>{idx + 1}</td>
-                        <td style={{ padding: '6px 10px', fontWeight: 500, maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '6px 10px', fontFamily: 'monospace', fontSize: '11px', color: '#1E293B' }}>
+                          {it.kodeProduk || '-'}
+                        </td>
+                        <td style={{ padding: '6px 10px', fontFamily: 'monospace', fontSize: '11px', color: '#475569' }}>
+                          {it.kodeVariasi || '-'}
+                        </td>
+                        <td style={{ padding: '6px 10px', fontWeight: 500, maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {it.namaProduk}
                         </td>
                         <td style={{ padding: '6px 10px', fontFamily: 'monospace', color: '#334155' }}>
@@ -638,6 +647,9 @@ export default function StokMarketplaceTab() {
                         </td>
                         <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700, color: it.stok === 0 ? '#DC2626' : '#15803D' }}>
                           {it.stok}
+                        </td>
+                        <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, color: '#0F766E' }}>
+                          {it.harga ? `Rp ${it.harga.toLocaleString('id-ID')}` : '-'}
                         </td>
                       </tr>
                     ))}
