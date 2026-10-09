@@ -566,12 +566,8 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
       // Guarantee 100% that every product thumbnail is drawn into its exact box on the canvas!
       const ctx = canvas.getContext('2d')
       const debugBoxDrawResults = []
+      let compositedCount = 0
       if (ctx) {
-        // TEST RECTANGLE TO PROVE DRAWING WORKS ON CANVAS:
-        ctx.fillStyle = '#FF0000'
-        ctx.fillRect(20, 20, 120, 120)
-
-        let compositedCount = 0
         for (const box of promoBoxes) {
           if (!box.url) {
             debugBoxDrawResults.push({ url: null, status: 'no_url' })
