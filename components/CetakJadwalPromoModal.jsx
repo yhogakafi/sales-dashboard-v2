@@ -563,90 +563,104 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
       })
 
       // 4. DIRECT 2D CANVAS COMPOSITING:
-      // Guarantee 100% that every product thumbnail is drawn into its exact box on the canvas!
-      const ctx = canvas.getContext('2d')
+      // Create a pristine, unclipped, identity-transformed final canvas to composite html2canvas output with product images
+      const finalCanvas = document.createElement('canvas')
+      finalCanvas.width = canvas.width
+      finalCanvas.height = canvas.height
+      const finalCtx = finalCanvas.getContext('2d')
+
+      // Draw base document layout rendered by html2canvas
+      finalCtx.drawImage(canvas, 0, 0)
+
       const debugBoxDrawResults = []
       let compositedCount = 0
-      if (ctx) {
-        for (const box of promoBoxes) {
-          if (!box.url) {
-            debugBoxDrawResults.push({ url: null, status: 'no_url' })
-            continue
-          }
-          const item = loadedDrawablesMap.get(box.url)
-          if (item && item.drawable && item.width > 0 && item.height > 0) {
-            const { x, y, w, h } = box
-            const radius = 8
-
-            ctx.save()
-            // Rounded rectangle clipping path
-            ctx.beginPath()
-            if (typeof ctx.roundRect === 'function') {
-              ctx.roundRect(x, y, w, h, radius)
-            } else {
-              ctx.moveTo(x + radius, y)
-              ctx.lineTo(x + w - radius, y)
-              ctx.quadraticCurveTo(x + w, y, x + w, y + radius)
-              ctx.lineTo(x + w, y + h - radius)
-              ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h)
-              ctx.lineTo(x + radius, y + h)
-              ctx.quadraticCurveTo(x, y + h, x, y + h - radius)
-              ctx.lineTo(x, y + radius)
-              ctx.quadraticCurveTo(x, y, x + radius, y)
-              ctx.closePath()
-            }
-            ctx.clip()
-
-            // Fill clean thumbnail background
-            ctx.fillStyle = '#ffffff'
-            ctx.fillRect(x, y, w, h)
-
-            // Object-fit contain calculation
-            const imgAspect = item.width / item.height
-            const boxAspect = w / h
-            let dw = w
-            let dh = h
-            let dx = x
-            let dy = y
-            if (imgAspect > boxAspect) {
-              dh = w / imgAspect
-              dy = y + (h - dh) / 2
-            } else {
-              dw = h * imgAspect
-              dx = x + (w - dw) / 2
-            }
-
-            ctx.drawImage(item.drawable, dx, dy, dw, dh)
-            ctx.restore()
-
-            // Subtle crisp border around thumbnail (1.5px solid #cbd5e1)
-            ctx.save()
-            ctx.strokeStyle = '#cbd5e1'
-            ctx.lineWidth = 1.5
-            ctx.beginPath()
-            if (typeof ctx.roundRect === 'function') {
-              ctx.roundRect(x, y, w, h, radius)
-            } else {
-              ctx.moveTo(x + radius, y)
-              ctx.lineTo(x + w - radius, y)
-              ctx.quadraticCurveTo(x + w, y, x + w, y + radius)
-              ctx.lineTo(x + w, y + h - radius)
-              ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h)
-              ctx.lineTo(x + radius, y + h)
-              ctx.quadraticCurveTo(x, y + h, x, y + h - radius)
-              ctx.lineTo(x, y + radius)
-              ctx.quadraticCurveTo(x, y, x + radius, y)
-              ctx.closePath()
-            }
-            ctx.stroke()
-            ctx.restore()
-            compositedCount++
-            debugBoxDrawResults.push({ url: box.url, success: true, itemType: item.drawable?.constructor?.name, x: box.x, y: box.y, w: box.w, h: box.h })
-          } else {
-            debugBoxDrawResults.push({ url: box.url, success: false, reason: !item ? 'no_item' : (!item.drawable ? 'no_drawable' : 'zero_size') })
-          }
+      for (const box of promoBoxes) {
+        if (!box.url) {
+          debugBoxDrawResults.push({ url: null, status: 'no_url' })
+          continue
         }
-        console.log(`[CetakJadwalPromo] Composited ${compositedCount} image thumbnails directly onto 2D canvas. Canvas size: ${canvas.width}x${canvas.height}`)
+        const item = loadedDrawablesMap.get(box.url)
+        if (item && item.drawable && item.width > 0 && item.height > 0) {
+          const { x, y, w, h } = box
+          const radius = 8
+
+          finalCtx.save()
+          // Rounded rectangle clipping path
+          finalCtx.beginPath()
+          if (typeof finalCtx.roundRect === 'function') {
+            finalCtx.roundRect(x, y, w, h, radius)
+          } else {
+            finalCtx.moveTo(x + radius, y)
+            finalCtx.lineTo(x + w - radius, y)
+            finalCtx.quadraticCurveTo(x + w, y, x + w, y + radius)
+            finalCtx.lineTo(x + w, y + h - radius)
+            finalCtx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h)
+            finalCtx.lineTo(x + radius, y + h)
+            finalCtx.quadraticCurveTo(x, y + h, x, y + h - radius)
+            finalCtx.lineTo(x, y + radius)
+            finalCtx.quadraticCurveTo(x, y, x + radius, y)
+            finalCtx.closePath()
+          }
+          finalCtx.clip()
+
+          // Fill clean thumbnail background
+          finalCtx.fillStyle = '#ffffff'
+          finalCtx.fillRect(x, y, w, h)
+
+          // Object-fit contain calculation
+          const imgAspect = item.width / item.height
+          const boxAspect = w / h
+          let dw = w
+          let dh = h
+          let dx = x
+          let dy = y
+          if (imgAspect > boxAspect) {
+            dh = w / imgAspect
+            dy = y + (h - dh) / 2
+          } else {
+            dw = h * imgAspect
+            dx = x + (w - dw) / 2
+          }
+
+          finalCtx.drawImage(item.drawable, dx, dy, dw, dh)
+          finalCtx.restore()
+
+          // Subtle crisp border around thumbnail (1.5px solid #cbd5e1)
+          finalCtx.save()
+          finalCtx.strokeStyle = '#cbd5e1'
+          finalCtx.lineWidth = 1.5
+          finalCtx.beginPath()
+          if (typeof finalCtx.roundRect === 'function') {
+            finalCtx.roundRect(x, y, w, h, radius)
+          } else {
+            finalCtx.moveTo(x + radius, y)
+            finalCtx.lineTo(x + w - radius, y)
+            finalCtx.quadraticCurveTo(x + w, y, x + w, y + radius)
+            finalCtx.lineTo(x + w, y + h - radius)
+            finalCtx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h)
+            finalCtx.lineTo(x + radius, y + h)
+            finalCtx.quadraticCurveTo(x, y + h, x, y + h - radius)
+            finalCtx.lineTo(x, y + radius)
+            finalCtx.quadraticCurveTo(x, y, x + radius, y)
+            finalCtx.closePath()
+          }
+          finalCtx.stroke()
+          finalCtx.restore()
+          compositedCount++
+          debugBoxDrawResults.push({ url: box.url, success: true, itemType: item.drawable?.constructor?.name, x: box.x, y: box.y, w: box.w, h: box.h })
+        } else {
+          debugBoxDrawResults.push({ url: box.url, success: false, reason: !item ? 'no_item' : (!item.drawable ? 'no_drawable' : 'zero_size') })
+        }
+      }
+      console.log(`[CetakJadwalPromo] Composited ${compositedCount} image thumbnails directly onto 2D finalCanvas. Canvas size: ${finalCanvas.width}x${finalCanvas.height}`)
+
+      // Sample pixel at center of box 0 for direct verification:
+      const firstBox = promoBoxes[0]
+      let sampleCenterPixel = null
+      if (firstBox) {
+        try {
+          sampleCenterPixel = Array.from(finalCtx.getImageData(firstBox.x + 32, firstBox.y + 32, 1, 1).data)
+        } catch {}
       }
 
       // Restore style
@@ -655,7 +669,7 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
       sheetEl.style.minHeight = prevMinHeight
       sheetEl.style.height = prevHeight
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.95)
+      const dataUrl = finalCanvas.toDataURL('image/jpeg', 0.95)
 
       // Download file
       const safeTitle = (docTitle || 'Jadwal-Promo')
@@ -671,6 +685,7 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
         canvasSize: { width: canvas.width, height: canvas.height },
         boxesCount: promoBoxes.length,
         compositedCount,
+        sampleCenterPixel,
         boxDrawResults: debugBoxDrawResults,
         loadedCount: loadedDrawablesMap.size,
         sampleImgSizes: Array.from(loadedDrawablesMap.entries()).slice(0, 5).map(([url, item]) => ({
