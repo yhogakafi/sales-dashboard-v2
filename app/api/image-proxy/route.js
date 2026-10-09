@@ -22,13 +22,6 @@ export const dynamic = 'force-dynamic'
 // link yang ada di mapping SKU→gambar yang sudah tersimpan di server.
 
 export async function GET(request) {
-  const cookieStore = cookies()
-  const viewer = cookieStore.get(VIEWER_COOKIE_NAME)?.value
-  const admin = cookieStore.get(ADMIN_COOKIE_NAME)?.value
-  if (!checkViewerCookie(viewer) && !checkAdminCookie(admin)) {
-    return NextResponse.json({ error: 'Tidak diizinkan.' }, { status: 401 })
-  }
-
   const { searchParams } = new URL(request.url)
   const url = searchParams.get('url')
   if (!url) {
@@ -55,10 +48,21 @@ export async function GET(request) {
     host.endsWith('lazada.co.id')
 
   if (!isTrustedCdn) {
-    const { bySku } = await getSkuImages()
-    const allowed = new Set(Object.values(bySku).map(v => v?.image).filter(Boolean))
-    if (!allowed.has(url)) {
-      return NextResponse.json({ error: 'URL gambar tidak dikenal.' }, { status: 403 })
+    const cookieStore = cookies()
+    const viewer = cookieStore.get(VIEWER_COOKIE_NAME)?.value
+    const admin = cookieStore.get(ADMIN_COOKIE_NAME)?.value
+    const isAuthed = checkViewerCookie(viewer) || checkAdminCookie(admin)
+
+    if (!isAuthed) {
+      try {
+        const { bySku } = await getSkuImages()
+        const allowed = new Set(Object.values(bySku || {}).map(v => v?.image).filter(Boolean))
+        if (!allowed.has(url)) {
+          return NextResponse.json({ error: 'Tidak diizinkan.' }, { status: 401 })
+        }
+      } catch {
+        return NextResponse.json({ error: 'Tidak diizinkan.' }, { status: 401 })
+      }
     }
   }
 

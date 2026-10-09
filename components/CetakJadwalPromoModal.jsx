@@ -252,6 +252,18 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
           throw new Error('Tidak ada baris data promo yang ditemukan dalam file Excel.')
         }
 
+        // Sort by SKU alphabetically (case-insensitive, natural alphanumeric order)
+        dataRows.sort((a, b) => {
+          const skuA = String(a.sku || '').trim().toLowerCase()
+          const skuB = String(b.sku || '').trim().toLowerCase()
+          return skuA.localeCompare(skuB, 'id', { numeric: true, sensitivity: 'base' })
+        })
+
+        // Re-index No. 1 to N sequentially after sorting
+        dataRows.forEach((item, index) => {
+          item.no = index + 1
+        })
+
         const cleanBaseName = originalFileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
         const titleUpper = cleanBaseName.toUpperCase()
         const derivedTitle = titleUpper.includes('PERIODE')
@@ -308,11 +320,48 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
     }
   }
 
+  // Cache of Base64 Data URLs for images to guarantee 100% canvas rendering without CORS issues
+  const [imageBase64Map, setImageBase64Map] = useState({})
+
+  // Background preload images to base64 Data URLs as soon as Excel rows are parsed
+  useEffect(() => {
+    if (!parsedRows || parsedRows.length === 0) return
+
+    let cancelled = false
+    const uniqueUrls = Array.from(new Set(parsedRows.map((r) => r.gambar).filter(Boolean)))
+
+    const preload = async () => {
+      // Fetch in parallel chunks of 5
+      for (let i = 0; i < uniqueUrls.length; i += 5) {
+        if (cancelled) break
+        const chunk = uniqueUrls.slice(i, i + 5)
+        await Promise.all(
+          chunk.map(async (url) => {
+            if (imageBase64Map[url]) return
+            try {
+              const b64 = await urlToBase64ViaProxy(url)
+              if (b64 && !cancelled) {
+                setImageBase64Map((prev) => ({ ...prev, [url]: b64 }))
+              }
+            } catch (err) {
+              console.warn('[CetakJadwalPromo] Gagal preload gambar:', url, err)
+            }
+          })
+        )
+      }
+    }
+
+    preload()
+    return () => {
+      cancelled = true
+    }
+  }, [parsedRows])
+
   // Calculate dynamic document height so NO row is cropped!
   // Width is strictly 1080px. Minimum height is 1920px.
-  // Each row has generous ~76px height for big clear elements.
+  // Base padding & header adjusted to 400px for larger subtitle and titles.
   const dynamicDocumentHeight = useMemo(() => {
-    const basePaddingAndHeader = 360 // padding + header banner + table header + footer
+    const basePaddingAndHeader = 400 // padding + header banner (with 34px subtitle) + table header + footer
     const rowsHeight = parsedRows.length * 76
     const totalNeeded = basePaddingAndHeader + rowsHeight
     return Math.max(1920, Math.ceil(totalNeeded))
@@ -351,21 +400,38 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
     try {
       const sheetEl = sheetContainerRef.current
 
-      // 1. Pre-convert all images within the sheet to base64 Data URLs so canvas doesn't get tainted
+      // 1. Ensure all images within the sheet are 100% Base64 Data URLs so canvas doesn't omit them
       const imgElements = Array.from(sheetEl.querySelectorAll('img[data-original-src]'))
+      const resolvedMap = { ...imageBase64Map }
+
       await Promise.all(
         imgElements.map(async (img) => {
           const originalSrc = img.getAttribute('data-original-src')
-          if (originalSrc && !img.src.startsWith('data:')) {
-            const b64 = await urlToBase64ViaProxy(originalSrc)
+          if (!originalSrc) return
+
+          let b64 = resolvedMap[originalSrc]
+          if (!b64) {
+            b64 = await urlToBase64ViaProxy(originalSrc)
             if (b64) {
-              img.src = b64
+              resolvedMap[originalSrc] = b64
+              setImageBase64Map((prev) => ({ ...prev, [originalSrc]: b64 }))
+            }
+          }
+
+          if (b64) {
+            img.src = b64
+            img.removeAttribute('crossorigin')
+            if ('decode' in img) {
+              try {
+                await img.decode()
+              } catch {}
             }
           }
         })
       )
 
-      await new Promise((r) => setTimeout(r, 120))
+      // Brief wait to allow image paint into the DOM
+      await new Promise((r) => setTimeout(r, 200))
 
       // 2. Measure actual content height when transform is unscaled
       const prevTransform = sheetEl.style.transform
@@ -396,6 +462,7 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
         scrollY: 0,
         x: 0,
         y: 0,
+        imageTimeout: 15000,
         onclone: (clonedDoc) => {
           const clonedSheet = clonedDoc.getElementById('cetak-jadwal-sheet')
           if (clonedSheet) {
@@ -405,6 +472,16 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
             clonedSheet.style.minHeight = `${exportHeight}px`
             clonedSheet.style.height = `${exportHeight}px`
           }
+
+          // Ensure all cloned img elements also use base64 data URLs
+          const clonedImgs = clonedDoc.querySelectorAll('img[data-original-src]')
+          clonedImgs.forEach((cImg) => {
+            const orig = cImg.getAttribute('data-original-src')
+            if (orig && resolvedMap[orig]) {
+              cImg.src = resolvedMap[orig]
+              cImg.removeAttribute('crossorigin')
+            }
+          })
         },
       })
 
@@ -843,7 +920,17 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
                         {docTitle || 'JADWAL PROMO CAMPAIGN'}
                       </h1>
                       {docSubtitle && (
-                        <p style={{ margin: '6px 0 0', fontSize: '16px', color: '#475569', fontWeight: 600 }}>
+                        <p
+                          style={{
+                            margin: '8px 0 0',
+                            fontSize: '34px',
+                            fontWeight: 400,
+                            color: '#475569',
+                            lineHeight: 1.2,
+                            letterSpacing: '-0.02em',
+                            wordBreak: 'break-word',
+                          }}
+                        >
                           {docSubtitle}
                         </p>
                       )}
@@ -970,15 +1057,14 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
                                       background: '#f8fafc',
                                       cursor: 'pointer',
                                     }}
-                                    onClick={() => setPreviewZoomImage({ url: r.gambar, title: r.sku })}
+                                    onClick={() => setPreviewZoomImage({ url: imageBase64Map[r.gambar] || r.gambar, title: r.sku })}
                                     title="Klik untuk melihat gambar besar"
                                   >
                                     <img
-                                      src={r.gambar}
+                                      src={imageBase64Map[r.gambar] || `/api/image-proxy?url=${encodeURIComponent(r.gambar)}`}
                                       data-original-src={r.gambar}
                                       alt={r.sku}
                                       referrerPolicy="no-referrer"
-                                      crossOrigin="anonymous"
                                       style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                                     />
                                   </div>
