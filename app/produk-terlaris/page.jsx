@@ -515,16 +515,16 @@ function applyColFilter(rows, colFilters) {
         if (f.op === 'is_empty' && cell.trim() !== '') return false
         if (f.op === 'is_not_empty' && cell.trim() === '') return false
       } else {
-        const cell = row[col]
+        const cell = row[col] == null ? null : Number(row[col])
         const val = parseFloat(f.value)
         const val2 = parseFloat(f.value2)
         if (f.op === 'eq' && cell !== val) return false
         if (f.op === 'neq' && cell === val) return false
-        if (f.op === 'gt' && !(cell > val)) return false
-        if (f.op === 'gte' && !(cell >= val)) return false
-        if (f.op === 'lt' && !(cell < val)) return false
-        if (f.op === 'lte' && !(cell <= val)) return false
-        if (f.op === 'between' && !(cell >= val && cell <= val2)) return false
+        if (f.op === 'gt' && !(cell != null && cell > val)) return false
+        if (f.op === 'gte' && !(cell != null && cell >= val)) return false
+        if (f.op === 'lt' && !(cell != null && cell < val)) return false
+        if (f.op === 'lte' && !(cell != null && cell <= val)) return false
+        if (f.op === 'between' && !(cell != null && cell >= val && cell <= val2)) return false
       }
     }
     return true
@@ -903,6 +903,31 @@ function ColFilterPopover({ col, filter, options, onChange, onClose, anchorRef }
 
 // ── Column header with sort + filter ─────────────────────────────────────────
 
+function getFilterSummaryLabel(col, filter) {
+  if (!filter || !filter.op) return null
+  if (filter.op === 'in') {
+    if (!filter.values || filter.values.length === 0) return null
+    return `${filter.values.length} item`
+  }
+  if (filter.op === 'contains') return `Mengandung "${filter.value}"`
+  if (filter.op === 'not_contains') return `≠ "${filter.value}"`
+  if (filter.op === 'equals') return `"${filter.value}"`
+  if (filter.op === 'not_equals') return `≠ "${filter.value}"`
+  if (filter.op === 'starts_with') return `Awalan "${filter.value}"`
+  if (filter.op === 'ends_with') return `Akhiran "${filter.value}"`
+  if (filter.op === 'is_empty') return 'Kosong'
+  if (filter.op === 'is_not_empty') return 'Terisi'
+  if (filter.op === 'eq') return `= ${filter.value}`
+  if (filter.op === 'neq') return `≠ ${filter.value}`
+  if (filter.op === 'gt') return `> ${filter.value}`
+  if (filter.op === 'gte') return `≥ ${filter.value}`
+  if (filter.op === 'lt') return `< ${filter.value}`
+  if (filter.op === 'lte') return `≤ ${filter.value}`
+  if (filter.op === 'between') return `${filter.value}–${filter.value2}`
+  if (filter.value) return filter.value
+  return null
+}
+
 function ColHeader({ col, label, align = 'left', sortBy, sortDir, onSortChange, colFilters, onColFilterChange, brandOptions }) {
   const [open, setOpen] = useState(false)
   const btnRef = useRef(null)
@@ -913,6 +938,8 @@ function ColHeader({ col, label, align = 'left', sortBy, sortDir, onSortChange, 
       ['is_empty', 'is_not_empty'].includes(filter.op) || filter.value !== ''
     ))
 
+  const summaryLabel = isActive ? getFilterSummaryLabel(col, filter) : null
+
   return (
     <th
       style={{
@@ -920,39 +947,86 @@ function ColHeader({ col, label, align = 'left', sortBy, sortDir, onSortChange, 
         whiteSpace: 'nowrap',
         position: 'relative',
         userSelect: 'none',
+        verticalAlign: 'top',
+        padding: '8px 6px',
       }}
     >
-      {/* Sort trigger (whole cell minus filter btn) */}
-      <span
-        onClick={() => onSortChange(col)}
-        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}
-        title={`Urutkan berdasarkan ${label}`}
-      >
-        {align === 'right' && <SortIcon active={sortBy === col} dir={sortDir} />}
-        {label}
-        {align === 'left' && <SortIcon active={sortBy === col} dir={sortDir} />}
-      </span>
+      <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: align === 'right' ? 'flex-end' : align === 'center' ? 'center' : 'flex-start' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+          {/* Sort trigger (whole cell minus filter btn) */}
+          <span
+            onClick={() => onSortChange(col)}
+            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}
+            title={`Urutkan berdasarkan ${label}`}
+          >
+            {align === 'right' && <SortIcon active={sortBy === col} dir={sortDir} />}
+            {label}
+            {align === 'left' && <SortIcon active={sortBy === col} dir={sortDir} />}
+          </span>
 
-      {/* Filter button */}
-      <button
-        ref={btnRef}
-        onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
-        title="Filter kolom"
-        style={{
-          marginLeft: 5,
-          padding: '1px 5px',
-          borderRadius: 4,
-          border: `1px solid ${isActive ? 'var(--accent-2, #6366f1)' : 'var(--border, #ddd)'}`,
-          background: isActive ? 'var(--accent-2, #6366f1)' : 'transparent',
-          color: isActive ? '#fff' : 'var(--muted, #888)',
-          cursor: 'pointer',
-          fontSize: 11,
-          lineHeight: 1.4,
-          verticalAlign: 'middle',
-        }}
-      >
-        {isActive ? '▼●' : '▼'}
-      </button>
+          {/* Filter button */}
+          <button
+            ref={btnRef}
+            onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
+            title={`Filter kolom ${label}`}
+            style={{
+              marginLeft: 4,
+              padding: '1px 5px',
+              borderRadius: 4,
+              border: `1px solid ${isActive ? 'var(--accent-2, #6366f1)' : 'var(--border, #ddd)'}`,
+              background: isActive ? 'var(--accent-2, #6366f1)' : 'transparent',
+              color: isActive ? '#fff' : 'var(--muted, #888)',
+              cursor: 'pointer',
+              fontSize: 11,
+              lineHeight: 1.4,
+              verticalAlign: 'middle',
+            }}
+          >
+            {isActive ? '▼●' : '▼'}
+          </button>
+        </div>
+
+        {/* Visible Filter Badge in Table Header */}
+        {isActive && summaryLabel && (
+          <div
+            onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
+            title={`Filter aktif: ${summaryLabel}. Klik untuk ubah.`}
+            style={{
+              marginTop: 4,
+              fontSize: 10,
+              fontWeight: 700,
+              color: '#3730A3',
+              background: '#EEF2FF',
+              border: '1px solid #C7D2FE',
+              borderRadius: 4,
+              padding: '1px 5px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              cursor: 'pointer',
+              lineHeight: 1.25,
+            }}
+          >
+            <span>{summaryLabel}</span>
+            <span
+              onClick={e => {
+                e.stopPropagation()
+                onColFilterChange(col, EMPTY_COL_FILTER)
+              }}
+              title={`Hapus filter kolom ${label}`}
+              style={{
+                cursor: 'pointer',
+                color: '#6366F1',
+                fontWeight: 800,
+                fontSize: 11,
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Popover */}
       {open && (
@@ -1152,45 +1226,92 @@ function GambarColHeader({ sortBy, sortDir, onSortChange, colFilters, onColFilte
   return (
     <th
       style={{
-        width: 72,
+        width: 85,
         textAlign: 'center',
         whiteSpace: 'nowrap',
         position: 'relative',
         userSelect: 'none',
         padding: '8px 4px',
+        verticalAlign: 'top',
       }}
     >
-      <span
-        onClick={() => onSortChange && onSortChange('gambar')}
-        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}
-        title="Urutkan berdasarkan ketersediaan gambar"
-      >
-        Gambar
-        {sortBy === 'gambar' && <SortIcon active={true} dir={sortDir} />}
-      </span>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          setOpen((v) => !v)
-        }}
-        title="Filter gambar (SEMUA, ADA GAMBAR, TIDAK ADA GAMBAR)"
-        style={{
-          marginLeft: 4,
-          padding: '1px 5px',
-          borderRadius: 4,
-          border: `1px solid ${isActive ? 'var(--accent-2, #6366f1)' : 'var(--border, #ddd)'}`,
-          background: isActive ? 'var(--accent-2, #6366f1)' : 'transparent',
-          color: isActive ? '#fff' : 'var(--muted, #888)',
-          cursor: 'pointer',
-          fontSize: 11,
-          lineHeight: 1.4,
-          verticalAlign: 'middle',
-        }}
-      >
-        {isActive ? '▼●' : '▼'}
-      </button>
+      <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+          <span
+            onClick={() => onSortChange && onSortChange('gambar')}
+            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}
+            title="Urutkan berdasarkan ketersediaan gambar"
+          >
+            Gambar
+            {sortBy === 'gambar' && <SortIcon active={true} dir={sortDir} />}
+          </span>
+          <button
+            ref={btnRef}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setOpen((v) => !v)
+            }}
+            title="Filter gambar (SEMUA, ADA GAMBAR, TIDAK ADA GAMBAR)"
+            style={{
+              marginLeft: 4,
+              padding: '1px 5px',
+              borderRadius: 4,
+              border: `1px solid ${isActive ? 'var(--accent-2, #6366f1)' : 'var(--border, #ddd)'}`,
+              background: isActive ? 'var(--accent-2, #6366f1)' : 'transparent',
+              color: isActive ? '#fff' : 'var(--muted, #888)',
+              cursor: 'pointer',
+              fontSize: 11,
+              lineHeight: 1.4,
+              verticalAlign: 'middle',
+            }}
+          >
+            {isActive ? '▼●' : '▼'}
+          </button>
+        </div>
+
+        {/* Visible Filter Badge in Table Header */}
+        {isActive && (
+          <div
+            onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
+            title={`Filter aktif: ${filter.value}. Klik untuk ubah.`}
+            style={{
+              marginTop: 4,
+              fontSize: 9.5,
+              fontWeight: 700,
+              color: '#3730A3',
+              background: '#EEF2FF',
+              border: '1px solid #C7D2FE',
+              borderRadius: 4,
+              padding: '1px 4px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 3,
+              cursor: 'pointer',
+              lineHeight: 1.25,
+            }}
+          >
+            <span>{filter.value}</span>
+            <span
+              onClick={e => {
+                e.stopPropagation()
+                onColFilterChange('gambar', EMPTY_COL_FILTER)
+              }}
+              title="Hapus filter gambar"
+              style={{
+                marginLeft: 1,
+                cursor: 'pointer',
+                color: '#6366F1',
+                fontWeight: 800,
+                fontSize: 11,
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </span>
+          </div>
+        )}
+      </div>
 
       {open && (
         <GambarFilterPopover
@@ -4633,6 +4754,32 @@ function BestSellerTable({
     }
   }, [groupMode])
 
+  // Pastikan kolom yang difilter terlihat di tabel saat quick filter aktif
+  useEffect(() => {
+    if (onlyMpKosongFisikAda) {
+      setVisibleCols(prev => {
+        if (prev.has('mpStock') && prev.has('stock')) return prev
+        const next = new Set(prev)
+        next.add('mpStock')
+        next.add('stock')
+        return next
+      })
+    }
+  }, [onlyMpKosongFisikAda])
+
+  useEffect(() => {
+    if (onlyCekGambarVariasi) {
+      setVisibleCols(prev => {
+        if (prev.has('kodeBarang') && prev.has('gambar') && prev.has('stock')) return prev
+        const next = new Set(prev)
+        next.add('kodeBarang')
+        next.add('gambar')
+        next.add('stock')
+        return next
+      })
+    }
+  }, [onlyCekGambarVariasi])
+
   // ── Pagination (client-side; slices the already-filtered `rows`) ──
   const [pageSize, setPageSize] = useState(50)
   const [page, setPage] = useState(1)
@@ -6018,33 +6165,81 @@ export default function ProdukTerlarisPage() {
     setOnlyCekGambarVariasi(false)
   }
 
-  // Toggle handlers that sort by biggest stock when activated
+  // Toggle handlers that apply the visible column filters directly to colFilters and sort by biggest stock
   const handleToggleMpKosongFisikAda = useCallback(() => {
-    setOnlyMpKosongFisikAda(prev => {
-      const next = !prev
-      if (next) {
-        setOnlyCekGambarVariasi(false)
-        setSortBy('stock')
-        setSortDir('desc')
-      }
-      return next
-    })
-  }, [])
+    const isCurrentlyActive = Boolean(
+      colFilters.mpStock?.op === 'eq' && String(colFilters.mpStock?.value) === '0' &&
+      colFilters.stock?.op === 'gt' && String(colFilters.stock?.value) === '0'
+    )
+
+    if (isCurrentlyActive) {
+      setColFilters(cf => {
+        const next = { ...cf }
+        delete next.mpStock
+        delete next.stock
+        return next
+      })
+    } else {
+      setColFilters(cf => {
+        const next = { ...cf }
+        if (next.kodeBarang?.value === '.') delete next.kodeBarang
+        if (next.gambar?.value === 'TIDAK ADA GAMBAR') delete next.gambar
+        next.mpStock = { op: 'eq', value: '0', value2: '' }
+        next.stock = { op: 'gt', value: '0', value2: '' }
+        return next
+      })
+      setSortBy('stock')
+      setSortDir('desc')
+    }
+  }, [colFilters])
 
   const handleToggleCekGambarVariasi = useCallback(() => {
-    setOnlyCekGambarVariasi(prev => {
-      const next = !prev
-      if (next) {
-        setOnlyMpKosongFisikAda(false)
-        if (groupMode !== 'variant') {
-          handleGroupModeChange('variant')
-        }
-        setSortBy('stock')
-        setSortDir('desc')
+    const isCurrentlyActive = Boolean(
+      colFilters.kodeBarang?.op === 'contains' && colFilters.kodeBarang?.value === '.' &&
+      colFilters.gambar?.value === 'TIDAK ADA GAMBAR' &&
+      colFilters.stock?.op === 'gt' && String(colFilters.stock?.value) === '0'
+    )
+
+    if (isCurrentlyActive) {
+      setColFilters(cf => {
+        const next = { ...cf }
+        delete next.kodeBarang
+        delete next.gambar
+        delete next.stock
+        return next
+      })
+    } else {
+      if (groupMode !== 'variant') {
+        handleGroupModeChange('variant')
       }
-      return next
-    })
-  }, [groupMode, handleGroupModeChange])
+      setColFilters(cf => {
+        const next = { ...cf }
+        if (next.mpStock?.value === '0') delete next.mpStock
+        next.kodeBarang = { op: 'contains', value: '.', value2: '' }
+        next.gambar = { op: 'equals', value: 'TIDAK ADA GAMBAR', value2: '' }
+        next.stock = { op: 'gt', value: '0', value2: '' }
+        return next
+      })
+      setSortBy('stock')
+      setSortDir('desc')
+    }
+  }, [colFilters, groupMode, handleGroupModeChange])
+
+  // Sinkronkan boolean flag tombol dengan colFilters
+  useEffect(() => {
+    const isMp = Boolean(
+      colFilters.mpStock?.op === 'eq' && String(colFilters.mpStock?.value) === '0' &&
+      colFilters.stock?.op === 'gt' && String(colFilters.stock?.value) === '0'
+    )
+    setOnlyMpKosongFisikAda(isMp)
+
+    const isGb = Boolean(
+      colFilters.kodeBarang?.op === 'contains' && colFilters.kodeBarang?.value === '.' &&
+      colFilters.gambar?.value === 'TIDAK ADA GAMBAR' &&
+      colFilters.stock?.op === 'gt' && String(colFilters.stock?.value) === '0'
+    )
+    setOnlyCekGambarVariasi(isGb)
+  }, [colFilters])
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
