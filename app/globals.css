@@ -1217,17 +1217,28 @@ section {
   position: fixed;
   top: 0.9rem;
   left: 0.9rem;
-  z-index: 210;
+  z-index: 180;
   width: 40px;
   height: 40px;
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  border: none;
+  border: 1px solid var(--sidebar-border);
   background: var(--sidebar-bg);
-  color: #fff;
+  color: var(--sidebar-ink);
   cursor: pointer;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sidebar-mobile-toggle:hover {
+  background: var(--sidebar-bg-active);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.sidebar-mobile-toggle:active {
+  transform: translateY(0);
 }
 
 .sidebar-backdrop {
