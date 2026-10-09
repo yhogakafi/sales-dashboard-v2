@@ -4570,6 +4570,7 @@ function BestSellerTable({
   searchQuery, onSearchChange,
   colFilters, onColFilterChange,
   onlyMpKosongFisikAda, onToggleMpKosongFisikAda, countMpKosongFisikAda,
+  onlyCekGambarVariasi, onToggleCekGambarVariasi, countGambarVariasi,
   stockLookup, brandOptions,
   groupMode, onGroupModeChange,
   mpStockItems,
@@ -4818,6 +4819,40 @@ function BestSellerTable({
                 </span>
               )}
             </button>
+            <button
+              type="button"
+              id="btn-cek-gambar-variasi-induk"
+              className={`pill-btn ${onlyCekGambarVariasi ? 'is-active' : ''}`}
+              onClick={onToggleCekGambarVariasi}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: onlyCekGambarVariasi ? '#4F46E5' : '#fff',
+                color: onlyCekGambarVariasi ? '#fff' : '#4338CA',
+                borderColor: onlyCekGambarVariasi ? '#4338CA' : '#C7D2FE',
+                fontWeight: 600,
+                boxShadow: onlyCekGambarVariasi ? '0 1px 3px rgba(79, 70, 229, 0.35)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+              title="Filter variasi (kode ada titik), belum ada gambar, dan stock > 0. Diurutkan dari stock terbesar."
+            >
+              <span>🖼️ Cek Gambar / Variasi</span>
+              {countGambarVariasi != null && (
+                <span
+                  style={{
+                    background: onlyCekGambarVariasi ? 'rgba(255, 255, 255, 0.25)' : '#EEF2FF',
+                    color: onlyCekGambarVariasi ? '#fff' : '#3730A3',
+                    borderRadius: 10,
+                    padding: '1px 7px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                >
+                  {countGambarVariasi.toLocaleString('id-ID')}
+                </span>
+              )}
+            </button>
             {selectedSkuKeys.size > 0 && (
               <button
                 type="button"
@@ -4889,6 +4924,40 @@ function BestSellerTable({
                   }}
                 >
                   {countMpKosongFisikAda.toLocaleString('id-ID')}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              id="btn-cek-gambar-variasi-variant"
+              className={`pill-btn ${onlyCekGambarVariasi ? 'is-active' : ''}`}
+              onClick={onToggleCekGambarVariasi}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: onlyCekGambarVariasi ? '#4F46E5' : '#fff',
+                color: onlyCekGambarVariasi ? '#fff' : '#4338CA',
+                borderColor: onlyCekGambarVariasi ? '#4338CA' : '#C7D2FE',
+                fontWeight: 600,
+                boxShadow: onlyCekGambarVariasi ? '0 1px 3px rgba(79, 70, 229, 0.35)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+              title="Filter variasi (kode ada titik), belum ada gambar, dan stock > 0. Diurutkan dari stock terbesar."
+            >
+              <span>🖼️ Cek Gambar / Variasi</span>
+              {countGambarVariasi != null && (
+                <span
+                  style={{
+                    background: onlyCekGambarVariasi ? 'rgba(255, 255, 255, 0.25)' : '#EEF2FF',
+                    color: onlyCekGambarVariasi ? '#fff' : '#3730A3',
+                    borderRadius: 10,
+                    padding: '1px 7px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                >
+                  {countGambarVariasi.toLocaleString('id-ID')}
                 </span>
               )}
             </button>
@@ -5494,6 +5563,9 @@ export default function ProdukTerlarisPage() {
   // Quick filter: Cek Stok Marketplace Kosong, Fisik Ada (MP STOCK = 0 and STOCK > 0)
   const [onlyMpKosongFisikAda, setOnlyMpKosongFisikAda] = useState(false)
 
+  // Quick filter: Cek Gambar / Variasi (KODE BARANG contain period, GAMBAR tidak ada gambar, STOCK > 0)
+  const [onlyCekGambarVariasi, setOnlyCekGambarVariasi] = useState(false)
+
   // Stock lookup: { kodeBarang: { brand, stock } } — digabung dari underwear + sport
   const [stockLookup, setStockLookup] = useState(null)
   const [stockError, setStockError] = useState(null)
@@ -5834,12 +5906,30 @@ export default function ProdukTerlarisPage() {
     return baseRows.filter(r => (Number(r.mpStock) === 0 && r.mpStock !== null) && (Number(r.stock || 0) > 0)).length
   }, [enrichedRows, groupMode])
 
+  // Hitung jumlah baris yang cocok untuk filter "Cek Gambar / Variasi" (kode bertitik, tanpa gambar, stock > 0)
+  const countGambarVariasi = useMemo(() => {
+    return enrichedRows.filter(r =>
+      String(r.kodeBarang || '').includes('.') &&
+      (!r.gambar || String(r.gambar).trim() === '') &&
+      (Number(r.stock || 0) > 0)
+    ).length
+  }, [enrichedRows])
+
   const filteredRows = useMemo(() => {
     let rows = groupMode === 'induk' ? groupByParentSku(enrichedRows) : enrichedRows
 
     // Quick filter: Cek Stok Marketplace Kosong, Fisik Ada (MP STOCK = 0 and STOCK > 0)
     if (onlyMpKosongFisikAda) {
       rows = rows.filter(r => (Number(r.mpStock) === 0 && r.mpStock !== null) && (Number(r.stock || 0) > 0))
+    }
+
+    // Quick filter: Cek Gambar / Variasi (KODE BARANG contain period, GAMBAR tidak ada gambar, STOCK > 0)
+    if (onlyCekGambarVariasi) {
+      rows = rows.filter(r =>
+        String(r.kodeBarang || '').includes('.') &&
+        (!r.gambar || String(r.gambar).trim() === '') &&
+        (Number(r.stock || 0) > 0)
+      )
     }
 
     // 3. global search — flexible/fuzzy: split query into words and require
@@ -5862,7 +5952,7 @@ export default function ProdukTerlarisPage() {
 
     // 6. re-rank after all filters
     return rows.map((r, i) => ({ ...r, rank: i + 1 }))
-  }, [enrichedRows, groupMode, onlyMpKosongFisikAda, searchQuery, colFilters, sortBy, sortDir])
+  }, [enrichedRows, groupMode, onlyMpKosongFisikAda, onlyCekGambarVariasi, searchQuery, colFilters, sortBy, sortDir])
 
   // ── Active filter description ──────────────────────────────────────────────────
   const activeFilterDesc = useMemo(() => {
@@ -5902,8 +5992,11 @@ export default function ProdukTerlarisPage() {
     if (onlyMpKosongFisikAda) {
       parts.push('Stok Marketplace Kosong, Fisik Ada (MP=0 & Stock>0)')
     }
+    if (onlyCekGambarVariasi) {
+      parts.push('Cek Gambar / Variasi (Kode bertitik, Tanpa Gambar & Stock>0)')
+    }
     return parts.length ? parts.join(' · ') : null
-  }, [filters, analysis, colFilters, onlyMpKosongFisikAda])
+  }, [filters, analysis, colFilters, onlyMpKosongFisikAda, onlyCekGambarVariasi])
 
   // Count active column filters for badge
   const activeColFilterCount = useMemo(() => {
@@ -5915,13 +6008,43 @@ export default function ProdukTerlarisPage() {
       return f.value !== ''
     }).length
     if (onlyMpKosongFisikAda) count += 1
+    if (onlyCekGambarVariasi) count += 1
     return count
-  }, [colFilters, onlyMpKosongFisikAda])
+  }, [colFilters, onlyMpKosongFisikAda, onlyCekGambarVariasi])
 
   const resetColFilters = () => {
     setColFilters({})
     setOnlyMpKosongFisikAda(false)
+    setOnlyCekGambarVariasi(false)
   }
+
+  // Toggle handlers that sort by biggest stock when activated
+  const handleToggleMpKosongFisikAda = useCallback(() => {
+    setOnlyMpKosongFisikAda(prev => {
+      const next = !prev
+      if (next) {
+        setOnlyCekGambarVariasi(false)
+        setSortBy('stock')
+        setSortDir('desc')
+      }
+      return next
+    })
+  }, [])
+
+  const handleToggleCekGambarVariasi = useCallback(() => {
+    setOnlyCekGambarVariasi(prev => {
+      const next = !prev
+      if (next) {
+        setOnlyMpKosongFisikAda(false)
+        if (groupMode !== 'variant') {
+          handleGroupModeChange('variant')
+        }
+        setSortBy('stock')
+        setSortDir('desc')
+      }
+      return next
+    })
+  }, [groupMode, handleGroupModeChange])
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -6070,8 +6193,11 @@ export default function ProdukTerlarisPage() {
             colFilters={colFilters}
             onColFilterChange={handleColFilterChange}
             onlyMpKosongFisikAda={onlyMpKosongFisikAda}
-            onToggleMpKosongFisikAda={() => setOnlyMpKosongFisikAda(v => !v)}
+            onToggleMpKosongFisikAda={handleToggleMpKosongFisikAda}
             countMpKosongFisikAda={countMpKosongFisikAda}
+            onlyCekGambarVariasi={onlyCekGambarVariasi}
+            onToggleCekGambarVariasi={handleToggleCekGambarVariasi}
+            countGambarVariasi={countGambarVariasi}
             stockLookup={stockLookup}
             brandOptions={brandOptions}
             groupMode={groupMode}
