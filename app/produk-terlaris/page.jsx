@@ -7,6 +7,7 @@ import { exportBarangTerlaris } from '@/lib/exportExcel'
 import { lookupSkuEntry, buildSkuIndex, parseSkuImageFile } from '@/lib/parseSkuImage'
 import * as XLSX from 'xlsx'
 import JSZip from 'jszip'
+import CetakJadwalPromoModal from '@/components/CetakJadwalPromoModal'
 
 // ─── Stock lookup helper ───────────────────────────────────────────────────────
 
@@ -4373,6 +4374,7 @@ function BestSellerTable({
   // ── Row selection & Pembagian Promo modal (khusus mode 'induk') ──
   const [selectedSkuKeys, setSelectedSkuKeys] = useState(() => new Set())
   const [pembagianPromoOpen, setPembagianPromoOpen] = useState(false)
+  const [cetakJadwalOpen, setCetakJadwalOpen] = useState(false)
 
   // Reset pilihan jika mode tampilan berganti dari 'induk'
   useEffect(() => {
@@ -4479,7 +4481,7 @@ function BestSellerTable({
           </button>
         </div>
 
-        {groupMode === 'induk' && (
+        {groupMode === 'induk' ? (
           <>
             <div style={{ height: 18, width: 1, background: 'var(--border, #ddd)', margin: '0 2px' }} />
             <button
@@ -4514,6 +4516,24 @@ function BestSellerTable({
                 </span>
               )}
             </button>
+            <button
+              type="button"
+              className="pill-btn"
+              onClick={() => setCetakJadwalOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: '#047857',
+                color: '#fff',
+                borderColor: '#059669',
+                fontWeight: 600,
+                boxShadow: '0 1px 3px rgba(4, 120, 87, 0.25)',
+              }}
+              title="Cetak Jadwal Promo dari file Excel (Periode Promo) ke gambar JPG potret 1240x1754 px"
+            >
+              <span>🖨️ Cetak Jadwal Promo</span>
+            </button>
             {selectedSkuKeys.size > 0 && (
               <button
                 type="button"
@@ -4532,6 +4552,28 @@ function BestSellerTable({
                 Batal pilih
               </button>
             )}
+          </>
+        ) : (
+          <>
+            <div style={{ height: 18, width: 1, background: 'var(--border, #ddd)', margin: '0 2px' }} />
+            <button
+              type="button"
+              className="pill-btn"
+              onClick={() => setCetakJadwalOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: '#047857',
+                color: '#fff',
+                borderColor: '#059669',
+                fontWeight: 600,
+                boxShadow: '0 1px 3px rgba(4, 120, 87, 0.25)',
+              }}
+              title="Cetak Jadwal Promo dari file Excel (Periode Promo) ke gambar JPG potret 1240x1754 px"
+            >
+              <span>🖨️ Cetak Jadwal Promo</span>
+            </button>
           </>
         )}
       </div>
@@ -5043,6 +5085,13 @@ function BestSellerTable({
           allRows={rows}
           onSelectRows={(newSet) => setSelectedSkuKeys(newSet)}
           hasStock={hasStock}
+        />
+      )}
+      {cetakJadwalOpen && (
+        <CetakJadwalPromoModal
+          isOpen={cetakJadwalOpen}
+          onClose={() => setCetakJadwalOpen(false)}
+          mpStockItems={mpStockItems}
         />
       )}
     </>

@@ -45,20 +45,27 @@ export async function GET(request) {
     return NextResponse.json({ error: 'URL tidak valid.' }, { status: 400 })
   }
 
-  // Whitelist: url harus persis salah satu link gambar yang ada di mapping tersimpan.
-  const { bySku } = await getSkuImages()
-  const allowed = new Set(Object.values(bySku).map(v => v?.image).filter(Boolean))
-  if (!allowed.has(url)) {
-    return NextResponse.json({ error: 'URL gambar tidak dikenal.' }, { status: 403 })
+  const host = parsed.hostname.toLowerCase()
+  const isTrustedCdn =
+    host.endsWith('shopee.co.id') ||
+    host.endsWith('shopeesz.com') ||
+    host.endsWith('tiktokcdn.com') ||
+    host.endsWith('byteoversea.com') ||
+    host.endsWith('alicdn.com') ||
+    host.endsWith('lazada.co.id')
+
+  if (!isTrustedCdn) {
+    const { bySku } = await getSkuImages()
+    const allowed = new Set(Object.values(bySku).map(v => v?.image).filter(Boolean))
+    if (!allowed.has(url)) {
+      return NextResponse.json({ error: 'URL gambar tidak dikenal.' }, { status: 403 })
+    }
   }
 
   let upstream
   try {
     upstream = await fetch(url, {
       headers: {
-        // Beberapa CDN cuma cek "ada Referer domain sendiri atau tidak ada
-        // Referer sama sekali" — set User-Agent browser biasa + Referer ke
-        // domain tokonya sendiri supaya permintaan kelihatan wajar.
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Referer': `${parsed.protocol}//${parsed.hostname}/`,
         'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
@@ -86,6 +93,7 @@ export async function GET(request) {
     status: 200,
     headers: {
       'Content-Type': contentType,
+      'Access-Control-Allow-Origin': '*',
       // Gambar produk jarang berubah untuk link yang sama — aman dicache lama.
       'Cache-Control': 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000',
     },
