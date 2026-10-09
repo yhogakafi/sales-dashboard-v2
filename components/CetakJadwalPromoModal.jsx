@@ -11,24 +11,87 @@ function formatRupiah(num) {
   return `Rp ${Number(num).toLocaleString('id-ID')}`
 }
 
+// Load image as ImageBitmap (primary, zero-latency canvas rendering) or decoded HTMLImageElement (fallback)
+// and extract Base64 data URL
+async function loadDrawable(url, knownBase64) {
+  if (!url) return null
+  const proxyUrl = knownBase64 || (url.startsWith('data:') ? url : `/api/image-proxy?url=${encodeURIComponent(url)}`)
+
+  // Method 1: Fetch as Blob, create ImageBitmap and Base64 Data URL
+  try {
+    const res = await fetch(proxyUrl)
+    if (res.ok) {
+      const blob = await res.blob()
+      if (blob && blob.size > 0) {
+        let b64 = knownBase64 || null
+        if (!b64) {
+          b64 = await new Promise((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result)
+            reader.onerror = () => resolve(null)
+            reader.readAsDataURL(blob)
+          })
+        }
+
+        let bitmap = null
+        if (typeof createImageBitmap === 'function') {
+          try {
+            bitmap = await createImageBitmap(blob)
+          } catch (e) {
+            console.warn('[CetakJadwalPromo] createImageBitmap error:', e)
+          }
+        }
+
+        if (bitmap && bitmap.width > 0 && bitmap.height > 0) {
+          return {
+            drawable: bitmap,
+            width: bitmap.width,
+            height: bitmap.height,
+            b64,
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[CetakJadwalPromo] Blob fetch/createImageBitmap failed:', url, err)
+  }
+
+  // Method 2: HTMLImageElement with await img.decode()
+  try {
+    const src = knownBase64 || (url.startsWith('data:') ? url : `/api/image-proxy?url=${encodeURIComponent(url)}`)
+    const img = new Image()
+    if (!src.startsWith('data:')) {
+      img.crossOrigin = 'anonymous'
+    }
+    await new Promise((resolve, reject) => {
+      img.onload = resolve
+      img.onerror = reject
+      img.src = src
+    })
+    if (typeof img.decode === 'function') {
+      try {
+        await img.decode()
+      } catch {}
+    }
+    if (img.naturalWidth > 0) {
+      return {
+        drawable: img,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+        b64: knownBase64 || null,
+      }
+    }
+  } catch (err) {
+    console.warn('[CetakJadwalPromo] HTMLImageElement fallback failed:', url, err)
+  }
+
+  return null
+}
+
 // Convert image URL to Base64 via proxy to prevent tainted canvas in html2canvas
 async function urlToBase64ViaProxy(url) {
-  if (!url) return null
-  if (url.startsWith('data:')) return url
-  try {
-    const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(url)}`
-    const res = await fetch(proxyUrl)
-    if (!res.ok) return null
-    const blob = await res.blob()
-    return await new Promise((resolve) => {
-      const reader = new FileReader()
-      reader.onloadend = () => resolve(reader.result)
-      reader.onerror = () => resolve(null)
-      reader.readAsDataURL(blob)
-    })
-  } catch {
-    return null
-  }
+  const item = await loadDrawable(url)
+  return item?.b64 || null
 }
 
 export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = [] }) {
@@ -400,46 +463,47 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
     try {
       const sheetEl = sheetContainerRef.current
 
-      // 1. Ensure all images within the sheet are 100% Base64 Data URLs so canvas doesn't omit them
-      const imgElements = Array.from(sheetEl.querySelectorAll('img[data-original-src]'))
+      // 1. Preload all unique images as ImageBitmap / Decoded drawables and extract Base64 Data URLs
+      const uniqueUrls = Array.from(new Set(parsedRows.map((r) => r.gambar).filter(Boolean)))
       const resolvedMap = { ...imageBase64Map }
+      const loadedDrawablesMap = new Map()
 
       await Promise.all(
-        imgElements.map(async (img) => {
-          const originalSrc = img.getAttribute('data-original-src')
-          if (!originalSrc) return
-
-          let b64 = resolvedMap[originalSrc]
-          if (!b64) {
-            b64 = await urlToBase64ViaProxy(originalSrc)
-            if (b64) {
-              resolvedMap[originalSrc] = b64
-              setImageBase64Map((prev) => ({ ...prev, [originalSrc]: b64 }))
-            }
-          }
-
-          if (b64) {
-            img.src = b64
-            img.removeAttribute('crossorigin')
-            if ('decode' in img) {
-              try {
-                await img.decode()
-              } catch {}
+        uniqueUrls.map(async (url) => {
+          const item = await loadDrawable(url, resolvedMap[url])
+          if (item) {
+            loadedDrawablesMap.set(url, item)
+            if (item.b64 && !resolvedMap[url]) {
+              resolvedMap[url] = item.b64
+              setImageBase64Map((prev) => ({ ...prev, [url]: item.b64 }))
             }
           }
         })
       )
 
-      // Brief wait to allow image paint into the DOM
-      await new Promise((r) => setTimeout(r, 200))
+      console.log(
+        `[CetakJadwalPromo] Preloaded ${loadedDrawablesMap.size} of ${uniqueUrls.length} images for canvas composite.`
+      )
 
-      // 2. Measure actual content height when transform is unscaled
+      // Also ensure live DOM images have src updated
+      const imgElements = Array.from(sheetEl.querySelectorAll('img[data-original-src]'))
+      imgElements.forEach((img) => {
+        const orig = img.getAttribute('data-original-src')
+        if (orig && resolvedMap[orig]) {
+          img.src = resolvedMap[orig]
+          img.removeAttribute('crossorigin')
+        }
+      })
+
+      await new Promise((r) => setTimeout(r, 150))
+
+      // 2. Measure actual content height and image box coordinates when transform is unscaled
       const prevTransform = sheetEl.style.transform
       const prevTransformOrigin = sheetEl.style.transformOrigin
       const prevMinHeight = sheetEl.style.minHeight
       const prevHeight = sheetEl.style.height
 
-      // Temporarily remove transform to measure exact unscaled dimensions
+      // Temporarily remove transform to measure exact 1:1 unscaled pixel dimensions
       sheetEl.style.transform = 'none'
       const exportWidth = 1080
       const contentHeight = Math.ceil(sheetEl.scrollHeight)
@@ -448,6 +512,20 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
       sheetEl.style.minHeight = `${exportHeight}px`
       sheetEl.style.height = `${exportHeight}px`
 
+      // Measure exact canvas coordinates of every image box
+      const sheetRect = sheetEl.getBoundingClientRect()
+      const promoBoxes = Array.from(sheetEl.querySelectorAll('[data-promo-img-box="true"]')).map((el) => {
+        const rect = el.getBoundingClientRect()
+        return {
+          url: el.getAttribute('data-img-src'),
+          x: Math.round(rect.left - sheetRect.left),
+          y: Math.round(rect.top - sheetRect.top),
+          w: Math.round(rect.width),
+          h: Math.round(rect.height),
+        }
+      })
+
+      // 3. Render base document layout with html2canvas
       const canvas = await html2canvas(sheetEl, {
         width: exportWidth,
         height: exportHeight,
@@ -471,19 +549,109 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
             clonedSheet.style.width = '1080px'
             clonedSheet.style.minHeight = `${exportHeight}px`
             clonedSheet.style.height = `${exportHeight}px`
-          }
 
-          // Ensure all cloned img elements also use base64 data URLs
-          const clonedImgs = clonedDoc.querySelectorAll('img[data-original-src]')
-          clonedImgs.forEach((cImg) => {
-            const orig = cImg.getAttribute('data-original-src')
-            if (orig && resolvedMap[orig]) {
-              cImg.src = resolvedMap[orig]
-              cImg.removeAttribute('crossorigin')
-            }
-          })
+            // Assign base64 to cloned img elements
+            const clonedImgs = Array.from(clonedSheet.querySelectorAll('img[data-original-src]'))
+            clonedImgs.forEach((img) => {
+              const orig = img.getAttribute('data-original-src')
+              if (orig && resolvedMap[orig]) {
+                img.src = resolvedMap[orig]
+              }
+            })
+          }
         },
       })
+
+      // 4. DIRECT 2D CANVAS COMPOSITING:
+      // Guarantee 100% that every product thumbnail is drawn into its exact box on the canvas!
+      const ctx = canvas.getContext('2d')
+      const debugBoxDrawResults = []
+      if (ctx) {
+        // TEST RECTANGLE TO PROVE DRAWING WORKS ON CANVAS:
+        ctx.fillStyle = '#FF0000'
+        ctx.fillRect(20, 20, 120, 120)
+
+        let compositedCount = 0
+        for (const box of promoBoxes) {
+          if (!box.url) {
+            debugBoxDrawResults.push({ url: null, status: 'no_url' })
+            continue
+          }
+          const item = loadedDrawablesMap.get(box.url)
+          if (item && item.drawable && item.width > 0 && item.height > 0) {
+            const { x, y, w, h } = box
+            const radius = 8
+
+            ctx.save()
+            // Rounded rectangle clipping path
+            ctx.beginPath()
+            if (typeof ctx.roundRect === 'function') {
+              ctx.roundRect(x, y, w, h, radius)
+            } else {
+              ctx.moveTo(x + radius, y)
+              ctx.lineTo(x + w - radius, y)
+              ctx.quadraticCurveTo(x + w, y, x + w, y + radius)
+              ctx.lineTo(x + w, y + h - radius)
+              ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h)
+              ctx.lineTo(x + radius, y + h)
+              ctx.quadraticCurveTo(x, y + h, x, y + h - radius)
+              ctx.lineTo(x, y + radius)
+              ctx.quadraticCurveTo(x, y, x + radius, y)
+              ctx.closePath()
+            }
+            ctx.clip()
+
+            // Fill clean thumbnail background
+            ctx.fillStyle = '#ffffff'
+            ctx.fillRect(x, y, w, h)
+
+            // Object-fit contain calculation
+            const imgAspect = item.width / item.height
+            const boxAspect = w / h
+            let dw = w
+            let dh = h
+            let dx = x
+            let dy = y
+            if (imgAspect > boxAspect) {
+              dh = w / imgAspect
+              dy = y + (h - dh) / 2
+            } else {
+              dw = h * imgAspect
+              dx = x + (w - dw) / 2
+            }
+
+            ctx.drawImage(item.drawable, dx, dy, dw, dh)
+            ctx.restore()
+
+            // Subtle crisp border around thumbnail (1.5px solid #cbd5e1)
+            ctx.save()
+            ctx.strokeStyle = '#cbd5e1'
+            ctx.lineWidth = 1.5
+            ctx.beginPath()
+            if (typeof ctx.roundRect === 'function') {
+              ctx.roundRect(x, y, w, h, radius)
+            } else {
+              ctx.moveTo(x + radius, y)
+              ctx.lineTo(x + w - radius, y)
+              ctx.quadraticCurveTo(x + w, y, x + w, y + radius)
+              ctx.lineTo(x + w, y + h - radius)
+              ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h)
+              ctx.lineTo(x + radius, y + h)
+              ctx.quadraticCurveTo(x, y + h, x, y + h - radius)
+              ctx.lineTo(x, y + radius)
+              ctx.quadraticCurveTo(x, y, x + radius, y)
+              ctx.closePath()
+            }
+            ctx.stroke()
+            ctx.restore()
+            compositedCount++
+            debugBoxDrawResults.push({ url: box.url, success: true, itemType: item.drawable?.constructor?.name, x: box.x, y: box.y, w: box.w, h: box.h })
+          } else {
+            debugBoxDrawResults.push({ url: box.url, success: false, reason: !item ? 'no_item' : (!item.drawable ? 'no_drawable' : 'zero_size') })
+          }
+        }
+        console.log(`[CetakJadwalPromo] Composited ${compositedCount} image thumbnails directly onto 2D canvas. Canvas size: ${canvas.width}x${canvas.height}`)
+      }
 
       // Restore style
       sheetEl.style.transform = prevTransform
@@ -500,6 +668,28 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
       const fileNameJpg = `${safeTitle}-1080x${exportHeight}.jpg`
+
+      // Save copy to scratch for verification
+      const debugInfo = {
+        sheetRect: { width: sheetRect.width, height: sheetRect.height, left: sheetRect.left, top: sheetRect.top },
+        canvasSize: { width: canvas.width, height: canvas.height },
+        boxesCount: promoBoxes.length,
+        compositedCount,
+        boxDrawResults: debugBoxDrawResults,
+        loadedCount: loadedDrawablesMap.size,
+        sampleImgSizes: Array.from(loadedDrawablesMap.entries()).slice(0, 5).map(([url, item]) => ({
+          url,
+          width: item.width,
+          height: item.height,
+          type: item.drawable?.constructor?.name || typeof item.drawable,
+          hasB64: !!item.b64,
+        })),
+      }
+      fetch('/api/debug-save-jpg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataUrl, fileName: 'latest-promo-export.jpg', debugInfo }),
+      }).catch(() => {})
 
       const link = document.createElement('a')
       link.download = fileNameJpg
@@ -680,6 +870,7 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
               <span style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>Ingin mencoba langsung data sampel?</span>
               <button
                 type="button"
+                id="btn-load-sample-periode"
                 onClick={handleLoadSample}
                 disabled={loadingSample || parsingFile}
                 className="btn-export"
@@ -810,6 +1001,7 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
                 {/* Export JPG Button */}
                 <button
                   type="button"
+                  id="btn-download-promo-jpg"
                   onClick={exportSheetToJpg}
                   disabled={generatingJpg}
                   className="btn-export"
@@ -1045,6 +1237,8 @@ export default function CetakJadwalPromoModal({ isOpen, onClose, mpStockItems = 
                               >
                                 {r.gambar ? (
                                   <div
+                                    data-promo-img-box="true"
+                                    data-img-src={r.gambar}
                                     style={{
                                       width: 64,
                                       height: 64,

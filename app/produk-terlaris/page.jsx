@@ -4518,6 +4518,7 @@ function BestSellerTable({
             </button>
             <button
               type="button"
+              id="btn-open-cetak-jadwal-promo"
               className="pill-btn"
               onClick={() => setCetakJadwalOpen(true)}
               style={{
