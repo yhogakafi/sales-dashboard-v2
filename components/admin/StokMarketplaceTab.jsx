@@ -31,7 +31,6 @@ export default function StokMarketplaceTab() {
   const [parsing, setParsing] = useState(false)
   const [previewData, setPreviewData] = useState(null)
   const [uploading, setUploading] = useState(false)
-  const [syncingSample, setSyncingSample] = useState(false)
   const [errorMsg, setErrorMsg] = useState(null)
   const [successMsg, setSuccessMsg] = useState(null)
 
@@ -43,7 +42,6 @@ export default function StokMarketplaceTab() {
   const [parsingImg, setParsingImg] = useState(false)
   const [previewImgData, setPreviewImgData] = useState(null)
   const [uploadingImg, setUploadingImg] = useState(false)
-  const [syncingImgSample, setSyncingImgSample] = useState(false)
   const [imgErrorMsg, setImgErrorMsg] = useState(null)
   const [imgSuccessMsg, setImgSuccessMsg] = useState(null)
   const imgFileInputRef = useRef(null)
@@ -158,47 +156,6 @@ export default function StokMarketplaceTab() {
     }
   }
 
-  const handleSyncImgSample = async () => {
-    if (!imgCustomerName.trim()) {
-      setImgErrorMsg('Nama pelanggan wajib diisi.')
-      return
-    }
-
-    setSyncingImgSample(true)
-    setImgErrorMsg(null)
-    setImgSuccessMsg(null)
-
-    try {
-      const matchedCustomer = indexList.find(
-        (c) =>
-          c.name?.trim().toLowerCase() === imgCustomerName.trim().toLowerCase() ||
-          c.id === slugifyCustomerId(imgCustomerName)
-      )
-      const customerId = matchedCustomer?.id || slugifyCustomerId(imgCustomerName)
-
-      const res = await fetch('/api/stok-marketplace/images', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'sync-sample',
-          customerName: imgCustomerName.trim(),
-          customerId,
-        }),
-      })
-
-      const body = await res.json()
-      if (!res.ok || !body.ok) {
-        throw new Error(body.error || 'Gagal memuat sampel gambar.')
-      }
-
-      setImgSuccessMsg(body.message || 'File sampel gambar berhasil dimuat!')
-      await fetchIndex()
-    } catch (err) {
-      setImgErrorMsg(err.message)
-    } finally {
-      setSyncingImgSample(false)
-    }
-  }
 
   // Fetch registered marketplace customers
   const fetchIndex = useCallback(async () => {
@@ -328,40 +285,6 @@ export default function StokMarketplaceTab() {
     }
   }
 
-  // Quick sync directly from the local sample folder "stok shopee scelta"
-  const handleSyncSample = async () => {
-    if (!customerName.trim()) {
-      setErrorMsg('Nama pelanggan wajib diisi.')
-      return
-    }
-
-    setSyncingSample(true)
-    setErrorMsg(null)
-    setSuccessMsg(null)
-
-    try {
-      const res = await fetch('/api/stok-marketplace/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'sync-sample',
-          customerName: customerName.trim(),
-        }),
-      })
-
-      const body = await res.json()
-      if (!res.ok || !body.ok) {
-        throw new Error(body.error || 'Gagal memuat file sampel.')
-      }
-
-      setSuccessMsg(body.message || 'File sampel berhasil dimuat!')
-      await fetchIndex()
-    } catch (err) {
-      setErrorMsg(err.message)
-    } finally {
-      setSyncingSample(false)
-    }
-  }
 
   // Delete customer stock
   const handleDeleteCustomer = async (id, name) => {
@@ -425,7 +348,7 @@ export default function StokMarketplaceTab() {
           >
             <p style={{ margin: 0, fontWeight: 600 }}>Belum ada data stok marketplace yang diunggah.</p>
             <p style={{ margin: '6px 0 0', fontSize: '13px' }}>
-              Silakan unggah satu atau beberapa file Excel di bawah ini atau klik tombol &ldquo;⚡ Muat Sampel dari Folder stok shopee scelta&rdquo;.
+              Silakan unggah satu atau beberapa file Excel di bawah ini.
             </p>
           </div>
         ) : (
@@ -861,26 +784,6 @@ export default function StokMarketplaceTab() {
           </div>
         )}
 
-        {/* Quick Testing Shortcut */}
-        <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-            <div>
-              <strong style={{ fontSize: '13px', color: '#713F12' }}>⚡ Pintasan Sampel Folder Lokal</strong>
-              <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#78716C' }}>
-                Langsung muat 3 file sampel dari folder <code>stok shopee scelta</code> (1.xlsx, 2.xlsx, 3.xlsx) ke pelanggan di atas.
-              </p>
-            </div>
-            <button
-              type="button"
-              className="btn-export"
-              onClick={handleSyncSample}
-              disabled={syncingSample}
-              style={{ background: '#713F12', color: '#FEF08A' }}
-            >
-              {syncingSample ? 'Menyinkronkan…' : `⚡ Muat Sampel ke ${customerName}`}
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* ── Block 3: Upload Foto Sampul / Gambar Produk Marketplace ── */}
@@ -1123,26 +1026,6 @@ export default function StokMarketplaceTab() {
           </div>
         )}
 
-        {/* Quick Shortcut to load sample image file */}
-        <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-            <div>
-              <strong style={{ fontSize: '13px', color: '#5B21B6' }}>⚡ Pintasan Sampel gambar-shopee-scelta.xlsx</strong>
-              <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#78716C' }}>
-                Langsung muat 1.488 link foto sampul dari file <code>.data/gambar-shopee-scelta.xlsx</code> ke pelanggan yang dipilih di atas.
-              </p>
-            </div>
-            <button
-              type="button"
-              className="btn-export"
-              onClick={handleSyncImgSample}
-              disabled={syncingImgSample}
-              style={{ background: '#6D28D9', color: '#EDE9FE' }}
-            >
-              {syncingImgSample ? 'Menyinkronkan…' : `⚡ Muat Sampel Gambar ke ${imgCustomerName}`}
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   )

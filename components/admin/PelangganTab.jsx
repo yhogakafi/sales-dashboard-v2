@@ -16,9 +16,6 @@ export default function PelangganTab() {
   const [preview, setPreview] = useState(null)
   const [saving, setSaving] = useState(false)
 
-  // Local sync state
-  const [syncingLocal, setSyncingLocal] = useState(false)
-
   const fileInputRef = useRef(null)
 
   const fetchStatus = useCallback(async () => {
@@ -94,31 +91,7 @@ export default function PelangganTab() {
     }
   }
 
-  const handleSyncFromLocal = async () => {
-    setSyncingLocal(true)
-    setError(null)
-    setSuccessMsg(null)
 
-    try {
-      const res = await fetch('/api/pelanggan/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync-local' }),
-      })
-
-      const body = await res.json()
-      if (!res.ok || !body.ok) {
-        throw new Error(body.error || 'Gagal mengisi data dari PELANGGAN 2.xls.')
-      }
-
-      setSuccessMsg('Berhasil menyinkronkan data langsung dari file PELANGGAN 2.xls!')
-      await fetchStatus()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSyncingLocal(false)
-    }
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -203,21 +176,12 @@ export default function PelangganTab() {
           >
             <p style={{ margin: 0, fontWeight: 600 }}>Belum ada data pelanggan di storage.</p>
             <p style={{ margin: '6px 0 0', fontSize: '13px' }}>
-              Silakan unggah file Excel di bawah atau klik tombol &ldquo;Isi dari PELANGGAN 2.xls&rdquo;.
+              Silakan unggah file Excel di bawah ini.
             </p>
           </div>
         )}
 
         <div style={{ marginTop: '1.25rem', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="btn-export"
-            onClick={handleSyncFromLocal}
-            disabled={syncingLocal}
-            style={{ background: '#713F12', color: '#FEF08A' }}
-          >
-            {syncingLocal ? 'Menyinkronkan…' : '⚡ Isi Ulang dari File PELANGGAN 2.xls'}
-          </button>
           <a
             href="/pelanggan"
             target="_blank"

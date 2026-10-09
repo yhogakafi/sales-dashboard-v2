@@ -746,23 +746,7 @@ export default function StokMarketplacePage() {
             {/* ── Controls & Filter Bar ── */}
             <div className="aff-control-bar">
               {/* Global search */}
-              <div style={{ flex: '1 1 260px', position: 'relative' }}>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari Nama Produk atau SKU..."
-                  className="aff-search-input"
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px 8px 34px',
-                    fontSize: '13px',
-                    border: '1px solid #FEF08A',
-                    borderRadius: '8px',
-                    background: '#FFFDF5',
-                    outline: 'none',
-                  }}
-                />
+              <div style={{ flex: '1 1 260px', position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <svg
                   width="15"
                   height="15"
@@ -772,11 +756,51 @@ export default function StokMarketplacePage() {
                   strokeWidth="2.2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  style={{ position: 'absolute', left: '10px', top: '10px', pointerEvents: 'none' }}
+                  style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 1 }}
                 >
                   <circle cx="11" cy="11" r="8" />
                   <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari Nama Produk atau SKU..."
+                  style={{
+                    width: '100%',
+                    height: '36px',
+                    boxSizing: 'border-box',
+                    padding: '8px 30px 8px 36px',
+                    fontSize: '13px',
+                    border: '1px solid #FEF08A',
+                    borderRadius: '8px',
+                    background: '#FFFDF5',
+                    outline: 'none',
+                    color: 'inherit',
+                  }}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      color: '#92400E',
+                      padding: 0,
+                      lineHeight: 1,
+                    }}
+                    title="Hapus pencarian"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
 
               {/* Status filter pills */}

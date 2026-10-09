@@ -274,7 +274,7 @@ function enrichWithMpStock(rows, mpLookup) {
 
 // ─── Sorting ────────────────────────────────────────────────────────────────
 
-const TEXT_SORT_COLS = ['namaBarang', 'kodeBarang', 'brand', 'tipe']
+const TEXT_SORT_COLS = ['namaBarang', 'kodeBarang', 'brand', 'tipe', 'gambar']
 
 // ─── Kelompokkan per SKU induk (dipakai mode "Per SKU Gabungan") ──────────────
 // Logic sama seperti tool Rekap SKU Induk: kode dengan titik (mis. 105132.3.02)
@@ -422,6 +422,11 @@ function sortRows(rows, sortBy, sortDir = 'desc') {
       // (row.tipe undefined semua), biarkan urutan aslinya (bukan NaN sort).
       return mult * String(a.tipe || '').localeCompare(String(b.tipe || ''), 'id')
     }
+    if (col === 'gambar') {
+      const aHas = Boolean(a.gambar && String(a.gambar).trim() !== '') ? 1 : 0
+      const bHas = Boolean(b.gambar && String(b.gambar).trim() !== '') ? 1 : 0
+      return mult * (bHas - aHas)
+    }
     // Numeric columns: kuantitas, hargaProduk, stock, hpp, totalHpp, ssr…
     // Missing/null values (mis. SSR saat terjual = 0) selalu di akhir,
     // terlepas dari arah urutan — bukan ikut kebalik pas toggle ke ascending.
@@ -471,7 +476,15 @@ const TIPE_LABELS = { gabungan: 'Gabungan', tunggal: 'Tunggal' }
 function applyColFilter(rows, colFilters) {
   return rows.filter(row => {
     for (const [col, f] of Object.entries(colFilters)) {
-      if (!f.op) continue
+      if (!f.op && col !== 'gambar') continue
+
+      // Filter khusus kolom Gambar: "SEMUA", "ADA GAMBAR", "TIDAK ADA GAMBAR"
+      if (col === 'gambar') {
+        const hasImg = Boolean(row.gambar && String(row.gambar).trim() !== '')
+        if (f.value === 'ADA GAMBAR' && !hasImg) return false
+        if (f.value === 'TIDAK ADA GAMBAR' && hasImg) return false
+        continue
+      }
 
       // Checklist multi-select (dipakai kolom Brand) — beda struktur dari filter teks/angka biasa
       if (f.op === 'in') {
@@ -948,6 +961,241 @@ function ColHeader({ col, label, align = 'left', sortBy, sortDir, onSortChange, 
           filter={filter}
           options={col === 'tipe' ? TIPE_OPTIONS : brandOptions}
           onChange={f => onColFilterChange(col, f)}
+          onClose={() => setOpen(false)}
+          anchorRef={btnRef}
+        />
+      )}
+    </th>
+  )
+}
+
+// ── Column filter popover for Gambar ──────────────────────────────────────────
+
+function GambarFilterPopover({ value, onChange, onClose, anchorRef }) {
+  const ref = useRef(null)
+  const [pos, setPos] = useState(null)
+  const [selectedVal, setSelectedVal] = useState(value || 'SEMUA')
+
+  useLayoutEffect(() => {
+    if (!anchorRef.current) return
+    const updatePos = () => {
+      const rect = anchorRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: Math.max(10, rect.left - 60) })
+    }
+    updatePos()
+    window.addEventListener('resize', updatePos)
+    return () => window.removeEventListener('resize', updatePos)
+  }, [anchorRef])
+
+  useEffect(() => {
+    function handle(e) {
+      if (ref.current && !ref.current.contains(e.target) &&
+        anchorRef.current && !anchorRef.current.contains(e.target)) {
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [onClose, anchorRef])
+
+  useEffect(() => {
+    const handleScroll = (e) => {
+      if (ref.current && ref.current.contains(e.target)) return
+      onClose()
+    }
+    window.addEventListener('scroll', handleScroll, true)
+    return () => window.removeEventListener('scroll', handleScroll, true)
+  }, [onClose])
+
+  if (!pos) return null
+
+  const options = [
+    { value: 'SEMUA', label: 'SEMUA', desc: 'Tampilkan semua produk' },
+    { value: 'ADA GAMBAR', label: 'ADA GAMBAR', desc: 'Hanya produk yang memiliki gambar' },
+    { value: 'TIDAK ADA GAMBAR', label: 'TIDAK ADA GAMBAR', desc: 'Hanya produk tanpa gambar' },
+  ]
+
+  const handleApply = (val) => {
+    const finalVal = val || selectedVal
+    if (finalVal === 'SEMUA') {
+      onChange(EMPTY_COL_FILTER)
+    } else {
+      onChange({ op: 'equals', value: finalVal })
+    }
+    onClose()
+  }
+
+  return createPortal((
+    <div
+      ref={ref}
+      style={{
+        position: 'fixed',
+        top: pos.top,
+        left: pos.left,
+        zIndex: 500,
+        background: 'var(--surface, #fff)',
+        border: '1px solid var(--border, #ddd)',
+        borderRadius: 10,
+        boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+        padding: '0.85rem',
+        minWidth: 230,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--ink-muted, #6B6A66)', marginBottom: 2 }}>
+        Filter Kolom Gambar
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {options.map((opt) => {
+          const isSelected = selectedVal === opt.value
+          return (
+            <div
+              key={opt.value}
+              onClick={() => {
+                setSelectedVal(opt.value)
+                handleApply(opt.value)
+              }}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                padding: '6px 8px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                background: isSelected ? 'var(--primary-subtle, #edeefc)' : 'transparent',
+                border: `1px solid ${isSelected ? 'var(--primary, #3B3A8C)' : 'transparent'}`,
+                transition: 'all 0.12s ease',
+              }}
+              onMouseEnter={(e) => {
+                if (!isSelected) e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'
+              }}
+              onMouseLeave={(e) => {
+                if (!isSelected) e.currentTarget.style.background = 'transparent'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <span
+                  style={{
+                    width: 13,
+                    height: 13,
+                    borderRadius: '50%',
+                    border: `1.5px solid ${isSelected ? 'var(--primary, #3B3A8C)' : '#999'}`,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {isSelected && (
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary, #3B3A8C)' }} />
+                  )}
+                </span>
+                <span style={{ fontSize: 12.5, fontWeight: isSelected ? 700 : 500, color: isSelected ? 'var(--primary, #3B3A8C)' : 'var(--ink, #1C1B19)' }}>
+                  {opt.label}
+                </span>
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--ink-muted, #78716C)', marginLeft: 20 }}>
+                {opt.desc}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginTop: 4, paddingTop: 6, borderTop: '1px solid var(--border, #eee)', justifyContent: 'flex-end' }}>
+        <button
+          type="button"
+          onClick={() => {
+            onChange(EMPTY_COL_FILTER)
+            onClose()
+          }}
+          style={{
+            padding: '5px 10px',
+            borderRadius: 6,
+            border: '1px solid var(--border, #ddd)',
+            background: 'none',
+            cursor: 'pointer',
+            fontSize: 12,
+            color: 'var(--muted, #888)',
+          }}
+        >
+          Reset
+        </button>
+        <button
+          type="button"
+          onClick={() => handleApply(selectedVal)}
+          style={{
+            padding: '5px 12px',
+            borderRadius: 6,
+            border: 'none',
+            background: 'var(--primary, #3B3A8C)',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          Terapkan
+        </button>
+      </div>
+    </div>
+  ), document.body)
+}
+
+function GambarColHeader({ sortBy, sortDir, onSortChange, colFilters, onColFilterChange }) {
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef(null)
+  const filter = colFilters?.gambar || EMPTY_COL_FILTER
+  const isActive = Boolean(filter.value && filter.value !== 'SEMUA')
+
+  return (
+    <th
+      style={{
+        width: 72,
+        textAlign: 'center',
+        whiteSpace: 'nowrap',
+        position: 'relative',
+        userSelect: 'none',
+        padding: '8px 4px',
+      }}
+    >
+      <span
+        onClick={() => onSortChange && onSortChange('gambar')}
+        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}
+        title="Urutkan berdasarkan ketersediaan gambar"
+      >
+        Gambar
+        {sortBy === 'gambar' && <SortIcon active={true} dir={sortDir} />}
+      </span>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          setOpen((v) => !v)
+        }}
+        title="Filter gambar (SEMUA, ADA GAMBAR, TIDAK ADA GAMBAR)"
+        style={{
+          marginLeft: 4,
+          padding: '1px 5px',
+          borderRadius: 4,
+          border: `1px solid ${isActive ? 'var(--accent-2, #6366f1)' : 'var(--border, #ddd)'}`,
+          background: isActive ? 'var(--accent-2, #6366f1)' : 'transparent',
+          color: isActive ? '#fff' : 'var(--muted, #888)',
+          cursor: 'pointer',
+          fontSize: 11,
+          lineHeight: 1.4,
+          verticalAlign: 'middle',
+        }}
+      >
+        {isActive ? '▼●' : '▼'}
+      </button>
+
+      {open && (
+        <GambarFilterPopover
+          value={filter.value || 'SEMUA'}
+          onChange={(f) => onColFilterChange('gambar', f)}
           onClose={() => setOpen(false)}
           anchorRef={btnRef}
         />
@@ -4321,6 +4569,7 @@ function BestSellerTable({
   rows, loading, sortBy, sortDir, onSortChange,
   searchQuery, onSearchChange,
   colFilters, onColFilterChange,
+  onlyMpKosongFisikAda, onToggleMpKosongFisikAda, countMpKosongFisikAda,
   stockLookup, brandOptions,
   groupMode, onGroupModeChange,
   mpStockItems,
@@ -4535,6 +4784,40 @@ function BestSellerTable({
             >
               <span>🖨️ Cetak Jadwal Promo</span>
             </button>
+            <button
+              type="button"
+              id="btn-cek-mp-kosong-fisik-ada-induk"
+              className={`pill-btn ${onlyMpKosongFisikAda ? 'is-active' : ''}`}
+              onClick={onToggleMpKosongFisikAda}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: onlyMpKosongFisikAda ? '#d97706' : '#fff',
+                color: onlyMpKosongFisikAda ? '#fff' : '#b45309',
+                borderColor: onlyMpKosongFisikAda ? '#b45309' : '#fcd34d',
+                fontWeight: 600,
+                boxShadow: onlyMpKosongFisikAda ? '0 1px 3px rgba(217, 119, 6, 0.35)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+              title="Filter produk dengan MP STOCK = 0 dan STOCK fisik > 0 (Perlu segera restock marketplace)"
+            >
+              <span>⚠️ Cek Stok Marketplace Kosong, Fisik Ada</span>
+              {countMpKosongFisikAda != null && (
+                <span
+                  style={{
+                    background: onlyMpKosongFisikAda ? 'rgba(255, 255, 255, 0.25)' : '#fef3c7',
+                    color: onlyMpKosongFisikAda ? '#fff' : '#92400E',
+                    borderRadius: 10,
+                    padding: '1px 7px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                >
+                  {countMpKosongFisikAda.toLocaleString('id-ID')}
+                </span>
+              )}
+            </button>
             {selectedSkuKeys.size > 0 && (
               <button
                 type="button"
@@ -4574,6 +4857,40 @@ function BestSellerTable({
               title="Cetak Jadwal Promo dari file Excel (Periode Promo) ke gambar JPG potret 1240x1754 px"
             >
               <span>🖨️ Cetak Jadwal Promo</span>
+            </button>
+            <button
+              type="button"
+              id="btn-cek-mp-kosong-fisik-ada-variant"
+              className={`pill-btn ${onlyMpKosongFisikAda ? 'is-active' : ''}`}
+              onClick={onToggleMpKosongFisikAda}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: onlyMpKosongFisikAda ? '#d97706' : '#fff',
+                color: onlyMpKosongFisikAda ? '#fff' : '#b45309',
+                borderColor: onlyMpKosongFisikAda ? '#b45309' : '#fcd34d',
+                fontWeight: 600,
+                boxShadow: onlyMpKosongFisikAda ? '0 1px 3px rgba(217, 119, 6, 0.35)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+              title="Filter produk dengan MP STOCK = 0 dan STOCK fisik > 0 (Perlu segera restock marketplace)"
+            >
+              <span>⚠️ Cek Stok Marketplace Kosong, Fisik Ada</span>
+              {countMpKosongFisikAda != null && (
+                <span
+                  style={{
+                    background: onlyMpKosongFisikAda ? 'rgba(255, 255, 255, 0.25)' : '#fef3c7',
+                    color: onlyMpKosongFisikAda ? '#fff' : '#92400E',
+                    borderRadius: 10,
+                    padding: '1px 7px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                >
+                  {countMpKosongFisikAda.toLocaleString('id-ID')}
+                </span>
+              )}
             </button>
           </>
         )}
@@ -4852,7 +5169,15 @@ function BestSellerTable({
                   <th style={{ width: 44 }}>#</th>
                   {visibleCols.has('kodeBarang') && <ColHeader col="kodeBarang" label="Kode Barang" align="left"  {...colHeaderProps} />}
                   {groupMode === 'induk' && visibleCols.has('tipe') && <ColHeader col="tipe" label="Tipe" align="left" {...colHeaderProps} />}
-                  {visibleCols.has('gambar') && <th style={{ width: 60, textAlign: 'center' }}>Gambar</th>}
+                  {visibleCols.has('gambar') && (
+                    <GambarColHeader
+                      sortBy={sortBy}
+                      sortDir={sortDir}
+                      onSortChange={onSortChange}
+                      colFilters={colFilters}
+                      onColFilterChange={onColFilterChange}
+                    />
+                  )}
                   {visibleCols.has('namaBarang') && <ColHeader col="namaBarang" label="Nama Barang" align="left"  {...colHeaderProps} />}
                   {hasStock && visibleCols.has('brand') && <ColHeader col="brand" label="Brand" align="left"  {...colHeaderProps} />}
                   {visibleCols.has('kuantitas') && <ColHeader col="kuantitas" label="Terjual" align="right" {...colHeaderProps} />}
@@ -5165,6 +5490,9 @@ export default function ProdukTerlarisPage() {
 
   // Column filters — { namaBarang: {op,value,value2}, kuantitas: {...}, hargaProduk: {...} }
   const [colFilters, setColFilters] = useState({})
+
+  // Quick filter: Cek Stok Marketplace Kosong, Fisik Ada (MP STOCK = 0 and STOCK > 0)
+  const [onlyMpKosongFisikAda, setOnlyMpKosongFisikAda] = useState(false)
 
   // Stock lookup: { kodeBarang: { brand, stock } } — digabung dari underwear + sport
   const [stockLookup, setStockLookup] = useState(null)
@@ -5500,8 +5828,19 @@ export default function ProdukTerlarisPage() {
     )).sort((a, b) => a.localeCompare(b, 'id'))
   }, [enrichedRows])
 
+  // Hitung jumlah baris yang cocok untuk filter "Cek Stok Marketplace Kosong, Fisik Ada"
+  const countMpKosongFisikAda = useMemo(() => {
+    const baseRows = groupMode === 'induk' ? groupByParentSku(enrichedRows) : enrichedRows
+    return baseRows.filter(r => (Number(r.mpStock) === 0 && r.mpStock !== null) && (Number(r.stock || 0) > 0)).length
+  }, [enrichedRows, groupMode])
+
   const filteredRows = useMemo(() => {
     let rows = groupMode === 'induk' ? groupByParentSku(enrichedRows) : enrichedRows
+
+    // Quick filter: Cek Stok Marketplace Kosong, Fisik Ada (MP STOCK = 0 and STOCK > 0)
+    if (onlyMpKosongFisikAda) {
+      rows = rows.filter(r => (Number(r.mpStock) === 0 && r.mpStock !== null) && (Number(r.stock || 0) > 0))
+    }
 
     // 3. global search — flexible/fuzzy: split query into words and require
     //    every word to appear somewhere in the product name (in any order,
@@ -5523,7 +5862,7 @@ export default function ProdukTerlarisPage() {
 
     // 6. re-rank after all filters
     return rows.map((r, i) => ({ ...r, rank: i + 1 }))
-  }, [enrichedRows, groupMode, searchQuery, colFilters, sortBy, sortDir])
+  }, [enrichedRows, groupMode, onlyMpKosongFisikAda, searchQuery, colFilters, sortBy, sortDir])
 
   // ── Active filter description ──────────────────────────────────────────────────
   const activeFilterDesc = useMemo(() => {
@@ -5539,8 +5878,15 @@ export default function ProdukTerlarisPage() {
     const colLabels = {
       kodeBarang: 'Kode Barang', namaBarang: 'Nama Barang', kuantitas: 'Terjual', hargaProduk: 'TOTAL TERJUAL',
       brand: 'Brand', stock: 'Stock', hpp: 'HPP PCS', totalHpp: 'Total HPP', ssr: 'SSR', tipe: 'Tipe',
+      gambar: 'Gambar',
     }
     for (const [col, f] of Object.entries(colFilters)) {
+      if (col === 'gambar') {
+        if (f.value && f.value !== 'SEMUA') {
+          parts.push(`Gambar: ${f.value}`)
+        }
+        continue
+      }
       if (!f.op) continue
       if (f.op === 'in') {
         if (!f.values || f.values.length === 0) continue
@@ -5553,20 +5899,29 @@ export default function ProdukTerlarisPage() {
       const valPart = noVal ? '' : f.op === 'between' ? ` ${f.value}–${f.value2}` : ` "${f.value}"`
       parts.push(`${colLabels[col]}: ${opLabel}${valPart}`)
     }
+    if (onlyMpKosongFisikAda) {
+      parts.push('Stok Marketplace Kosong, Fisik Ada (MP=0 & Stock>0)')
+    }
     return parts.length ? parts.join(' · ') : null
-  }, [filters, analysis, colFilters])
+  }, [filters, analysis, colFilters, onlyMpKosongFisikAda])
 
   // Count active column filters for badge
   const activeColFilterCount = useMemo(() => {
-    return Object.values(colFilters).filter(f => {
+    let count = Object.entries(colFilters).filter(([col, f]) => {
+      if (col === 'gambar') return f.value && f.value !== 'SEMUA'
       if (!f.op) return false
       if (f.op === 'in') return !!(f.values && f.values.length > 0)
       if (['is_empty', 'is_not_empty'].includes(f.op)) return true
       return f.value !== ''
     }).length
-  }, [colFilters])
+    if (onlyMpKosongFisikAda) count += 1
+    return count
+  }, [colFilters, onlyMpKosongFisikAda])
 
-  const resetColFilters = () => setColFilters({})
+  const resetColFilters = () => {
+    setColFilters({})
+    setOnlyMpKosongFisikAda(false)
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -5714,6 +6069,9 @@ export default function ProdukTerlarisPage() {
             onSearchChange={setSearchQuery}
             colFilters={colFilters}
             onColFilterChange={handleColFilterChange}
+            onlyMpKosongFisikAda={onlyMpKosongFisikAda}
+            onToggleMpKosongFisikAda={() => setOnlyMpKosongFisikAda(v => !v)}
+            countMpKosongFisikAda={countMpKosongFisikAda}
             stockLookup={stockLookup}
             brandOptions={brandOptions}
             groupMode={groupMode}

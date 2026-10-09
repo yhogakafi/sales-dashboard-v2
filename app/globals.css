@@ -2817,9 +2817,9 @@ section {
 }
 
 .aff-search-input {
-  width: 220px !important;
-  font-size: 13px !important;
-  padding: 6px 12px !important;
+  width: 220px;
+  font-size: 13px;
+  padding: 6px 12px;
 }
 
 /* ── Badges ── */
