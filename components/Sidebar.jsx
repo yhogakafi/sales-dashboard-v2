@@ -143,10 +143,20 @@ export default function Sidebar() {
     document.documentElement.style.setProperty('--sidebar-w', collapsed ? '68px' : '224px')
   }, [collapsed])
 
-  // Close the mobile drawer whenever the route changes
+  // Close the mobile menu whenever the route changes
   useEffect(() => {
     setMobileOpen(false)
   }, [pathname])
+
+  // Close the mobile menu on Escape key
+  useEffect(() => {
+    if (!mobileOpen) return
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setMobileOpen(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [mobileOpen])
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
@@ -160,23 +170,61 @@ export default function Sidebar() {
     <>
       <button
         type="button"
-        className="sidebar-mobile-toggle"
-        aria-label="Buka menu navigasi"
-        onClick={() => setMobileOpen(true)}
+        className={`sidebar-mobile-toggle ${mobileOpen ? 'is-active' : ''}`}
+        aria-label={mobileOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
+        aria-expanded={mobileOpen}
+        onClick={() => setMobileOpen((v) => !v)}
       >
-        <LemonIcon size={24} />
+        <LemonIcon size={20} />
+        <span className="sidebar-mobile-toggle-text">Menu</span>
       </button>
 
       {mobileOpen && (
-        <div
-          className="sidebar-backdrop"
-          onClick={() => setMobileOpen(false)}
-          aria-hidden="true"
-        />
+        <>
+          <div
+            className="mobile-floating-backdrop"
+            onClick={() => setMobileOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="mobile-floating-menu" role="dialog" aria-label="Menu Navigasi">
+            <div className="mobile-floating-header">
+              <div className="mobile-floating-brand">
+                <LemonIcon size={20} />
+                <span className="mobile-floating-title">TMS Online</span>
+              </div>
+              <button
+                type="button"
+                className="mobile-floating-close"
+                onClick={() => setMobileOpen(false)}
+                aria-label="Tutup menu"
+              >
+                ✕
+              </button>
+            </div>
+
+            <nav className="mobile-floating-nav">
+              {NAV_ITEMS.map((item) => {
+                const isActive = item.href === '/' ? pathname === '/' : pathname?.startsWith(item.href)
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`mobile-floating-item ${isActive ? 'is-active' : ''}`}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <span className="mobile-floating-icon">{item.icon(isActive)}</span>
+                    <span className="mobile-floating-label">{item.label}</span>
+                    {isActive && <span className="mobile-floating-active-dot" />}
+                  </Link>
+                )
+              })}
+            </nav>
+          </div>
+        </>
       )}
 
       <aside
-        className={`sidebar ${collapsed ? 'is-collapsed' : ''} ${mobileOpen ? 'is-open' : ''}`}
+        className={`sidebar ${collapsed ? 'is-collapsed' : ''}`}
         aria-label="Navigasi utama"
       >
         <div className="sidebar-top">
