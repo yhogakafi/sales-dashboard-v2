@@ -458,13 +458,10 @@ export default function LaporanLivePage() {
     const allPeriodsExport = currentYearPeriods.map((p) => ({
       Tahun: p.year,
       'Periode / Bulan': p.displayLabel,
-      'Sesi Live': p.totalSessions,
-      'Total Penonton': p.totalPenonton || 0,
-      'Pesanan Dibuat': p.totalPesanan || 0,
-      'Produk Terjual': p.totalProduk || 0,
-      'Penjualan Astrid (Rp)': p.astridPenjualan || 0,
-      'Penjualan Fifi (Rp)': p.fifiPenjualan || 0,
-      'Total Penjualan (Rp)': p.totalPenjualan || 0,
+      'Total Durasi': formatDurationHM(p.totalDurSec || p.durSec || 0),
+      'Omzet Astrid (Rp)': p.astridPenjualan || 0,
+      'Omzet Fifi (Rp)': p.fifiPenjualan || 0,
+      'Total Omzet (Rp)': p.totalPenjualan || 0,
     }))
     const wsAllPeriods = XLSX.utils.json_to_sheet(allPeriodsExport)
     XLSX.utils.book_append_sheet(wb, wsAllPeriods, `Laporan Periode ${activeYear}`)
@@ -1028,20 +1025,17 @@ export default function LaporanLivePage() {
                     <table className="aff-lemon-table">
                       <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: '#FEFCE8' }}>
                         <tr>
-                          <th style={{ minWidth: '125px' }}>Periode / Bulan</th>
-                          <th style={{ textAlign: 'right', minWidth: '70px' }}>Sesi</th>
-                          <th style={{ textAlign: 'right', minWidth: '85px' }}>Penonton</th>
-                          <th style={{ textAlign: 'right', minWidth: '75px' }}>Pesanan</th>
-                          <th style={{ textAlign: 'right', minWidth: '75px' }}>Produk</th>
-                          <th style={{ textAlign: 'right', minWidth: '105px' }}>Astrid (Rp)</th>
-                          <th style={{ textAlign: 'right', minWidth: '105px' }}>Fifi (Rp)</th>
-                          <th style={{ textAlign: 'right', minWidth: '115px' }}>Total (Rp)</th>
+                          <th style={{ minWidth: '130px' }}>Periode / Bulan</th>
+                          <th style={{ textAlign: 'right', minWidth: '100px' }}>Total Durasi</th>
+                          <th style={{ textAlign: 'right', minWidth: '110px' }}>Astrid (Rp)</th>
+                          <th style={{ textAlign: 'right', minWidth: '110px' }}>Fifi (Rp)</th>
+                          <th style={{ textAlign: 'right', minWidth: '120px' }}>Total Omzet (Rp)</th>
                         </tr>
                       </thead>
                       <tbody>
                         {currentYearPeriods.length === 0 ? (
                           <tr>
-                            <td colSpan={8} style={{ textAlign: 'center', padding: '1.5rem', color: '#78716C' }}>
+                            <td colSpan={5} style={{ textAlign: 'center', padding: '1.5rem', color: '#78716C' }}>
                               Belum ada data periode yang disimpan untuk tahun {activeYear}.
                             </td>
                           </tr>
@@ -1080,16 +1074,7 @@ export default function LaporanLivePage() {
                                   </div>
                                 </td>
                                 <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
-                                  {p.totalSessions}
-                                </td>
-                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
-                                  {fmtInt(p.totalPenonton || 0)}
-                                </td>
-                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
-                                  {fmtInt(p.totalPesanan || 0)}
-                                </td>
-                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
-                                  {fmtInt(p.totalProduk || 0)}
+                                  {formatDurationHM(p.totalDurSec || p.durSec || 0)}
                                 </td>
                                 <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#95651C' }}>
                                   {fmtRp(p.astridPenjualan || 0)}
