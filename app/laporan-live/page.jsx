@@ -4,11 +4,13 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import AuthGate from '@/components/AuthGate'
 import LemonIcon from '@/components/LemonIcon'
+import LiveGrowthChart from '@/components/LiveGrowthChart'
 import {
   applyHostOverrides,
   summarizeSessions,
   formatDurationHM,
   formatDayDateIndo,
+  parsePeriodMonthYear,
 } from '@/lib/parseLaporanLive'
 
 function fmtRp(n) {
@@ -47,17 +49,20 @@ export default function LaporanLivePage() {
   const [toastMessage, setToastMessage] = useState('')
   const [toastVisible, setToastVisible] = useState(false)
 
+  // ─── State for All Periods Table & Year Tab ──────────────────────────────
+  const [activeYear, setActiveYear] = useState(2026)
+
   // ─── Filter & Sort State for Table 1: Laporan Harian per Host ─────────────
   const [dailyFilterHost, setDailyFilterHost] = useState('all') // 'all' | 'Astrid' | 'Fifi'
   const [dailySearchQuery, setDailySearchQuery] = useState('')
-  const [dailySortField, setDailySortField] = useState('sortTimestamp') // 'sortTimestamp' | 'host' | 'count' | 'penonton' | 'pesananDibuat' | 'produkDibuat' | 'penjualanDibuat'
+  const [dailySortField, setDailySortField] = useState('sortTimestamp')
   const [dailySortDir, setDailySortDir] = useState('asc') // 'asc' | 'desc'
 
   // ─── Filter & Sort State for Table 2: Detail Sesi Live ────────────────────
   const [sessionFilterHost, setSessionFilterHost] = useState('all') // 'all' | 'Astrid' | 'Fifi'
   const [sessionSearchQuery, setSessionSearchQuery] = useState('')
   const [sessionSalesFilter, setSessionSalesFilter] = useState('all') // 'all' | 'hasSales' | 'noSales'
-  const [sessionSortField, setSessionSortField] = useState('startTimestamp') // 'startTimestamp' | 'startTime' | 'durSec' | 'nama' | 'penontonAktif' | 'penonton' | 'pesananDibuat' | 'penjualanDibuat'
+  const [sessionSortField, setSessionSortField] = useState('startTimestamp')
   const [sessionSortDir, setSessionSortDir] = useState('desc') // 'asc' | 'desc'
 
   const showToast = useCallback((msg) => {
@@ -156,6 +161,45 @@ export default function LaporanLivePage() {
     }
   }
 
+  // Available periods for selected customer
+  const currentCustomerObj = indexData.customers?.find((c) => c.id === selectedCustomerId)
+  const availablePeriods = currentCustomerObj?.periods || []
+
+  // Process all periods of current customer with month and year metadata
+  const customerPeriodsProcessed = useMemo(() => {
+    if (!availablePeriods || availablePeriods.length === 0) return []
+    return availablePeriods.map((p) => {
+      const parsed = parsePeriodMonthYear(p)
+      return {
+        ...p,
+        ...parsed,
+      }
+    })
+  }, [availablePeriods])
+
+  // Extract unique available years
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set(customerPeriodsProcessed.map((p) => p.year))
+    if (yearsSet.size === 0) {
+      yearsSet.add(new Date().getFullYear())
+    }
+    return Array.from(yearsSet).sort((a, b) => b - a)
+  }, [customerPeriodsProcessed])
+
+  // Sync activeYear if necessary
+  useEffect(() => {
+    if (availableYears.length > 0 && !availableYears.includes(activeYear)) {
+      setActiveYear(availableYears[0])
+    }
+  }, [availableYears, activeYear])
+
+  // Periods belonging to activeYear, sorted chronologically from Jan to Des
+  const currentYearPeriods = useMemo(() => {
+    return customerPeriodsProcessed
+      .filter((p) => p.year === activeYear)
+      .sort((a, b) => a.monthIndex - b.monthIndex)
+  }, [customerPeriodsProcessed, activeYear])
+
   // Active rows with saved overrides from backend
   const activeRows = useMemo(() => {
     if (!periodData || !periodData.rows) return []
@@ -168,6 +212,7 @@ export default function LaporanLivePage() {
 
   const astridSummary = useMemo(() => summarizeSessions(astridRows), [astridRows])
   const fifiSummary = useMemo(() => summarizeSessions(fifiRows), [fifiRows])
+  const totalSummary = useMemo(() => summarizeSessions(activeRows), [activeRows])
 
   // Comparison metrics
   const comparisonMetrics = useMemo(() => {
@@ -369,29 +414,62 @@ export default function LaporanLivePage() {
     const wb = XLSX.utils.book_new()
 
     // 1. Ringkasan per Host
-    const summaryRows = ['Astrid', 'Fifi'].map((h) => {
-      const s = h === 'Astrid' ? astridSummary : fifiSummary
-      return {
-        Host: h,
-        'Shift Waktu': h === 'Astrid' ? '06:00 – 17:00 (Siang)' : '17:00 – 06:00 (Malam)',
-        'Sesi Live': s.totalSessions,
-        'Total Durasi (jam)': +(s.durSec / 3600).toFixed(2),
-        'Penonton Aktif': s.penontonAktif,
-        Komentar: s.komentar,
-        'Tambah ke Keranjang': s.atc,
-        'Total Penonton': s.penonton,
-        'Pesanan Dibuat': s.pesananDibuat,
-        'Pesanan Siap Dikirim': s.pesananSiap,
-        'Produk Terjual (Dibuat)': s.produkDibuat,
-        'Produk Terjual (Siap Dikirim)': s.produkSiap,
-        'Penjualan Dibuat (Rp)': s.penjualanDibuat,
-        'Penjualan Siap Dikirim (Rp)': s.penjualanSiap,
-      }
-    })
+    const summaryRows = [
+      {
+        Host: 'Total 1 Bulan',
+        'Shift Waktu': 'Semua Host (24 Jam)',
+        'Sesi Live': totalSummary.totalSessions,
+        'Total Durasi (jam)': +(totalSummary.durSec / 3600).toFixed(2),
+        'Penonton Aktif': totalSummary.penontonAktif,
+        Komentar: totalSummary.komentar,
+        'Tambah ke Keranjang': totalSummary.atc,
+        'Total Penonton': totalSummary.penonton,
+        'Pesanan Dibuat': totalSummary.pesananDibuat,
+        'Pesanan Siap Dikirim': totalSummary.pesananSiap,
+        'Produk Terjual (Dibuat)': totalSummary.produkDibuat,
+        'Produk Terjual (Siap Dikirim)': totalSummary.produkSiap,
+        'Penjualan Dibuat (Rp)': totalSummary.penjualanDibuat,
+        'Penjualan Siap Dikirim (Rp)': totalSummary.penjualanSiap,
+      },
+      ...['Astrid', 'Fifi'].map((h) => {
+        const s = h === 'Astrid' ? astridSummary : fifiSummary
+        return {
+          Host: h,
+          'Shift Waktu': h === 'Astrid' ? '06:00 – 17:00 (Siang)' : '17:00 – 06:00 (Malam)',
+          'Sesi Live': s.totalSessions,
+          'Total Durasi (jam)': +(s.durSec / 3600).toFixed(2),
+          'Penonton Aktif': s.penontonAktif,
+          Komentar: s.komentar,
+          'Tambah ke Keranjang': s.atc,
+          'Total Penonton': s.penonton,
+          'Pesanan Dibuat': s.pesananDibuat,
+          'Pesanan Siap Dikirim': s.pesananSiap,
+          'Produk Terjual (Dibuat)': s.produkDibuat,
+          'Produk Terjual (Siap Dikirim)': s.produkSiap,
+          'Penjualan Dibuat (Rp)': s.penjualanDibuat,
+          'Penjualan Siap Dikirim (Rp)': s.penjualanSiap,
+        }
+      }),
+    ]
     const wsSummary = XLSX.utils.json_to_sheet(summaryRows)
     XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan per Host')
 
-    // 2. Laporan Harian per Host (Kolom gabungan Hari & Tanggal)
+    // 2. Laporan Semua Periode (Tahun)
+    const allPeriodsExport = currentYearPeriods.map((p) => ({
+      Tahun: p.year,
+      'Periode / Bulan': p.displayLabel,
+      'Sesi Live': p.totalSessions,
+      'Total Penonton': p.totalPenonton || 0,
+      'Pesanan Dibuat': p.totalPesanan || 0,
+      'Produk Terjual': p.totalProduk || 0,
+      'Penjualan Astrid (Rp)': p.astridPenjualan || 0,
+      'Penjualan Fifi (Rp)': p.fifiPenjualan || 0,
+      'Total Penjualan (Rp)': p.totalPenjualan || 0,
+    }))
+    const wsAllPeriods = XLSX.utils.json_to_sheet(allPeriodsExport)
+    XLSX.utils.book_append_sheet(wb, wsAllPeriods, `Laporan Periode ${activeYear}`)
+
+    // 3. Laporan Harian per Host (Kolom gabungan Hari & Tanggal)
     const dailyExportRows = dailySummaryList.map((item) => ({
       'Hari & Tanggal': item.dayDateFormatted,
       Host: item.host,
@@ -404,7 +482,7 @@ export default function LaporanLivePage() {
     const wsDaily = XLSX.utils.json_to_sheet(dailyExportRows)
     XLSX.utils.book_append_sheet(wb, wsDaily, 'Laporan Harian per Host')
 
-    // 3. Detail Sesi Live (Kolom gabungan Hari & Tanggal)
+    // 4. Detail Sesi Live (Kolom gabungan Hari & Tanggal)
     const detailExportRows = filteredAndSortedSessions.map((r, i) => ({
       No: i + 1,
       Host: r.host,
@@ -432,9 +510,6 @@ export default function LaporanLivePage() {
     XLSX.writeFile(wb, `Laporan_Live_${safeCustName}_${safePeriodLabel}.xlsx`)
     showToast('File Excel berhasil diunduh.')
   }
-
-  const currentCustomerObj = indexData.customers?.find((c) => c.id === selectedCustomerId)
-  const availablePeriods = currentCustomerObj?.periods || []
 
   return (
     <AuthGate>
@@ -528,7 +603,7 @@ export default function LaporanLivePage() {
 
             {availablePeriods.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#713F12' }}>Periode:</label>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#713F12' }}>Periode Aktif:</label>
                 <select
                   value={selectedPeriodId}
                   onChange={(e) => handlePeriodChange(e.target.value)}
@@ -607,16 +682,109 @@ export default function LaporanLivePage() {
 
         {!loading && !errorMsg && activeRows.length > 0 && (
           <>
-            {/* ── Summary Host Cards (Astrid vs Fifi) ── */}
+            {/* ── 1. KPI Cards Row: Total 1 Bulan Paling Kiri + Astrid + Fifi ── */}
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))',
                 gap: '16px',
                 marginBottom: '1.5rem',
               }}
             >
-              {/* Astrid Card */}
+              {/* Card 1 (Paling Kiri): Total 1 Bulan (Semua Host) */}
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  borderRadius: '16px',
+                  border: '1.5px solid #FEF08A',
+                  boxShadow: '0 4px 14px rgba(234, 179, 8, 0.1)',
+                  overflow: 'hidden',
+                  position: 'relative',
+                }}
+              >
+                <div style={{ height: '5px', background: '#EAB308' }} />
+                <div style={{ padding: '20px 22px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <h2 style={{ fontSize: '20px', margin: 0, color: '#1C1917', fontFamily: 'Fraunces, serif' }}>
+                          Total 1 Bulan
+                        </h2>
+                        <span
+                          style={{
+                            background: '#FEF08A',
+                            color: '#854D0E',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            border: '1px solid #FDE047',
+                          }}
+                        >
+                          Semua Host
+                        </span>
+                      </div>
+                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#78716C', fontFamily: 'IBM Plex Mono, monospace' }}>
+                        Astrid &amp; Fifi (24 Jam)
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '20px', fontWeight: 700, color: '#854D0E', fontFamily: 'IBM Plex Mono, monospace' }}>
+                        {totalSummary.totalSessions}
+                      </span>
+                      <span style={{ fontSize: '12px', color: '#78716C', display: 'block' }}>sesi</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 14px', marginBottom: '14px' }}>
+                    <div>
+                      <span style={{ fontSize: '11.5px', color: '#78716C', display: 'block' }}>Total Durasi</span>
+                      <strong style={{ fontSize: '15px', color: '#1C1917', fontFamily: 'IBM Plex Mono, monospace' }}>
+                        {formatDurationHM(totalSummary.durSec)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11.5px', color: '#78716C', display: 'block' }}>Penonton Aktif</span>
+                      <strong style={{ fontSize: '15px', color: '#1C1917', fontFamily: 'IBM Plex Mono, monospace' }}>
+                        {fmtInt(totalSummary.penontonAktif)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11.5px', color: '#78716C', display: 'block' }}>Total Penonton</span>
+                      <strong style={{ fontSize: '15px', color: '#1C1917', fontFamily: 'IBM Plex Mono, monospace' }}>
+                        {fmtInt(totalSummary.penonton)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11.5px', color: '#78716C', display: 'block' }}>Pesanan Dibuat</span>
+                      <strong style={{ fontSize: '15px', color: '#1C1917', fontFamily: 'IBM Plex Mono, monospace' }}>
+                        {fmtInt(totalSummary.pesananDibuat)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11.5px', color: '#78716C', display: 'block' }}>Produk Terjual</span>
+                      <strong style={{ fontSize: '15px', color: '#1C1917', fontFamily: 'IBM Plex Mono, monospace' }}>
+                        {fmtInt(totalSummary.produkDibuat)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11.5px', color: '#78716C', display: 'block' }}>Tambah Keranjang</span>
+                      <strong style={{ fontSize: '15px', color: '#1C1917', fontFamily: 'IBM Plex Mono, monospace' }}>
+                        {fmtInt(totalSummary.atc)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: '1px solid #FEF08A', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#78716C' }}>Total Penjualan</span>
+                    <strong style={{ fontSize: '18px', color: '#15803D', fontFamily: 'IBM Plex Mono, monospace' }}>
+                      {fmtRp(totalSummary.penjualanDibuat)}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Astrid */}
               <div
                 style={{
                   background: '#FFFFFF',
@@ -708,7 +876,7 @@ export default function LaporanLivePage() {
                 </div>
               </div>
 
-              {/* Fifi Card */}
+              {/* Card 3: Fifi */}
               <div
                 style={{
                   background: '#FFFFFF',
@@ -797,6 +965,153 @@ export default function LaporanLivePage() {
                       {fmtRp(fifiSummary.penjualanDibuat)}
                     </strong>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── 2 & 3. Section: Tabel Laporan Semua Periode + Grafik Pertumbuhan Host (Side by Side) ── */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              {/* Tab Tahun */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#451A03' }}>Tahun Laporan:</span>
+                  <div className="aff-toggle-group">
+                    {availableYears.map((yr) => (
+                      <button
+                        key={yr}
+                        type="button"
+                        className={`aff-toggle-btn ${activeYear === yr ? 'active' : ''}`}
+                        onClick={() => setActiveYear(yr)}
+                      >
+                        {yr}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <span style={{ fontSize: '12px', color: '#78716C' }}>
+                  {currentYearPeriods.length} Periode / Bulan di Tahun {activeYear}
+                </span>
+              </div>
+
+              {/* Side-by-Side: Tabel Semua Periode (Kiri) & Grafik Pertumbuhan (Kanan) */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+                  gap: '16px',
+                  alignItems: 'stretch',
+                }}
+              >
+                {/* Tabel Laporan Semua Periode */}
+                <div
+                  style={{
+                    background: '#FFFFFF',
+                    borderRadius: '16px',
+                    border: '1.5px solid #FEF08A',
+                    padding: '20px 22px',
+                    boxShadow: '0 2px 10px rgba(234, 179, 8, 0.05)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  <div style={{ marginBottom: '12px' }}>
+                    <h3 style={{ margin: '0 0 2px', fontSize: '16.5px', color: '#1C1917', fontFamily: 'Fraunces, serif' }}>
+                      Rekapitulasi Semua Periode ({activeYear})
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#78716C' }}>
+                      Daftar performa live streaming per bulan. Klik periode untuk beralih detail.
+                    </p>
+                  </div>
+
+                  <div className="aff-table-scroll" style={{ flex: 1, maxHeight: '360px', overflowY: 'auto' }}>
+                    <table className="aff-lemon-table">
+                      <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: '#FEFCE8' }}>
+                        <tr>
+                          <th style={{ minWidth: '125px' }}>Periode / Bulan</th>
+                          <th style={{ textAlign: 'right', minWidth: '70px' }}>Sesi</th>
+                          <th style={{ textAlign: 'right', minWidth: '85px' }}>Penonton</th>
+                          <th style={{ textAlign: 'right', minWidth: '75px' }}>Pesanan</th>
+                          <th style={{ textAlign: 'right', minWidth: '75px' }}>Produk</th>
+                          <th style={{ textAlign: 'right', minWidth: '105px' }}>Astrid (Rp)</th>
+                          <th style={{ textAlign: 'right', minWidth: '105px' }}>Fifi (Rp)</th>
+                          <th style={{ textAlign: 'right', minWidth: '115px' }}>Total (Rp)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {currentYearPeriods.length === 0 ? (
+                          <tr>
+                            <td colSpan={8} style={{ textAlign: 'center', padding: '1.5rem', color: '#78716C' }}>
+                              Belum ada data periode yang disimpan untuk tahun {activeYear}.
+                            </td>
+                          </tr>
+                        ) : (
+                          currentYearPeriods.map((p) => {
+                            const isCurrent = p.id === selectedPeriodId
+                            return (
+                              <tr
+                                key={p.id}
+                                style={{
+                                  background: isCurrent ? '#FEFCE8' : undefined,
+                                  cursor: 'pointer',
+                                }}
+                                onClick={() => handlePeriodChange(p.id)}
+                                title="Klik untuk membuka detail periode ini"
+                              >
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <strong style={{ color: isCurrent ? '#854D0E' : '#1C1917' }}>
+                                      {p.displayLabel}
+                                    </strong>
+                                    {isCurrent && (
+                                      <span
+                                        style={{
+                                          fontSize: '10px',
+                                          background: '#FEF08A',
+                                          color: '#854D0E',
+                                          padding: '1px 5px',
+                                          borderRadius: '4px',
+                                          fontWeight: 700,
+                                        }}
+                                      >
+                                        Aktif
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
+                                  {p.totalSessions}
+                                </td>
+                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
+                                  {fmtInt(p.totalPenonton || 0)}
+                                </td>
+                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
+                                  {fmtInt(p.totalPesanan || 0)}
+                                </td>
+                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
+                                  {fmtInt(p.totalProduk || 0)}
+                                </td>
+                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#95651C' }}>
+                                  {fmtRp(p.astridPenjualan || 0)}
+                                </td>
+                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#40396E' }}>
+                                  {fmtRp(p.fifiPenjualan || 0)}
+                                </td>
+                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, color: '#15803D' }}>
+                                  {fmtRp(p.totalPenjualan || 0)}
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Grafik Pertumbuhan Host Live */}
+                <div>
+                  <LiveGrowthChart yearData={currentYearPeriods} activeYear={activeYear} />
                 </div>
               </div>
             </div>
@@ -1309,7 +1624,7 @@ export default function LaporanLivePage() {
                           <td style={{ textAlign: 'center', fontFamily: 'IBM Plex Mono, monospace', color: '#78716C' }}>
                             {i + 1}
                           </td>
-                          {/* Host Read-Only Badge (tanpa dropdown, sesuai instruksi 2) */}
+                          {/* Host Read-Only Badge */}
                           <td>
                             <span
                               style={{
@@ -1326,7 +1641,7 @@ export default function LaporanLivePage() {
                               {r.host}
                             </span>
                           </td>
-                          {/* Kolom Gabungan Hari & Tanggal (sesuai instruksi 4) */}
+                          {/* Kolom Gabungan Hari & Tanggal (misal: "Rabu, 30 Sep 2026") */}
                           <td style={{ fontWeight: 600, color: '#451A03', whiteSpace: 'nowrap' }}>
                             {getFormattedDayDate(r)}
                           </td>
