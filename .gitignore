@@ -30,8 +30,6 @@ scratch/
 # Excel Data Files
 *.xls
 *.xlsx
-PELANGGAN 2.xls
-stok shopee scelta/
 
 # Logs & Debugging
 *.log

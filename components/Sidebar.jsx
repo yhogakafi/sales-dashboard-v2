@@ -85,6 +85,17 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: '/laporan-live',
+    label: 'Laporan Live',
+    icon: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M15 10L20 6.5V17.5L15 14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <rect x="3" y="6" width="12" height="12" rx="3" fill={active ? '#EAB308' : 'none'} stroke="currentColor" strokeWidth="1.8" />
+        <circle cx="9" cy="12" r="2.5" fill={active ? '#713F12' : 'currentColor'} />
+      </svg>
+    ),
+  },
+  {
     href: '/pelanggan',
     label: 'Pelanggan',
     icon: (active) => (
