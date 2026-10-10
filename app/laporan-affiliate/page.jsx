@@ -36,6 +36,22 @@ function parseGmv(val) {
   return num
 }
 
+// Helper to parse HPP number from strings like "Rp22.625", "6.917", "Rp 6,917"
+function parseHpp(val) {
+  if (!val && val !== 0) return 0
+  if (typeof val === 'number') return val
+  const s = String(val).trim().replace(/^Rp\.?\s*/i, '')
+  const clean = s.replace(/\./g, '').replace(/,/g, '.').replace(/[^0-9.]/g, '')
+  const num = parseFloat(clean)
+  return isNaN(num) ? 0 : num
+}
+
+// Helper to format currency into Rupiah (e.g., Rp 22.625)
+function formatRupiah(val) {
+  if (!val && val !== 0) return 'Rp 0'
+  return 'Rp ' + Math.round(Number(val) || 0).toLocaleString('id-ID')
+}
+
 // Helper to get visual config & colors for any status in the lemon citrus palette
 function getStatusMeta(status) {
   const s = (status || '').trim().toLowerCase()
@@ -527,6 +543,11 @@ export default function LaporanAffiliatePage() {
     const sp = filteredRecords.filter((r) => r.platform?.toLowerCase() === 'shopee').length
     const brands = [...new Set(filteredRecords.map((r) => r.brand).filter(Boolean))]
 
+    // Sample & HPP calculations: 1 baris kolom PRODUCT yang ada isinya = 1 sample
+    const sampleRecs = filteredRecords.filter((r) => (r.produk || r.product || '').trim() !== '')
+    const totalSample = sampleRecs.length
+    const totalHpp = sampleRecs.reduce((acc, r) => acc + parseHpp(r.hpp || r['hpp/pcs']), 0)
+
     const statusStats = {}
     for (const st of allAvailableStatuses) {
       const key = st.toLowerCase()
@@ -547,11 +568,49 @@ export default function LaporanAffiliatePage() {
       total,
       tt,
       sp,
+      totalSample,
+      totalHpp,
       statusStats,
       brandCount: brands.length,
       brandsList: brands.slice(0, 2).join(', ') + (brands.length > 2 ? ` +${brands.length - 2}` : ''),
     }
   }, [filteredRecords, allAvailableStatuses])
+
+  // Dynamic Dealing Records (Affiliate yang sudah dealing)
+  const dynamicDealingRows = useMemo(() => {
+    return filteredRecords.filter((r) => {
+      const isDealing = (r.progress || '').toLowerCase() === 'dealing'
+      const hasDealingDate = !!(r.tanggalDealing || r.tanggal_dealing)
+      const hasProduct = !!(r.produk || r.product || '').trim()
+      return isDealing || hasDealingDate || hasProduct
+    })
+  }, [filteredRecords])
+
+  // Dynamic Rekap Sample per Tanggal Dealing
+  // 1 baris di kolom PRODUCT yang ada isinya = 1 sample
+  const dynamicSampleRows = useMemo(() => {
+    const sampleRecs = filteredRecords.filter((r) => (r.produk || r.product || '').trim() !== '')
+    const groups = {}
+    sampleRecs.forEach((r) => {
+      const d = r.tanggalDealing || r.tanggal_dealing || r.date || 'N/A'
+      if (!groups[d]) {
+        groups[d] = {
+          date: d,
+          totalSample: 0,
+          tiktok: 0,
+          shopee: 0,
+          totalHpp: 0,
+        }
+      }
+      groups[d].totalSample += 1
+      const isTt = (r.platform || '').toLowerCase().includes('tiktok')
+      if (isTt) groups[d].tiktok += 1
+      else groups[d].shopee += 1
+      groups[d].totalHpp += parseHpp(r.hpp || r['hpp/pcs'])
+    })
+
+    return Object.values(groups).sort((a, b) => b.date.localeCompare(a.date))
+  }, [filteredRecords])
 
   // Dynamic Daily Breakdown
   const dynamicDailyRows = useMemo(() => {
@@ -714,6 +773,8 @@ export default function LaporanAffiliatePage() {
     const kpiData = [
       ['METRIK LAPORAN AFFILIATE', 'NILAI', 'KETERANGAN'],
       ['Total Affiliator', kpis.total, `TikTok: ${kpis.tt} | Shopee: ${kpis.sp}`],
+      ['Total Sample', kpis.totalSample, '1 baris produk = 1 sample'],
+      ['Total HPP/pcs', formatRupiah(kpis.totalHpp), 'Akumulasi biaya sample dealing'],
       ...allAvailableStatuses.map((st) => {
         const s = kpis.statusStats[st]
         return [
@@ -765,7 +826,38 @@ export default function LaporanAffiliatePage() {
     const wsBrand = XLSX.utils.aoa_to_sheet(brandData)
     XLSX.utils.book_append_sheet(wb, wsBrand, 'Breakdown Brand')
 
-    // 5. Details Sheet
+    // 5. Rekap Sample Sheet
+    const sampleData = [
+      ['Tanggal Dealing', 'Jumlah Sample (Pcs)', 'TikTok', 'Shopee', 'Total HPP/pcs'],
+      ...dynamicSampleRows.map((s) => [
+        s.date,
+        s.totalSample,
+        s.tiktok,
+        s.shopee,
+        s.totalHpp,
+      ]),
+    ]
+    const wsSample = XLSX.utils.aoa_to_sheet(sampleData)
+    XLSX.utils.book_append_sheet(wb, wsSample, 'Rekap Sample')
+
+    // 6. Daftar Dealing Sheet
+    const dealingData = [
+      ['No', 'Tanggal Dealing', 'Platform', 'Username', 'Brand', 'Tipe Kerjasama', 'Produk', 'HPP/pcs'],
+      ...dynamicDealingRows.map((r, i) => [
+        i + 1,
+        r.tanggalDealing || r.date || '-',
+        r.platform,
+        r.username,
+        r.brand || '-',
+        r.tipeKerjasama || '-',
+        r.produk || '-',
+        r.hpp ? parseHpp(r.hpp) : 0,
+      ]),
+    ]
+    const wsDealing = XLSX.utils.aoa_to_sheet(dealingData)
+    XLSX.utils.book_append_sheet(wb, wsDealing, 'Daftar Dealing')
+
+    // 7. Details Sheet
     const detailData = [
       ['No', 'Tanggal', 'Platform', 'Username', 'Brand', 'Progress', 'GMV', 'Followers', 'Kategori', 'Kontak'],
       ...limitedRecords.map((r, i) => [
@@ -1159,6 +1251,26 @@ export default function LaporanAffiliatePage() {
                 onCopy={showToast}
               />
 
+              {/* Total Sample Card */}
+              <KpiCard
+                label="Total Sample"
+                value={kpis.totalSample.toLocaleString('id-ID')}
+                sub={`${kpis.totalSample} produk terkirim`}
+                color="#10B981"
+                raw={kpis.totalSample}
+                onCopy={showToast}
+              />
+
+              {/* Total HPP/pcs Card */}
+              <KpiCard
+                label="Total HPP/pcs"
+                value={formatRupiah(kpis.totalHpp)}
+                sub="Akumulasi biaya sample dealing"
+                color="#8B5CF6"
+                raw={kpis.totalHpp}
+                onCopy={showToast}
+              />
+
               {/* Status Cards */}
               {allAvailableStatuses.map((st) => {
                 const stat = kpis.statusStats[st] || { count: 0, ttCount: 0, spCount: 0, pct: '0' }
@@ -1208,7 +1320,7 @@ export default function LaporanAffiliatePage() {
                       <line x1="3" y1="10" x2="21" y2="10" />
                     </svg>
                   </span>
-                  <span>1. Rincian Harian (Daily Affiliator Breakdown Log)</span>
+                  <span>Rincian Harian</span>
                 </h3>
                 <span className="aff-counter-badge">
                   {dynamicDailyRows.length} tanggal tercatat
@@ -1312,7 +1424,7 @@ export default function LaporanAffiliatePage() {
                         <path d="M22 12A10 10 0 0 0 12 2v10z" />
                       </svg>
                     </span>
-                    <span>2. Breakdown Status Progress</span>
+                    <span>Breakdown Status Progress</span>
                   </h3>
                 </div>
 
@@ -1380,7 +1492,7 @@ export default function LaporanAffiliatePage() {
                         <line x1="7" y1="7" x2="7.01" y2="7" />
                       </svg>
                     </span>
-                    <span>3. Breakdown Brand</span>
+                    <span>Breakdown Brand</span>
                   </h3>
                 </div>
 
@@ -1456,7 +1568,214 @@ export default function LaporanAffiliatePage() {
               </div>
             </div>
 
-            {/* Section 3: Log Lengkap Affiliator with Interactive Filters on ALL Columns */}
+            {/* Rekap Sample per Tanggal Dealing */}
+            <div className="aff-lemon-card" style={{ marginBottom: '1.5rem' }}>
+              <div className="aff-section-header">
+                <h3 className="aff-section-title">
+                  <span className="aff-section-icon-wrap yellow">
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                      <line x1="12" y1="22.08" x2="12" y2="12" />
+                    </svg>
+                  </span>
+                  <span>Rekap Sample per Tanggal Dealing</span>
+                </h3>
+                <span className="aff-counter-badge">
+                  {dynamicSampleRows.length} tanggal · Total {kpis.totalSample} sample · {formatRupiah(kpis.totalHpp)}
+                </span>
+              </div>
+
+              <div className="aff-table-scroll">
+                <table className="aff-lemon-table">
+                  <thead>
+                    <tr>
+                      <th style={{ paddingLeft: '16px' }}>Tanggal Dealing</th>
+                      <th style={{ textAlign: 'center' }}>Jumlah Sample (Pcs)</th>
+                      <th style={{ textAlign: 'center' }}>TikTok</th>
+                      <th style={{ textAlign: 'center' }}>Shopee</th>
+                      <th style={{ textAlign: 'right', paddingRight: '16px' }}>Total HPP/pcs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dynamicSampleRows.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          style={{ textAlign: 'center', padding: '24px', color: '#78716C' }}
+                        >
+                          Tidak ada data sample untuk filter yang dipilih.
+                        </td>
+                      </tr>
+                    ) : (
+                      dynamicSampleRows.map((row) => (
+                        <tr key={row.date}>
+                          <td style={{ fontWeight: 700, color: '#1F2937', paddingLeft: '16px' }}>
+                            {row.date}
+                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: 800, color: '#10B981' }}>
+                            {row.totalSample}
+                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: 700, color: '#059669' }}>
+                            {row.tiktok}
+                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: 700, color: '#EA580C' }}>
+                            {row.shopee}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#8B5CF6', paddingRight: '16px' }}>
+                            {formatRupiah(row.totalHpp)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td style={{ paddingLeft: '16px' }}>TOTAL</td>
+                      <td style={{ textAlign: 'center' }}>{kpis.totalSample}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        {dynamicSampleRows.reduce((a, b) => a + b.tiktok, 0)}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {dynamicSampleRows.reduce((a, b) => a + b.shopee, 0)}
+                      </td>
+                      <td style={{ textAlign: 'right', paddingRight: '16px' }}>
+                        {formatRupiah(kpis.totalHpp)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+            {/* Daftar Affiliate Dealing */}
+            <div className="aff-lemon-card" style={{ marginBottom: '1.5rem' }}>
+              <div className="aff-section-header">
+                <h3 className="aff-section-title">
+                  <span className="aff-section-icon-wrap orange">
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                  </span>
+                  <span>Daftar Affiliate Dealing</span>
+                </h3>
+                <span className="aff-counter-badge">
+                  {dynamicDealingRows.length} affiliator dealing
+                </span>
+              </div>
+
+              <div className="aff-table-scroll">
+                <table className="aff-lemon-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '45px', textAlign: 'center' }}>No</th>
+                      <th style={{ paddingLeft: '12px' }}>Tanggal Dealing</th>
+                      <th style={{ textAlign: 'center' }}>Platform</th>
+                      <th>Username</th>
+                      <th>Brand</th>
+                      <th>Tipe Kerjasama</th>
+                      <th>Produk</th>
+                      <th style={{ textAlign: 'right', paddingRight: '16px' }}>HPP/pcs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dynamicDealingRows.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          style={{ textAlign: 'center', padding: '24px', color: '#78716C' }}
+                        >
+                          Tidak ada affiliator dealing untuk filter yang dipilih.
+                        </td>
+                      </tr>
+                    ) : (
+                      dynamicDealingRows.map((r, idx) => (
+                        <tr key={idx}>
+                          <td style={{ textAlign: 'center', color: '#78716C', fontSize: '11.5px', fontWeight: 600 }}>
+                            {idx + 1}
+                          </td>
+                          <td style={{ fontWeight: 700, color: '#1F2937', paddingLeft: '12px' }}>
+                            {r.tanggalDealing || r.tanggal_dealing || r.date || '-'}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                fontSize: '10.5px',
+                                fontWeight: 700,
+                                background: (r.platform || '').toLowerCase() === 'tiktok' ? '#FFE4E6' : '#FFEDD5',
+                                color: (r.platform || '').toLowerCase() === 'tiktok' ? '#BE123C' : '#C2410C',
+                              }}
+                            >
+                              {r.platform}
+                            </span>
+                          </td>
+                          <td style={{ fontWeight: 700, color: '#111827' }}>
+                            @{r.username}
+                          </td>
+                          <td>
+                            <span className="badge-brand-tag">{r.brand || '(No Brand)'}</span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#4B5563' }}>
+                              {r.tipeKerjasama || r.tipe_kerjasama || '-'}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>
+                              {r.produk || r.product || '-'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#6D28D9', paddingRight: '16px' }}>
+                            {r.hpp ? formatRupiah(parseHpp(r.hpp)) : '-'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  {dynamicDealingRows.length > 0 && (
+                    <tfoot>
+                      <tr>
+                        <td colSpan={6} style={{ paddingLeft: '16px', fontWeight: 800 }}>
+                          TOTAL ({dynamicDealingRows.length} DEALING AFFILIATORS)
+                        </td>
+                        <td style={{ fontWeight: 700, color: '#0F172A' }}>
+                          {dynamicDealingRows.filter(r => (r.produk || r.product || '').trim()).length} Sample
+                        </td>
+                        <td style={{ textAlign: 'right', paddingRight: '16px', fontWeight: 800, color: '#6D28D9' }}>
+                          {formatRupiah(dynamicDealingRows.reduce((acc, r) => acc + parseHpp(r.hpp), 0))}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+
+            {/* Log Lengkap Affiliator with Interactive Filters on ALL Columns */}
             <div className="aff-lemon-card">
               <div className="aff-section-header">
                 <h3 className="aff-section-title">
@@ -1476,7 +1795,7 @@ export default function LaporanAffiliatePage() {
                       <path d="M9 12h6M9 16h6" />
                     </svg>
                   </span>
-                  <span>4. Log Lengkap Affiliator</span>
+                  <span>Log Lengkap Affiliator</span>
                 </h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span className="aff-counter-badge">
