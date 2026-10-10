@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import {
   parseLiveWorkbook,
@@ -8,6 +8,9 @@ import {
   summarizeSessions,
   slugifyCustomerId,
   slugifyPeriodId,
+  applyHostOverrides,
+  formatDurationHM,
+  formatDayDateIndo,
 } from '@/lib/parseLaporanLive'
 
 const COMMON_CUSTOMER_PRESETS = [
@@ -26,26 +29,49 @@ function fmtRp(n) {
   return 'Rp' + Math.round(n || 0).toLocaleString('id-ID')
 }
 
+function fmtInt(n) {
+  return Math.round(n || 0).toLocaleString('id-ID')
+}
+
+function getFormattedDayDate(row) {
+  if (row.dayDateFormatted) return row.dayDateFormatted
+  if (row.startTimestamp) return formatDayDateIndo(row.startTimestamp)
+  if (row.start) return formatDayDateIndo(row.start)
+  if (row.dateKey) {
+    const parts = row.dateKey.split('/')
+    if (parts.length === 3) {
+      const d = new Date(+parts[2], +parts[1] - 1, +parts[0])
+      if (!isNaN(d.getTime())) return formatDayDateIndo(d)
+    }
+  }
+  return row.dateKey || ''
+}
+
 export default function LaporanLiveTab() {
   const [indexData, setIndexData] = useState({ customers: [] })
   const [loadingIndex, setLoadingIndex] = useState(true)
   const [deletingKey, setDeletingKey] = useState(null)
 
-  // Step 1: Customer
-  const [customerName, setCustomerName] = useState('SHOPEE / SCELTA')
+  // ─── Modal / Panel Atur Penugasan Host ────────────────────────────────────────
+  const [editingTarget, setEditingTarget] = useState(null) // { customer, period }
+  const [editingPeriodData, setEditingPeriodData] = useState(null)
+  const [loadingEditingData, setLoadingEditingData] = useState(false)
+  const [editDayOverrides, setEditDayOverrides] = useState({})
+  const [editSessionOverrides, setEditSessionOverrides] = useState({})
+  const [savingOverrides, setSavingOverrides] = useState(false)
+  const [saveOverrideSuccess, setSaveOverrideSuccess] = useState(false)
+  const [editFilterHost, setEditFilterHost] = useState('all') // 'all' | 'Astrid' | 'Fifi'
+  const [editSearchQuery, setEditSearchQuery] = useState('')
 
-  // Step 2: Period Mode ('new' | 'overwrite')
-  const [saveMode, setSaveMode] = useState('new')
+  // ─── Form Upload State ───────────────────────────────────────────────────────
+  const [customerName, setCustomerName] = useState('SHOPEE / SCELTA')
+  const [saveMode, setSaveMode] = useState('new') // 'new' | 'overwrite'
   const [selectedPeriodId, setSelectedPeriodId] = useState('')
   const [newPeriodLabel, setNewPeriodLabel] = useState('')
-
-  // Step 3: Files & Preview
   const [selectedFiles, setSelectedFiles] = useState([])
   const [parsing, setParsing] = useState(false)
   const [parseError, setParseError] = useState(null)
   const [previewData, setPreviewData] = useState(null)
-
-  // Step 4: Publish
   const [publishing, setPublishing] = useState(false)
   const [publishSuccess, setPublishSuccess] = useState(null)
   const [publishError, setPublishError] = useState(null)
@@ -76,7 +102,7 @@ export default function LaporanLiveTab() {
   const currentCustObj = indexData.customers?.find((c) => c.id === currentCustId)
   const existingPeriods = currentCustObj?.periods || []
 
-  // If customer changes and saveMode is overwrite, reset or select first existing period
+  // If customer changes and saveMode is overwrite, select first existing period
   useEffect(() => {
     if (saveMode === 'overwrite') {
       if (existingPeriods.length > 0 && !existingPeriods.some((p) => p.id === selectedPeriodId)) {
@@ -131,7 +157,6 @@ export default function LaporanLiveTab() {
         sourceFiles: fileList.map((f) => f.name),
       })
 
-      // Suggest period label if not already typed
       if (!newPeriodLabel) {
         setNewPeriodLabel(detectedPeriod)
       }
@@ -143,7 +168,7 @@ export default function LaporanLiveTab() {
     }
   }
 
-  // Handle Publish / Save
+  // Handle Publish / Save Upload
   const handlePublish = async () => {
     if (!previewData || !previewData.rows?.length) {
       setPublishError('Pilih dan proses file Excel terlebih dahulu.')
@@ -200,7 +225,7 @@ export default function LaporanLiveTab() {
         throw new Error(body.error || 'Gagal menyimpan dan mempublikasikan data.')
       }
 
-      setPublishSuccess(`Berhasil! Data periode "${finalPeriodLabel}" untuk pelanggan "${customerName}" telah tersimpan & siap dilihat di menu Laporan Live.`)
+      setPublishSuccess(`Berhasil! Data periode "${finalPeriodLabel}" untuk "${customerName}" telah tersimpan & siap dilihat di menu Laporan Live.`)
       setSelectedFiles([])
       setPreviewData(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -229,6 +254,10 @@ export default function LaporanLiveTab() {
         const body = await res.json()
         throw new Error(body.error || 'Gagal menghapus periode.')
       }
+      if (editingTarget?.period?.id === period.id) {
+        setEditingTarget(null)
+        setEditingPeriodData(null)
+      }
       await fetchIndex()
     } catch (err) {
       alert(err.message)
@@ -236,6 +265,138 @@ export default function LaporanLiveTab() {
       setDeletingKey(null)
     }
   }
+
+  // ─── Open "Atur" Modal for a Period ───────────────────────────────────────────
+  const handleOpenAturModal = async (cust, period) => {
+    setEditingTarget({ customer: cust, period })
+    setLoadingEditingData(true)
+    setSaveOverrideSuccess(false)
+    setEditFilterHost('all')
+    setEditSearchQuery('')
+
+    try {
+      const res = await fetch(
+        `/api/laporan-live/data?customerId=${encodeURIComponent(cust.id)}&periodId=${encodeURIComponent(period.id)}`
+      )
+      const body = await res.json()
+      if (!res.ok || !body.ok) throw new Error(body.error || 'Gagal memuat data periode.')
+
+      if (body.data) {
+        setEditingPeriodData(body.data)
+        setEditDayOverrides(body.data.dayOverrides || {})
+        setEditSessionOverrides(body.data.sessionOverrides || {})
+      } else {
+        setEditingPeriodData(null)
+      }
+    } catch (err) {
+      alert('Gagal memuat detail sesi periode: ' + err.message)
+      setEditingTarget(null)
+    } finally {
+      setLoadingEditingData(false)
+    }
+  }
+
+  // Handle Day Override in Admin
+  const handleAdminDayOverrideChange = (dateKey, choice) => {
+    setEditDayOverrides((prev) => {
+      const next = { ...prev }
+      if (choice === 'auto') {
+        delete next[dateKey]
+      } else {
+        next[dateKey] = choice
+      }
+      return next
+    })
+    setSaveOverrideSuccess(false)
+  }
+
+  // Handle Session Override in Admin
+  const handleAdminSessionOverrideChange = (rowId, choice) => {
+    setEditSessionOverrides((prev) => {
+      const next = { ...prev }
+      if (choice === 'auto') {
+        delete next[rowId]
+      } else {
+        next[rowId] = choice
+      }
+      return next
+    })
+    setSaveOverrideSuccess(false)
+  }
+
+  // Save Overrides from Admin
+  const handleSaveOverrides = async () => {
+    if (!editingTarget) return
+    setSavingOverrides(true)
+    setSaveOverrideSuccess(false)
+
+    try {
+      const res = await fetch('/api/laporan-live/overrides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: editingTarget.customer.id,
+          periodId: editingTarget.period.id,
+          dayOverrides: editDayOverrides,
+          sessionOverrides: editSessionOverrides,
+        }),
+      })
+
+      const body = await res.json()
+      if (!res.ok || !body.ok) throw new Error(body.error || 'Gagal menyimpan penugasan host.')
+
+      setSaveOverrideSuccess(true)
+      if (body.data) {
+        setEditingPeriodData(body.data)
+      }
+      await fetchIndex()
+    } catch (err) {
+      alert('Gagal menyimpan penugasan host: ' + err.message)
+    } finally {
+      setSavingOverrides(false)
+    }
+  }
+
+  // Computed rows for the Atur Modal
+  const editComputedRows = useMemo(() => {
+    if (!editingPeriodData?.rows) return []
+    return applyHostOverrides(editingPeriodData.rows, editDayOverrides, editSessionOverrides)
+  }, [editingPeriodData, editDayOverrides, editSessionOverrides])
+
+  // Unique calendar days for Day Overrides section
+  const editUniqueDays = useMemo(() => {
+    const byDate = new Map()
+    editComputedRows.forEach((r) => {
+      if (!byDate.has(r.dateKey)) {
+        byDate.set(r.dateKey, {
+          dateKey: r.dateKey,
+          dayDateFormatted: getFormattedDayDate(r),
+          sortTimestamp: r.startTimestamp,
+          astrid: 0,
+          fifi: 0,
+        })
+      }
+      const entry = byDate.get(r.dateKey)
+      if (r.autoHost === 'Astrid') entry.astrid++
+      else entry.fifi++
+    })
+    return Array.from(byDate.values()).sort((a, b) => a.sortTimestamp - b.sortTimestamp)
+  }, [editComputedRows])
+
+  // Filtered rows for the Session Detail table in Atur Modal
+  const editFilteredRows = useMemo(() => {
+    return editComputedRows.filter((r) => {
+      if (editFilterHost !== 'all' && r.host !== editFilterHost) return false
+      if (editSearchQuery) {
+        const q = editSearchQuery.toLowerCase()
+        const titleMatch = (r.nama || '').toLowerCase().includes(q)
+        const dateMatch = (r.dateKey || '').toLowerCase().includes(q)
+        const dayDateMatch = getFormattedDayDate(r).toLowerCase().includes(q)
+        if (!titleMatch && !dateMatch && !dayDateMatch) return false
+      }
+      return true
+    })
+  }, [editComputedRows, editFilterHost, editSearchQuery])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -245,7 +406,7 @@ export default function LaporanLiveTab() {
           <div>
             <h3 className="block-title" style={{ margin: 0 }}>Periode Laporan Live Tersimpan</h3>
             <p className="assign-hint" style={{ marginTop: '4px', marginBottom: 0 }}>
-              Daftar periode live streaming per pelanggan yang telah disimpan di database/storage.
+              Daftar periode live streaming per pelanggan. Klik tombol <strong>Atur</strong> untuk mengelola penugasan host harian dan per sesi.
             </p>
           </div>
           <button
@@ -289,15 +450,21 @@ export default function LaporanLiveTab() {
                   <th>Total Sesi</th>
                   <th>Total Penjualan</th>
                   <th>Terakhir Diperbarui</th>
-                  <th>Aksi</th>
+                  <th style={{ textAlign: 'center' }}>Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {indexData.customers.map((cust) =>
                   cust.periods?.map((p) => {
                     const isDeleting = deletingKey === `${cust.id}__${p.id}`
+                    const isCurrentlyEditing = editingTarget?.customer?.id === cust.id && editingTarget?.period?.id === p.id
                     return (
-                      <tr key={`${cust.id}__${p.id}`}>
+                      <tr
+                        key={`${cust.id}__${p.id}`}
+                        style={{
+                          background: isCurrentlyEditing ? '#FEFCE8' : undefined,
+                        }}
+                      >
                         <td>
                           <span
                             style={{
@@ -324,20 +491,29 @@ export default function LaporanLiveTab() {
                         <td className="muted mono" style={{ fontSize: '11.5px' }}>
                           {p.updatedAt ? new Date(p.updatedAt).toLocaleString('id-ID') : '—'}
                         </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                            <a
-                              href={`/laporan-live?cust=${encodeURIComponent(cust.id)}&p=${encodeURIComponent(p.id)}`}
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                            {/* Tombol ATUR (menggantikan tombol lihat) */}
+                            <button
+                              type="button"
                               className="pill-btn"
+                              onClick={() => handleOpenAturModal(cust, p)}
                               style={{
-                                textDecoration: 'none',
-                                fontSize: '11.5px',
-                                padding: '4px 8px',
-                                color: '#854D0E',
+                                background: isCurrentlyEditing ? '#EAB308' : '#FEF08A',
+                                color: isCurrentlyEditing ? '#FFFFFF' : '#713F12',
+                                borderColor: '#EAB308',
+                                fontWeight: 700,
+                                fontSize: '12px',
+                                padding: '4px 12px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
                               }}
                             >
-                              Lihat ↗
-                            </a>
+                              <span>⚙️</span>
+                              <span>Atur</span>
+                            </button>
+
                             <button
                               type="button"
                               className="btn-delete"
@@ -358,6 +534,394 @@ export default function LaporanLiveTab() {
           </div>
         )}
       </div>
+
+      {/* ── Block Modal / Section: Atur Penugasan Host ── */}
+      {editingTarget && (
+        <div
+          id="editor-penugasan-host"
+          style={{
+            background: '#FFFFFF',
+            border: '2px solid #EAB308',
+            borderRadius: '16px',
+            padding: '24px',
+            boxShadow: '0 8px 30px rgba(234, 179, 8, 0.15)',
+            position: 'relative',
+          }}
+        >
+          {/* Header Editor */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    background: '#FEF08A',
+                    color: '#854D0E',
+                    border: '1px solid #EAB308',
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {editingTarget.customer.name}
+                </span>
+                <h3 style={{ margin: 0, fontSize: '19px', color: '#1C1917', fontFamily: 'Fraunces, serif' }}>
+                  Atur Penugasan Host: {editingTarget.period.label}
+                </h3>
+              </div>
+              <p className="assign-hint" style={{ marginTop: '6px', marginBottom: 0 }}>
+                Kelola shift host harian (Astrid / Fifi) atau ubah penugasan per sesi livestream. Seluruh penyesuaian akan langsung tampil di menu Laporan Live.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <a
+                href={`/laporan-live?cust=${encodeURIComponent(editingTarget.customer.id)}&p=${encodeURIComponent(editingTarget.period.id)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="pill-btn"
+                style={{
+                  textDecoration: 'none',
+                  fontSize: '12px',
+                  padding: '5px 12px',
+                  color: '#854D0E',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span>Buka di Laporan Live</span>
+                <span>↗</span>
+              </a>
+
+              <button
+                type="button"
+                className="pill-btn"
+                onClick={() => setEditingTarget(null)}
+                style={{ fontSize: '12px', padding: '5px 10px' }}
+              >
+                Tutup ✕
+              </button>
+            </div>
+          </div>
+
+          {loadingEditingData && <p className="loading-text">Memuat sesi data livestream…</p>}
+
+          {!loadingEditingData && editingPeriodData && (
+            <>
+              {/* Notification saved */}
+              {saveOverrideSuccess && (
+                <div
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    background: '#DCFCE7',
+                    border: '1px solid #BBF7D0',
+                    color: '#15803D',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    marginBottom: '1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span>✅</span>
+                  <span>Perubahan penugasan host berhasil disimpan ke storage server.</span>
+                </div>
+              )}
+
+              {/* 1. Pengaturan Penugasan Host per Hari */}
+              <div
+                style={{
+                  background: '#FFFDF0',
+                  borderRadius: '12px',
+                  border: '1.5px solid #FEF08A',
+                  padding: '18px 20px',
+                  marginBottom: '1.5rem',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div>
+                    <h4 style={{ margin: '0 0 2px', fontSize: '15px', color: '#451A03', fontWeight: 700 }}>
+                      1. Atur Penugasan Host per Hari ({editUniqueDays.length} Hari)
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#78716C' }}>
+                      Pilih apakah seluruh sesi pada tanggal tersebut ditugaskan ke Astrid, Fifi, atau mengikuti deteksi otomatis jam selesai sesi live.
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                    gap: '10px',
+                    maxHeight: '340px',
+                    overflowY: 'auto',
+                    paddingRight: '4px',
+                  }}
+                >
+                  {editUniqueDays.map((d) => {
+                    const current = editDayOverrides[d.dateKey] || 'auto'
+                    const isOverridden = !!editDayOverrides[d.dateKey]
+                    return (
+                      <div
+                        key={d.dateKey}
+                        style={{
+                          border: isOverridden ? '1.5px solid #C88A2E' : '1px solid #E6DACB',
+                          background: isOverridden ? '#FFFBF2' : '#FFFFFF',
+                          borderRadius: '10px',
+                          padding: '10px 12px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 700, fontSize: '12.5px', color: '#2A1F2A' }}>
+                            {d.dayDateFormatted}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#6B5D67' }}>
+                          Otomatis: {d.astrid} Astrid · {d.fifi} Fifi
+                        </span>
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                          {['auto', 'Astrid', 'Fifi'].map((choice) => {
+                            const isActive = current === choice
+                            let bg = '#FFFFFF'
+                            let col = '#6B5D67'
+                            let bColor = '#E6DACB'
+                            if (isActive) {
+                              if (choice === 'Astrid') {
+                                bg = '#C88A2E'
+                                col = '#FFFFFF'
+                                bColor = '#C88A2E'
+                              } else if (choice === 'Fifi') {
+                                bg = '#40396E'
+                                col = '#FFFFFF'
+                                bColor = '#40396E'
+                              } else {
+                                bg = '#2A1F2A'
+                                col = '#FFFFFF'
+                                bColor = '#2A1F2A'
+                              }
+                            }
+                            return (
+                              <button
+                                key={choice}
+                                type="button"
+                                onClick={() => handleAdminDayOverrideChange(d.dateKey, choice)}
+                                style={{
+                                  flex: 1,
+                                  padding: '4px 0',
+                                  fontSize: '11px',
+                                  fontWeight: isActive ? 700 : 500,
+                                  background: bg,
+                                  color: col,
+                                  border: `1px solid ${bColor}`,
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontFamily: 'IBM Plex Mono, monospace',
+                                  transition: 'all 0.15s ease',
+                                }}
+                              >
+                                {choice === 'auto' ? 'Otomatis' : choice}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Tabel Detail Sesi Live Streaming dengan Dropdown Host */}
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  borderRadius: '12px',
+                  border: '1.5px solid #E2E8F0',
+                  padding: '18px 20px',
+                  marginBottom: '1.25rem',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div>
+                    <h4 style={{ margin: '0 0 2px', fontSize: '15px', color: '#1C1917', fontWeight: 700 }}>
+                      2. Detail Sesi Live Streaming (Ubah Host per Sesi)
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#78716C' }}>
+                      Gunakan dropdown pada kolom Host jika ingin menimpa penugasan host pada sesi tertentu secara spesifik.
+                    </p>
+                  </div>
+
+                  {/* Filter & Search */}
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div className="aff-toggle-group">
+                      <button
+                        type="button"
+                        className={`aff-toggle-btn ${editFilterHost === 'all' ? 'active' : ''}`}
+                        onClick={() => setEditFilterHost('all')}
+                      >
+                        Semua ({editComputedRows.length})
+                      </button>
+                      <button
+                        type="button"
+                        className={`aff-toggle-btn ${editFilterHost === 'Astrid' ? 'active' : ''}`}
+                        onClick={() => setEditFilterHost('Astrid')}
+                      >
+                        Astrid ({editComputedRows.filter((r) => r.host === 'Astrid').length})
+                      </button>
+                      <button
+                        type="button"
+                        className={`aff-toggle-btn ${editFilterHost === 'Fifi' ? 'active' : ''}`}
+                        onClick={() => setEditFilterHost('Fifi')}
+                      >
+                        Fifi ({editComputedRows.filter((r) => r.host === 'Fifi').length})
+                      </button>
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Cari judul / tanggal…"
+                      value={editSearchQuery}
+                      onChange={(e) => setEditSearchQuery(e.target.value)}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12.5px',
+                        border: '1.5px solid #FEF08A',
+                        borderRadius: '8px',
+                        minWidth: '200px',
+                        background: '#FFFDF5',
+                        color: '#1C1917',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="aff-table-scroll" style={{ maxHeight: '420px', overflowY: 'auto' }}>
+                  <table className="aff-lemon-table">
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: '#FEFCE8' }}>
+                      <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>No</th>
+                        <th style={{ minWidth: '150px' }}>Host Penugasan</th>
+                        <th style={{ minWidth: '135px' }}>Hari &amp; Tanggal</th>
+                        <th style={{ minWidth: '65px' }}>Mulai</th>
+                        <th style={{ minWidth: '65px' }}>Selesai</th>
+                        <th style={{ minWidth: '75px' }}>Durasi</th>
+                        <th style={{ minWidth: '220px' }}>Nama Livestream</th>
+                        <th style={{ textAlign: 'right', minWidth: '75px' }}>Aktif</th>
+                        <th style={{ textAlign: 'right', minWidth: '75px' }}>Penonton</th>
+                        <th style={{ textAlign: 'right', minWidth: '75px' }}>Pesanan</th>
+                        <th style={{ textAlign: 'right', minWidth: '115px' }}>Penjualan (Rp)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {editFilteredRows.map((r, i) => {
+                        const selVal = editSessionOverrides[r.id] || 'auto'
+                        const autoLabel =
+                          r.overrideSource === 'day' ? `Otomatis (hari: ${r.host})` : `Otomatis (${r.autoHost})`
+                        return (
+                          <tr key={r.id}>
+                            <td style={{ textAlign: 'center', fontFamily: 'IBM Plex Mono, monospace', color: '#78716C' }}>
+                              {i + 1}
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <select
+                                  value={selVal}
+                                  onChange={(e) => handleAdminSessionOverrideChange(r.id, e.target.value)}
+                                  style={{
+                                    fontSize: '11.5px',
+                                    padding: '3px 6px',
+                                    borderRadius: '6px',
+                                    border:
+                                      r.host === 'Astrid' ? '1.5px solid #C88A2E' : '1.5px solid #40396E',
+                                    background: r.host === 'Astrid' ? '#FFFDF5' : '#F5F3FF',
+                                    color: r.host === 'Astrid' ? '#8A5D1A' : '#342E59',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <option value="auto">{autoLabel}</option>
+                                  <option value="Astrid">Astrid</option>
+                                  <option value="Fifi">Fifi</option>
+                                </select>
+                                {r.overrideSource === 'session' && (
+                                  <span
+                                    title="Diubah manual untuk sesi ini"
+                                    style={{
+                                      width: '7px',
+                                      height: '7px',
+                                      borderRadius: '50%',
+                                      background: '#D97706',
+                                      display: 'inline-block',
+                                    }}
+                                  />
+                                )}
+                              </div>
+                            </td>
+                            <td style={{ fontWeight: 600, color: '#451A03', whiteSpace: 'nowrap' }}>
+                              {getFormattedDayDate(r)}
+                            </td>
+                            <td style={{ fontFamily: 'IBM Plex Mono, monospace' }}>{r.startTime}</td>
+                            <td style={{ fontFamily: 'IBM Plex Mono, monospace' }}>{r.endTime}</td>
+                            <td style={{ fontFamily: 'IBM Plex Mono, monospace' }}>{formatDurationHM(r.durSec)}</td>
+                            <td style={{ maxWidth: '280px', wordBreak: 'break-word', fontWeight: 500 }}>{r.nama}</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
+                              {fmtInt(r.penontonAktif)}
+                            </td>
+                            <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
+                              {fmtInt(r.penonton)}
+                            </td>
+                            <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600 }}>
+                              {fmtInt(r.pesananDibuat)}
+                            </td>
+                            <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, color: '#15803D' }}>
+                              {fmtRp(r.penjualanDibuat)}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Action Bar Simpan Perubahan */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderTop: '1px solid #FEF08A', paddingTop: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn-export"
+                    onClick={handleSaveOverrides}
+                    disabled={savingOverrides}
+                    style={{ padding: '9px 20px', fontSize: '13.5px' }}
+                  >
+                    {savingOverrides ? 'Menyimpan ke Storage…' : '💾 Simpan Perubahan Penugasan'}
+                  </button>
+                  <button
+                    type="button"
+                    className="pill-btn"
+                    onClick={() => setEditingTarget(null)}
+                    style={{ padding: '8px 14px' }}
+                  >
+                    Selesai &amp; Tutup
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '12.5px', color: '#78716C' }}>
+                  Total <strong>{editComputedRows.length}</strong> sesi · Astrid:{' '}
+                  <strong>{editComputedRows.filter((r) => r.host === 'Astrid').length}</strong> · Fifi:{' '}
+                  <strong>{editComputedRows.filter((r) => r.host === 'Fifi').length}</strong>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Block 2: Upload Zone Form ── */}
       <div className="table-block">
