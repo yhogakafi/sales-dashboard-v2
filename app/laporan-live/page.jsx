@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx'
 import AuthGate from '@/components/AuthGate'
 import LemonIcon from '@/components/LemonIcon'
 import LiveGrowthChart from '@/components/LiveGrowthChart'
+import LiveClockDistribution from '@/components/LiveClockDistribution'
 import {
   applyHostOverrides,
   summarizeSessions,
@@ -229,51 +230,6 @@ export default function LaporanLivePage() {
     ]
   }, [astridSummary, fifiSummary])
 
-  // 24h Dial SVG calculations
-  const dialSvg = useMemo(() => {
-    const size = 260
-    const cx = size / 2
-    const cy = size / 2
-    const radius = 96
-
-    const toXY = (hourFloat, r) => {
-      const angle = (hourFloat / 24) * 2 * Math.PI - Math.PI / 2
-      return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)]
-    }
-
-    const arcPath = (h1, h2, r) => {
-      const [x1, y1] = toXY(h1, r)
-      const [x2, y2] = toXY(h2, r)
-      const large = h2 - h1 > 12 ? 1 : 0
-      return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`
-    }
-
-    const dots = activeRows.map((row) => {
-      const startDate = new Date(row.startTimestamp)
-      const hourFloat = startDate.getHours() + startDate.getMinutes() / 60
-      const [x, y] = toXY(hourFloat, radius)
-      const color = row.host === 'Astrid' ? '#C88A2E' : '#40396E'
-      return { x: x.toFixed(1), y: y.toFixed(1), color, id: row.id }
-    })
-
-    const ticks = []
-    for (let h = 0; h < 24; h += 3) {
-      const [tx, ty] = toXY(h, radius + 16)
-      ticks.push({ x: tx.toFixed(1), y: ty.toFixed(1), label: String(h).padStart(2, '0') })
-    }
-
-    return {
-      size,
-      cx,
-      cy,
-      radius,
-      astridArc: arcPath(6, 17, radius),
-      fifiArc: arcPath(17, 30, radius),
-      dots,
-      ticks,
-    }
-  }, [activeRows])
-
   // ─── Table 1 Data: Laporan Harian per Host (Filtered & Sorted) ────────────
   const dailySummaryList = useMemo(() => {
     const dateMap = new Map()
@@ -455,14 +411,19 @@ export default function LaporanLivePage() {
     XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan per Host')
 
     // 2. Laporan Semua Periode (Tahun)
-    const allPeriodsExport = currentYearPeriods.map((p) => ({
-      Tahun: p.year,
-      'Periode / Bulan': p.displayLabel,
-      'Total Durasi': formatDurationHM(p.totalDurSec || p.durSec || 0),
-      'Omzet Astrid (Rp)': p.astridPenjualan || 0,
-      'Omzet Fifi (Rp)': p.fifiPenjualan || 0,
-      'Total Omzet (Rp)': p.totalPenjualan || 0,
-    }))
+    const allPeriodsExport = currentYearPeriods.map((p) => {
+      const aov = p.totalPesanan > 0 ? Math.round((p.totalPenjualan || 0) / p.totalPesanan) : 0
+      return {
+        Tahun: p.year,
+        'Periode / Bulan': p.displayLabel,
+        'Total Durasi': formatDurationHM(p.totalDurSec || p.durSec || 0),
+        'Produk Terjual': p.totalProduk || 0,
+        'Omzet Astrid (Rp)': p.astridPenjualan || 0,
+        'Omzet Fifi (Rp)': p.fifiPenjualan || 0,
+        'Total Omzet (Rp)': p.totalPenjualan || 0,
+        'AOV (Rp)': aov,
+      }
+    })
     const wsAllPeriods = XLSX.utils.json_to_sheet(allPeriodsExport)
     XLSX.utils.book_append_sheet(wb, wsAllPeriods, `Laporan Periode ${activeYear}`)
 
@@ -808,20 +769,37 @@ export default function LaporanLivePage() {
                             fontWeight: 700,
                             padding: '2px 8px',
                             borderRadius: '999px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            border: '1px solid #C88A2E',
                           }}
                         >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#D97706' }}>
+                            <circle cx="12" cy="12" r="5" fill="#F59E0B" stroke="#D97706" />
+                            <line x1="12" y1="1" x2="12" y2="3" />
+                            <line x1="12" y1="21" x2="12" y2="23" />
+                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                            <line x1="1" y1="12" x2="3" y2="12" />
+                            <line x1="21" y1="12" x2="23" y2="12" />
+                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                          </svg>
                           Shift Siang
                         </span>
                       </div>
                       <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#6B5D67', fontFamily: 'IBM Plex Mono, monospace' }}>
-                        06:00 – 17:00 WIB
+                        06:00 – 17:00 WIB · {astridSummary.totalSessions} sesi
                       </p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ fontSize: '20px', fontWeight: 700, color: '#C88A2E', fontFamily: 'IBM Plex Mono, monospace' }}>
-                        {astridSummary.totalSessions}
+                        {totalSummary.penjualanDibuat > 0
+                          ? ((astridSummary.penjualanDibuat / totalSummary.penjualanDibuat) * 100).toFixed(1) + '%'
+                          : '0.0%'}
                       </span>
-                      <span style={{ fontSize: '12px', color: '#6B5D67', display: 'block' }}>sesi</span>
+                      <span style={{ fontSize: '11px', color: '#6B5D67', display: 'block' }}>kontribusi omzet</span>
                     </div>
                   </div>
 
@@ -900,20 +878,29 @@ export default function LaporanLivePage() {
                             fontWeight: 700,
                             padding: '2px 8px',
                             borderRadius: '999px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            border: '1px solid #40396E',
                           }}
                         >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="#6366F1" stroke="#4338CA" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                          </svg>
                           Shift Malam
                         </span>
                       </div>
                       <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#6B5D67', fontFamily: 'IBM Plex Mono, monospace' }}>
-                        17:00 – 06:00 WIB
+                        17:00 – 06:00 WIB · {fifiSummary.totalSessions} sesi
                       </p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ fontSize: '20px', fontWeight: 700, color: '#40396E', fontFamily: 'IBM Plex Mono, monospace' }}>
-                        {fifiSummary.totalSessions}
+                        {totalSummary.penjualanDibuat > 0
+                          ? ((fifiSummary.penjualanDibuat / totalSummary.penjualanDibuat) * 100).toFixed(1) + '%'
+                          : '0.0%'}
                       </span>
-                      <span style={{ fontSize: '12px', color: '#6B5D67', display: 'block' }}>sesi</span>
+                      <span style={{ fontSize: '11px', color: '#6B5D67', display: 'block' }}>kontribusi omzet</span>
                     </div>
                   </div>
 
@@ -991,246 +978,125 @@ export default function LaporanLivePage() {
                 </span>
               </div>
 
-              {/* Side-by-Side: Tabel Semua Periode (Kiri) & Grafik Pertumbuhan (Kanan) */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-                  gap: '16px',
-                  alignItems: 'stretch',
-                }}
-              >
-                {/* Tabel Laporan Semua Periode */}
-                <div
-                  style={{
-                    background: '#FFFFFF',
-                    borderRadius: '16px',
-                    border: '1.5px solid #FEF08A',
-                    padding: '20px 22px',
-                    boxShadow: '0 2px 10px rgba(234, 179, 8, 0.05)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                  }}
-                >
-                  <div style={{ marginBottom: '12px' }}>
-                    <h3 style={{ margin: '0 0 2px', fontSize: '16.5px', color: '#1C1917', fontFamily: 'Fraunces, serif' }}>
-                      Rekapitulasi Semua Periode ({activeYear})
-                    </h3>
-                    <p style={{ margin: 0, fontSize: '12px', color: '#78716C' }}>
-                      Daftar performa live streaming per bulan. Klik periode untuk beralih detail.
-                    </p>
-                  </div>
-
-                  <div className="aff-table-scroll" style={{ flex: 1, maxHeight: '360px', overflowY: 'auto' }}>
-                    <table className="aff-lemon-table">
-                      <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: '#FEFCE8' }}>
-                        <tr>
-                          <th style={{ minWidth: '130px' }}>Periode / Bulan</th>
-                          <th style={{ textAlign: 'right', minWidth: '100px' }}>Total Durasi</th>
-                          <th style={{ textAlign: 'right', minWidth: '110px' }}>Astrid (Rp)</th>
-                          <th style={{ textAlign: 'right', minWidth: '110px' }}>Fifi (Rp)</th>
-                          <th style={{ textAlign: 'right', minWidth: '120px' }}>Total Omzet (Rp)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {currentYearPeriods.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} style={{ textAlign: 'center', padding: '1.5rem', color: '#78716C' }}>
-                              Belum ada data periode yang disimpan untuk tahun {activeYear}.
-                            </td>
-                          </tr>
-                        ) : (
-                          currentYearPeriods.map((p) => {
-                            const isCurrent = p.id === selectedPeriodId
-                            return (
-                              <tr
-                                key={p.id}
-                                style={{
-                                  background: isCurrent ? '#FEFCE8' : undefined,
-                                  cursor: 'pointer',
-                                }}
-                                onClick={() => handlePeriodChange(p.id)}
-                                title="Klik untuk membuka detail periode ini"
-                              >
-                                <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <strong style={{ color: isCurrent ? '#854D0E' : '#1C1917' }}>
-                                      {p.displayLabel}
-                                    </strong>
-                                    {isCurrent && (
-                                      <span
-                                        style={{
-                                          fontSize: '10px',
-                                          background: '#FEF08A',
-                                          color: '#854D0E',
-                                          padding: '1px 5px',
-                                          borderRadius: '4px',
-                                          fontWeight: 700,
-                                        }}
-                                      >
-                                        Aktif
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
-                                  {formatDurationHM(p.totalDurSec || p.durSec || 0)}
-                                </td>
-                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#95651C' }}>
-                                  {fmtRp(p.astridPenjualan || 0)}
-                                </td>
-                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#40396E' }}>
-                                  {fmtRp(p.fifiPenjualan || 0)}
-                                </td>
-                                <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, color: '#15803D' }}>
-                                  {fmtRp(p.totalPenjualan || 0)}
-                                </td>
-                              </tr>
-                            )
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Grafik Pertumbuhan Host Live */}
-                <div>
-                  <LiveGrowthChart yearData={currentYearPeriods} activeYear={activeYear} />
-                </div>
-              </div>
-            </div>
-
-            {/* ── Visual Dial & Comparison Section ── */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                gap: '16px',
-                marginBottom: '1.5rem',
-              }}
-            >
-              {/* 24-Hour Dial Clock */}
+              {/* Tabel Laporan Semua Periode (Full Width) */}
               <div
                 style={{
                   background: '#FFFFFF',
                   borderRadius: '16px',
-                  border: '1px solid #E6DACB',
-                  padding: '24px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
+                  border: '1.5px solid #FEF08A',
+                  padding: '20px 22px',
+                  boxShadow: '0 2px 10px rgba(234, 179, 8, 0.05)',
+                  marginBottom: '16px',
                 }}
               >
-                <div style={{ width: '100%', marginBottom: '16px' }}>
-                  <h3 style={{ margin: '0 0 4px', fontSize: '17px', color: '#2A1F2A', fontFamily: 'Fraunces, serif' }}>
-                    Distribusi Jam Live (24 Jam)
+                <div style={{ marginBottom: '12px' }}>
+                  <h3 style={{ margin: '0 0 2px', fontSize: '16.5px', color: '#1C1917', fontFamily: 'Fraunces, serif' }}>
+                    Rekapitulasi Semua Periode ({activeYear})
                   </h3>
-                  <p style={{ margin: 0, fontSize: '12.5px', color: '#6B5D67' }}>
-                    Setiap titik mewakili waktu mulai sesi live streaming pada lingkaran jam 24h.
+                  <p style={{ margin: 0, fontSize: '12px', color: '#78716C' }}>
+                    Daftar performa live streaming per bulan. Klik periode untuk beralih detail.
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}>
-                  <svg width={dialSvg.size} height={dialSvg.size} viewBox={`0 0 ${dialSvg.size} ${dialSvg.size}`}>
-                    <path d={dialSvg.astridArc} fill="#F4E3C4" />
-                    <path d={dialSvg.fifiArc} fill="#DCD9EE" />
-                    <circle cx={dialSvg.cx} cy={dialSvg.cy} r={dialSvg.radius} fill="none" stroke="#E6DACB" strokeWidth="1" />
-                    {dialSvg.ticks.map((t) => (
-                      <text
-                        key={t.label}
-                        x={t.x}
-                        y={t.y}
-                        fontFamily="IBM Plex Mono, monospace"
-                        fontSize="10"
-                        fill="#8A7C86"
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                      >
-                        {t.label}
-                      </text>
-                    ))}
-                    {dialSvg.dots.map((d, idx) => (
-                      <circle
-                        key={`${d.id}-${idx}`}
-                        cx={d.x}
-                        cy={d.y}
-                        r="3.8"
-                        fill={d.color}
-                        fillOpacity="0.85"
-                        stroke="#fff"
-                        strokeWidth="1"
-                      />
-                    ))}
-                    <circle cx={dialSvg.cx} cy={dialSvg.cy} r="2.5" fill="#2A1F2A" />
-                  </svg>
-                </div>
-
-                <div style={{ display: 'flex', gap: '18px', marginTop: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', color: '#6B5D67' }}>
-                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#C88A2E' }} />
-                    <span>Astrid (06:00 – 17:00)</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', color: '#6B5D67' }}>
-                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#40396E' }} />
-                    <span>Fifi (17:00 – 06:00)</span>
-                  </div>
+                <div className="aff-table-scroll" style={{ maxHeight: '380px', overflowY: 'auto' }}>
+                  <table className="aff-lemon-table">
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 5, background: '#FEFCE8' }}>
+                      <tr>
+                        <th style={{ minWidth: '130px' }}>Periode / Bulan</th>
+                        <th style={{ textAlign: 'right', minWidth: '100px' }}>Total Durasi</th>
+                        <th style={{ textAlign: 'right', minWidth: '95px' }}>Produk Terjual</th>
+                        <th style={{ textAlign: 'right', minWidth: '110px' }}>Astrid (Rp)</th>
+                        <th style={{ textAlign: 'right', minWidth: '110px' }}>Fifi (Rp)</th>
+                        <th style={{ textAlign: 'right', minWidth: '115px' }}>Total Omzet (Rp)</th>
+                        <th style={{ textAlign: 'right', minWidth: '105px' }}>AOV (Rp)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {currentYearPeriods.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: 'center', padding: '1.5rem', color: '#78716C' }}>
+                            Belum ada data periode yang disimpan untuk tahun {activeYear}.
+                          </td>
+                        </tr>
+                      ) : (
+                        currentYearPeriods.map((p) => {
+                          const isCurrent = p.id === selectedPeriodId
+                          const aov = p.totalPesanan > 0 ? Math.round((p.totalPenjualan || 0) / p.totalPesanan) : 0
+                          return (
+                            <tr
+                              key={p.id}
+                              style={{
+                                background: isCurrent ? '#FEFCE8' : undefined,
+                                cursor: 'pointer',
+                              }}
+                              onClick={() => handlePeriodChange(p.id)}
+                              title="Klik untuk membuka detail periode ini"
+                            >
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <strong style={{ color: isCurrent ? '#854D0E' : '#1C1917' }}>
+                                    {p.displayLabel}
+                                  </strong>
+                                  {isCurrent && (
+                                    <span
+                                      style={{
+                                        fontSize: '10px',
+                                        background: '#FEF08A',
+                                        color: '#854D0E',
+                                        padding: '1px 5px',
+                                        borderRadius: '4px',
+                                        fontWeight: 700,
+                                      }}
+                                    >
+                                      Aktif
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
+                                {formatDurationHM(p.totalDurSec || p.durSec || 0)}
+                              </td>
+                              <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace' }}>
+                                {fmtInt(p.totalProduk || 0)}
+                              </td>
+                              <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#95651C' }}>
+                                {fmtRp(p.astridPenjualan || 0)}
+                              </td>
+                              <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#40396E' }}>
+                                {fmtRp(p.fifiPenjualan || 0)}
+                              </td>
+                              <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, color: '#15803D' }}>
+                                {fmtRp(p.totalPenjualan || 0)}
+                              </td>
+                              <td style={{ textAlign: 'right', fontFamily: 'IBM Plex Mono, monospace', color: '#B45309', fontWeight: 600 }}>
+                                {fmtRp(aov)}
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
-              {/* Astrid vs Fifi Comparison Bars */}
-              <div
-                style={{
-                  background: '#FFFFFF',
-                  borderRadius: '16px',
-                  border: '1px solid #E6DACB',
-                  padding: '24px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                }}
-              >
-                <h3 style={{ margin: '0 0 4px', fontSize: '17px', color: '#2A1F2A', fontFamily: 'Fraunces, serif' }}>
-                  Perbandingan Performa Astrid vs Fifi
-                </h3>
-                <p style={{ margin: '0 0 18px', fontSize: '12.5px', color: '#6B5D67' }}>
-                  Persentase kontribusi metrik antar kedua host pada periode ini.
-                </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  {comparisonMetrics.map(({ label, aVal, fVal, fmt }) => {
-                    const total = aVal + fVal || 1
-                    const pa = Math.min(100, Math.max(0, +((aVal / total) * 100).toFixed(1)))
-                    const pf = Math.min(100, Math.max(0, +(100 - pa).toFixed(1)))
-                    return (
-                      <div key={label}>
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            fontSize: '12px',
-                            color: '#6B5D67',
-                            marginBottom: '4px',
-                            fontFamily: 'IBM Plex Mono, monospace',
-                          }}
-                        >
-                          <span style={{ fontWeight: 600, color: '#2A1F2A' }}>{label}</span>
-                          <span>
-                            Astrid {fmt(aVal)} ({pa}%) · Fifi {fmt(fVal)} ({pf}%)
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', height: '10px', borderRadius: '5px', overflow: 'hidden', background: '#F1EAE0' }}>
-                          <div style={{ width: `${pa}%`, background: '#C88A2E', transition: 'width 0.3s ease' }} />
-                          <div style={{ width: `${pf}%`, background: '#40396E', transition: 'width 0.3s ease' }} />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+              {/* Grafik Pertumbuhan Host Live (Pindah ke bawah Rekapitulasi) */}
+              <div style={{ marginBottom: '1.5rem' }}>
+                <LiveGrowthChart yearData={currentYearPeriods} activeYear={activeYear} />
               </div>
             </div>
+
+            {/* ── 4. Distribusi Jam Live Streaming (Format 12 Jam & Terpisah Host) ── */}
+            <LiveClockDistribution
+              astridRows={astridRows}
+              fifiRows={fifiRows}
+              astridSummary={astridSummary}
+              fifiSummary={fifiSummary}
+              comparisonMetrics={comparisonMetrics}
+              fmtRp={fmtRp}
+              fmtInt={fmtInt}
+              formatDurationHM={formatDurationHM}
+            />
 
             {/* ── Tabel 1: Laporan Harian per Host (Filtered & Sortable) ── */}
             <div
@@ -1311,9 +1177,9 @@ export default function LaporanLivePage() {
                 </div>
               </div>
 
-              <div className="aff-table-scroll">
+              <div className="aff-table-scroll" style={{ maxHeight: '500px', overflowY: 'auto' }}>
                 <table className="aff-lemon-table">
-                  <thead>
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 5, background: '#FEFCE8' }}>
                     <tr>
                       <th
                         onClick={() => handleDailySort('sortTimestamp')}
@@ -1508,9 +1374,9 @@ export default function LaporanLivePage() {
                 Menampilkan <strong>{filteredAndSortedSessions.length}</strong> dari {activeRows.length} sesi livestream.
               </div>
 
-              <div className="aff-table-scroll">
+              <div className="aff-table-scroll" style={{ maxHeight: '560px', overflowY: 'auto' }}>
                 <table className="aff-lemon-table">
-                  <thead>
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 5, background: '#FEFCE8' }}>
                     <tr>
                       <th style={{ width: '45px', textAlign: 'center' }}>No</th>
                       <th
